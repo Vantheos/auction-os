@@ -19,6 +19,25 @@ export default {
         danger: { DEFAULT: '#B91C1C', bg: '#FEE2E2' },
         info: { DEFAULT: '#1E40AF', bg: '#DBEAFE' },
 
+        // Lot state pill colors (from design handoff)
+        'state-assigned':     { DEFAULT: '#1E40AF', bg: '#DBEAFE' },
+        'state-unassigned':   { DEFAULT: '#92400E', bg: '#FEF3C7' },
+        'state-sold':         { DEFAULT: '#15803D', bg: '#DCFCE7' },
+        'state-picked-up':    { DEFAULT: '#475569', bg: '#E2E8F0' },
+        'state-not-sellable': { DEFAULT: '#B91C1C', bg: '#FEE2E2' },
+        'state-in-progress':  { DEFAULT: '#475569', bg: '#F1F5F9' },
+
+        // AI status colors (used by inventory column even though AI ships in Phase 4)
+        'ai-success': '#15803D',
+        'ai-partial': '#B45309',
+        'ai-failure': '#B91C1C',
+        'ai-not-run': '#94A3B8',
+
+        // Role pill colors
+        'role-admin':     { DEFAULT: '#B91C1C', bg: '#FEE2E2' },
+        'role-office':    { DEFAULT: '#1E40AF', bg: '#DBEAFE' },
+        'role-warehouse': { DEFAULT: '#92400E', bg: '#FEF3C7' },
+
         // shadcn token bridge — these names are read by shadcn primitives
         // (Button, Dialog, Input, etc.). Values come from CSS variables in
         // globals.css, which are wired to the Mica palette above. Keep them
