@@ -15,7 +15,9 @@
 | **Manual click-through on preview** | ✅ all 6 steps passed |
 | **Audit-log actor capture** | ✅ wired via `asActor(userId, fn)` GUC pattern |
 | **Design system bridged** | ✅ shadcn vars wired to Mica Slate tokens; button variants reviewed and approved |
-| Phase 2 plan | ❌ not yet written |
+| **Phase 2 design spec** | ✅ written: `docs/superpowers/specs/2026-04-30-phase-2-design.md` |
+| **Phase 2 implementation plan** | ✅ written: `docs/superpowers/plans/2026-04-30-phase-2.md` (39 tasks, 8 phases) |
+| **Phase 2 execution** | ❌ not yet started |
 
 ## Deploy URLs
 
@@ -116,7 +118,19 @@ If `vercel env ls` itself errors with "Your Project was either deleted, transfer
 
 ## Resume prompt (paste verbatim after context refresh)
 
-> Welcome back. Read `STATE.md` first. Phase 1 of auction-os is **fully signed off** as of 2026-04-30 PM (live preview manual test passed all 6 steps; latent Hono body-hang bug fixed by dropping Hono in favor of native Vercel handlers — see "What we fixed today" in STATE.md). The next thing to do is **write the Phase 2 plan** in `docs/superpowers/plans/`. Phase 2 is "Mobile cataloging + label printing" per the v1 design spec at `docs/superpowers/specs/2026-04-29-v1-design.md`. **Do not start any Phase 2 implementation without an approved plan.** Use the `superpowers:writing-plans` and/or `superpowers:brainstorming` skills. The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Memory in `~/.claude/projects/d--Dev-auction-os/memory/` has the lessons learned — read MEMORY.md early; `feedback_avoid_hono_on_vercel.md` is critical context if you're considering any framework choices.
+> Welcome back. Read `STATE.md` first. Phase 1 of auction-os is **fully signed off** (2026-04-30 PM). Phase 2 has been **scoped, designed, and planned**:
+>
+> - **Phase 2 design spec:** `docs/superpowers/specs/2026-04-30-phase-2-design.md` — "Lot lifecycle + label printing" (desktop tool: inventory list, lot detail modal, single-lot + bulk actions, label printing module, system settings). Note that Phase 2 was flipped from the original "mobile cataloging" — mobile cataloging is now Phase 3 per the design handoff's recommended sequencing and the user's no-throwaway constraint.
+> - **Phase 2 implementation plan:** `docs/superpowers/plans/2026-04-30-phase-2.md` — 39 tasks across 8 phases (A foundations, B backend, C hooks, D lot detail UI, E inventory UI, F bulk dialogs, G pages+routing, H verification) with explicit checkpoints between phases.
+>
+> The next thing to do is **execute the Phase 2 plan**. Use the `superpowers:subagent-driven-development` skill (recommended for token-budget reasons — this main session has been long) or `superpowers:executing-plans` if you prefer inline. **Do NOT modify the spec or plan without flagging it explicitly to the user — they're committed and locked.**
+>
+> Companion docs to read alongside the plan:
+> - `docs/superpowers/specs/2026-04-29-v1-design.md` — overall v1 design (authoritative for product decisions)
+> - `ui-design/design_handoff/` — high-fidelity UI mockups + tokens (the design pass before Phase 1)
+> - `~/.claude/projects/d--Dev-auction-os/memory/MEMORY.md` — lessons learned. `feedback_avoid_hono_on_vercel.md` is critical context if a Hono-like framework is ever proposed again.
+>
+> The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Phase 2 work continues on `phase-1-foundation` branch (or a new `phase-2-lot-lifecycle` branch — your call; conventional choice would be a new branch).
 
 ## Files of record
 
