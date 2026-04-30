@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { StatePill, AiStatusPill, RolePill } from '@/components/ui/pill';
 
 type SwatchProps = { name: string; value: string; sample: string; textOn?: string };
 
@@ -333,6 +334,28 @@ export function DesignSystem() {
           <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-info-bg text-info text-xs font-medium">
             Draft
           </span>
+        </Row>
+      </Section>
+
+      <Section title="Pills (lot state, AI status, role)">
+        <Row label="state">
+          <StatePill state="assigned" />
+          <StatePill state="unassigned" />
+          <StatePill state="sold" />
+          <StatePill state="picked-up" />
+          <StatePill state="not-sellable" />
+          <StatePill state="in-progress" />
+        </Row>
+        <Row label="ai status">
+          <AiStatusPill status="success" />
+          <AiStatusPill status="partial" />
+          <AiStatusPill status="failure" />
+          <AiStatusPill status="not-run" />
+        </Row>
+        <Row label="role">
+          <RolePill role="admin" />
+          <RolePill role="office" />
+          <RolePill role="warehouse" />
         </Row>
       </Section>
 
