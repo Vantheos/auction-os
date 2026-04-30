@@ -7,7 +7,7 @@ See `ui-design/design_handoff/` for visual designs.
 
 1. `npm install`
 2. Copy `.env.example` to `.env` and fill in Supabase credentials.
-3. `supabase start` to start local Supabase (Postgres + Auth on port 54321).
+3. `npm run supabase:start` to start local Supabase (Postgres + Auth on port 54321).
 4. `npm run db:push` to apply Drizzle schema.
 5. `npm run seed:admin` to provision the initial admin user.
 6. `npm run dev` to start the Vite dev server.
