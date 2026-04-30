@@ -1,63 +1,57 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-04-30 ~07:00 ET. **Phase 1 implementation complete and deployed to Vercel preview + production.** User will manually click through the preview URL on return; that's the Phase 1 sign-off. Then Phase 2 planning starts.
+> Last updated 2026-04-30 PM ET. **Phase 1 (Foundation) signed off** after end-to-end manual test on preview passed all 6 steps. Two latent bugs were found and fixed during the manual test (see "What we fixed today"). Next: write the Phase 2 plan in `docs/superpowers/plans/`.
 
-## Phase 1 status: ✅ implementation done, ⏳ awaiting manual preview test
+## Phase 1 status: ✅ signed off
 
 | Item | Status |
 |---|---|
 | Code (22 plan tasks 0–21) | ✅ done |
-| Vitest API suite | ✅ 21 tests passing |
+| Vitest API suite | ✅ 21 tests passing (refactored to native handler shape) |
 | Migrations applied to Dev + Test Supabase | ✅ done (5 migrations) |
-| JWT custom-claim hook | ✅ activated on Dev + Test (function migration `0005_jwt_hook_security_definer.sql`) |
+| JWT custom-claim hook | ✅ activated on Dev + Test |
 | Vercel preview deploy | ✅ Ready |
-| Vercel production deploy | ✅ Ready (but inert — Prod Supabase has no schema yet) |
-| Manual click-through on preview | ⏳ pending user |
+| Vercel production deploy | ✅ Ready (still inert — Prod Supabase has no schema yet) |
+| **Manual click-through on preview** | ✅ all 6 steps passed |
+| **Audit-log actor capture** | ✅ wired via `asActor(userId, fn)` GUC pattern |
 | Phase 2 plan | ❌ not yet written |
 
 ## Deploy URLs
 
-- **Preview (the one to test):** `https://auction-fyhk83pn1-vantheos-4047s-projects.vercel.app`
+- **Preview:** `https://auction-od5nvclsh-vantheos-4047s-projects.vercel.app` (latest at sign-off; newer URLs may exist if more pushes happened — `vercel ls auction-os` for current)
   - Backed by **Dev Supabase** (`auction-os-dev`)
   - Has the seeded admin (`admin@auction-os.local` / `admin1234!`)
-  - Has all 5 migrations applied + JWT hook activated
-  - Newer preview URLs may exist if more pushes happened — check `vercel ls auction-os` for the latest
-- **Production:** `https://auction-n2sns0tyd-vantheos-4047s-projects.vercel.app`
-  - Backed by **Prod Supabase** (`auction-os-prod`) — **no schema, no users, no hook activated**
-  - Will load the login page but auth/API will fail at runtime
-  - Intentionally so; production scope stays empty until v1 cutover
+  - All 5 migrations applied + JWT hook activated
+- **Production:** latest `main` deploy — backed by **Prod Supabase** (`auction-os-prod`), no schema, no users, no hook activated. Intentionally inert until v1 cutover.
 
-## Manual test steps for the preview URL (Phase 1 sign-off)
+## What we fixed today (post-handoff)
 
-1. Open the preview URL → should redirect to `/login`
-2. Sign in: `admin@auction-os.local` / `admin1234!` → lands on `/customers`
-3. Click "New customer", create one with any name → appears in the table
-4. Click into the customer → CustomerDetail page with their name + empty Jobs section
-5. Click "New job", create a job → appears as "Open"; click "Close" → flips to "Closed"; click "Reopen" → "Open"
-6. Click "Sign out" in the sidebar → returns to login
+Two latent Phase 1 bugs that didn't surface until the live preview was actually exercised through a real Supabase session — internal checks (typecheck, vitest) and the static `/api/health` probe couldn't catch either:
 
-If all 6 work, Phase 1 is genuinely complete.
+1. **Extensionless ESM relative imports** (commit [7b651db]) — `tsc` left `import { x } from '../foo'` verbatim, but Node's strict ESM loader (`"type": "module"`) requires `.js` extensions. Lambda crashed with `ERR_MODULE_NOT_FOUND` on every request. Vitest/Vite hide this because their bundlers synthesize extensions. Fix: appended `.js` to all relative imports in `api/` and `db/`. Added `npm run probe:preview <url>` (uses `vercel curl`) to probe `/api/health` on a deployed preview before declaring it good.
+2. **`tsc -b --noEmit` propagated noEmit to a composite-referenced project (TS6310)** (commit [2e4cc34]) — pre-existing bug; dropped the `--noEmit` flag from the `typecheck` script (root tsconfig already has `noEmit: true` at config level).
+3. **Hono on Vercel hung every POST/PATCH/DELETE for 60s → FUNCTION_INVOCATION_TIMEOUT (504)** (commit [4d8fb14], the big one) — Vercel's Node Lambda runtime delivers POST bodies via the raw `IncomingMessage` stream; it does NOT pre-parse onto `req.body` and does NOT set `req.rawBody`. Both `@hono/node-server/vercel` and Vercel's built-in `createWebHandler` ultimately call `Readable.toWeb(req)`, which never resolves the body read in this runtime. A naked `for await (const chunk of req)` reads the body in 1ms (proven via `api/echo` diagnostic). **Fix: dropped Hono entirely**, rewrote all 7 routes as native `(req: IncomingMessage, res: ServerResponse) => Promise<void>` handlers using Vercel's documented contract. New helpers in `api/_lib/`: `auth.ts` (`requireAuth`, `AuthError`), `body.ts` (`readJson` with 1MiB cap), `responses.ts` (`jsonOk`/`jsonError`/`methodNotAllowed`), `db.ts` extended with `asActor()`. Also closes the audit-trail gap: mutations transactionally `set_config('request.jwt.claim.sub', ...)` so the existing `audit_log_trigger` (which reads `auth.uid()`) records the real actor instead of NULL. Tests refactored to use a `callHandler(handler, opts)` mock-req/res helper. Hono and `@hono/node-server` removed from deps. See `~/.claude/projects/d--Dev-auction-os/memory/feedback_avoid_hono_on_vercel.md` for the lesson and rationale.
 
 ## Branch state
 
 | | Local | GitHub |
 |---|---|---|
-| `main` | `7bbeee0` (36 commits) | `7bbeee0` (force-pushed after history rewrite) |
-| `phase-1-foundation` | `a6dc7e4` (35 commits) | `a6dc7e4` |
+| `main` | `7bbeee0` (36 commits) | same |
+| `phase-1-foundation` | `70cc776` (43 commits) | same |
 
-Both branches' commits are now authored by `Vantheos <ops@vantheos.com>` (was the broken `AndreMan <amattera@outlook.com>` originally — caused Vercel team-membership rejections; rewritten via `git filter-branch`).
+`main` is unchanged from the original Phase 1 deploy point. Phase 1 sign-off was on `phase-1-foundation` (preview); merging to `main` is deliberately deferred to v1 cutover per the branch strategy.
 
-**Repo-local git config in force** (so future commits on this repo use the correct identity):
+**Repo-local git config in force** (do NOT change):
 - `user.name = Vantheos`
 - `user.email = ops@vantheos.com`
 
 ## Vercel project state
 
-- Project: `vantheos-4047s-projects/auction-os` (recreated via dashboard after CLI-creation issues)
+- Project: `vantheos-4047s-projects/auction-os`
 - GitHub integration: connected to `Vantheos/auction-os`
 - Production branch: `main`
 - Preview: any unassigned branch (currently `phase-1-foundation`)
-- Env vars: 18 across production/preview/development scopes (pushed via `npm run env:setup`)
+- Env vars: 18 across production/preview/development scopes (pushed via `npm run env:setup`; if dropped during dashboard work, see "Blank screen on preview" recovery below)
 
 ## What still must happen before Prod is real (deferred to v1 cutover)
 
@@ -76,15 +70,15 @@ Both branches' commits are now authored by `Vantheos <ops@vantheos.com>` (was th
 6. **Task 5** (post-Phase-1 critical fix) — `0005_jwt_hook_security_definer.sql` adds `SECURITY DEFINER` + pinned `search_path = public` to `custom_access_token_hook`. Without this, the hook ran as `supabase_auth_admin` and got blocked by RLS on `app_user`. Result before fix: `app_metadata.role` was always null. Verified end-to-end after fix: JWT carries `role = "admin"` correctly.
 7. **Task 12** — postgres error code lives in `err.cause?.code` (Drizzle wraps it); used `err.code ?? err.cause?.code` for unique-constraint 409 detection
 8. **Task 14-19** — `tsconfig.json` needed `"types": ["vite/client"]` for `import.meta.env` typecheck
-9. **Post-Phase-1 fixes** — switched from `hono/vercel` to `@hono/node-server/vercel` adapter (Node IncomingMessage → Web Request conversion); removed `runtime: 'nodejs'` strings (Vercel parses as custom runtime package); each `api/*.ts` exports both a `fetch` named export (for Vitest) and the Node-style adapter as default (for Vercel runtime); Playwright config simplified to single webServer entry
+9. **Post-handoff (today)** — see "What we fixed today" above. The Hono refactor is the largest deviation from the original plan and should be reflected in any retrospective: the Phase 1 plan called out `hono` in the tech stack, but it does not work on Vercel's Node Lambda runtime for body-bearing requests. Native handlers are the production pattern for this repo.
 10. **Local Playwright e2e is blocked** by `vercel dev` body-parsing quirk (POST body doesn't roundtrip cleanly through @vercel/node dev-server). Production runtime works fine. Vercel preview deploy is the canonical e2e verification.
 11. **Vercel CLI → Git webhook discovery** — `vercel deploy` from CLI defaults to `--target=production` regardless of branch and ignores `--target=preview`. Use Git push only.
-12. **Vercel project creation method matters** — CLI-created projects can have a stale account-context binding. The user's auction-os project was deleted and recreated via the dashboard during this session; that fixed the platform binding.
-13. **Commit author email matters** — global git config used `AndreMan <amattera@outlook.com>` which mapped to legacy GitHub account `AAndreManN` (not a Vercel team member). All 38 commits were rewritten via `git filter-branch` to author `Vantheos <ops@vantheos.com>` and force-pushed. Repo-local git config now overrides global.
+12. **Vercel project creation method matters** — CLI-created projects can have a stale account-context binding. The user's auction-os project was deleted and recreated via the dashboard during Phase 1; that fixed the platform binding.
+13. **Commit author email matters** — global git config used `AndreMan <amattera@outlook.com>` which mapped to legacy GitHub account `AAndreManN` (not a Vercel team member). All commits were rewritten via `git filter-branch` to author `Vantheos <ops@vantheos.com>` and force-pushed. Repo-local git config now overrides global.
 
 ## Working tree note
 
-`.gitignore` shows as modified in `git status` — `vercel link` appended a duplicate `.vercel` line to the file. It's harmless; a previous controller note flagged that the user is aware of this and didn't want it reverted.
+`.gitignore` previously showed as modified — `vercel link` appended a duplicate `.vercel` line. Status today is clean (no notable working-tree drift).
 
 ## Known recovery procedures
 
@@ -92,7 +86,7 @@ Both branches' commits are now authored by `Vantheos <ops@vantheos.com>` (was th
 
 **Symptom:** Preview URL loads but shows a completely blank page. View source shows the SPA shell HTML but React never mounts.
 
-**Cause:** Vercel project is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars. `src/lib/supabase.ts` throws at module-load when those are undefined, which prevents React from mounting → blank screen. This happens whenever the Vercel project gets recreated or env vars get cleared and `npm run env:setup` isn't re-run afterward (happened once on 2026-04-30 — env vars dropped during project recreation troubleshooting and weren't re-pushed until later).
+**Cause:** Vercel project is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars. `src/lib/supabase.ts` throws at module-load when those are undefined, which prevents React from mounting → blank screen. This happens whenever the Vercel project gets recreated or env vars get cleared and `npm run env:setup` isn't re-run afterward.
 
 **Fix:**
 1. `vercel env ls` — confirm the 18 expected vars are present across `production`, `preview`, `development` scopes. If missing or empty, that's the cause.
@@ -102,9 +96,13 @@ Both branches' commits are now authored by `Vantheos <ops@vantheos.com>` (was th
 
 If `vercel env ls` itself errors with "Your Project was either deleted, transferred to a new Team, or you don't have access to it anymore," the local link in `.vercel/project.json` is stale. Re-link with `vercel link --yes --project auction-os`, then re-check.
 
+### Probing a fresh deploy before declaring it good
+
+`npm run probe:preview <url>` — uses `vercel curl` (handles deployment protection) to GET `/api/health` on a deployed preview and asserts `{ ok: true }`. Run this after every push as the gating check before any manual-test work; it catches build/import/runtime failures that pass typecheck and vitest. Was added today after the `.js`-extension regression (commit [7b651db]).
+
 ## Resume prompt (paste verbatim after context refresh)
 
-> Welcome back. Read `STATE.md` first. Phase 1 of auction-os is implementation-complete and both Vercel deploys are Ready. The user planned to do the manual click-through test on the preview URL when they return — ask them how that went. If the 6 manual test steps in STATE.md all pass, Phase 1 is signed off and the next thing to do is **write the Phase 2 plan** (in `docs/superpowers/plans/`). Phase 2 is "Mobile cataloging + label printing" per the v1 design spec at `docs/superpowers/specs/2026-04-29-v1-design.md`. Don't start any Phase 2 implementation without an approved plan. The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Memory in `~/.claude/projects/d--Dev-auction-os/memory/` has the lessons learned — read MEMORY.md early.
+> Welcome back. Read `STATE.md` first. Phase 1 of auction-os is **fully signed off** as of 2026-04-30 PM (live preview manual test passed all 6 steps; latent Hono body-hang bug fixed by dropping Hono in favor of native Vercel handlers — see "What we fixed today" in STATE.md). The next thing to do is **write the Phase 2 plan** in `docs/superpowers/plans/`. Phase 2 is "Mobile cataloging + label printing" per the v1 design spec at `docs/superpowers/specs/2026-04-29-v1-design.md`. **Do not start any Phase 2 implementation without an approved plan.** Use the `superpowers:writing-plans` and/or `superpowers:brainstorming` skills. The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Memory in `~/.claude/projects/d--Dev-auction-os/memory/` has the lessons learned — read MEMORY.md early; `feedback_avoid_hono_on_vercel.md` is critical context if you're considering any framework choices.
 
 ## Files of record
 
@@ -115,10 +113,11 @@ If `vercel env ls` itself errors with "Your Project was either deleted, transfer
 | `.gitignore` | Protects `.env*`, `.vercel/`, `node_modules/`, `*.tsbuildinfo`, compiled config artifacts |
 | `.claude/settings.json` | Project allowlist (read-only Bash + MCP read tools) — TRACKED |
 | `.claude/settings.local.json` | User-private allowlist — gitignored |
-| `package.json` | Phase 1 deps; scripts including `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, `test:e2e`, `seed:admin`, `db:generate`, `db:push` |
+| `package.json` | Phase 1 deps (Hono removed); scripts: `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, `test:e2e`, `seed:admin`, `db:generate`, `db:push`, `probe:preview` |
 | `scripts/verify-env.ts` | Read-only environment health check |
 | `scripts/env-setup.ts` | Pushes env vars to Vercel via `vercel api`; writes `.env` + `.env.test` |
 | `scripts/seed-admin.ts` | Creates initial admin (auth.users + app_user row) |
+| `scripts/probe-deploy.ts` | Smoke-test `/api/health` against a deployed preview via `vercel curl` |
 | `vercel.ts`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `vitest.config.ts`, `playwright.config.ts` | Build/test config |
 | `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/globals.css` | Frontend entry |
 | `src/lib/{supabase,auth,api,query,utils}.ts` | Frontend libraries |
@@ -126,16 +125,16 @@ If `vercel env ls` itself errors with "Your Project was either deleted, transfer
 | `src/components/auth/ProtectedRoute.tsx`, `src/components/shell/AdminShell.tsx` | App chrome |
 | `src/routes/{Login,Customers,CustomerDetail}.tsx` | Pages |
 | `src/hooks/{useCustomers,useJobs}.ts` | TanStack Query bindings |
-| `api/_app.ts`, `api/_lib/{db,responses}.ts`, `api/_middleware/auth.ts` | Hono API foundation |
-| `api/{health,customers,jobs,users}/*.ts` | API endpoints (default export = `@hono/node-server/vercel` Node adapter; named export `fetch` for Vitest) |
+| `api/_lib/{auth,body,db,responses}.ts` | API foundation: JWT verify + role check, body reading, Drizzle client + `asActor` actor-scoped transactions, JSON response helpers (all native `(req, res)`) |
+| `api/{health,customers,jobs,users}/*.ts` | API endpoints (all native `(req: IncomingMessage, res: ServerResponse) => Promise<void>`; method dispatch via `if (req.method === ...)`; central try/catch translates `AuthError` → 401/403) |
 | `db/{schema,client,types}.ts`, `drizzle.config.ts` | Drizzle ORM |
 | `supabase/config.toml`, `supabase/migrations/0000-0005*.sql` | 5 migrations: schema, seed_system_settings, jwt_hook, rls_policies, audit_triggers, jwt_hook_security_definer |
-| `tests/helpers/{setup,test-db,test-jwt}.ts` | Test infra (ES256 keypair injection) |
-| `tests/api/{customers,jobs,users}.test.ts` | API tests (21 passing) |
+| `tests/helpers/{setup,test-db,test-jwt,call-handler}.ts` | Test infra (ES256 keypair injection + mock-req/res driver) |
+| `tests/api/{customers,jobs,users}.test.ts` | API tests (21 passing; refactored to native handler shape) |
 | `tests/e2e/smoke.spec.ts` | Playwright smoke spec — gated on resolution of vercel-dev body parsing quirk |
 | `shared/types.ts` | DTOs |
 | `README.md` | Local dev + Vercel deploy docs |
-| `docs/superpowers/specs/2026-04-29-v1-design.md` | v1 design spec |
+| `docs/superpowers/specs/2026-04-29-v1-design.md` | v1 design spec (authoritative for Phase 2+) |
 | `docs/superpowers/plans/2026-04-29-phase-1-foundation.md` | Phase 1 plan (now historical reference) |
 | `STATE.md` | This file |
 
@@ -149,3 +148,5 @@ If `vercel env ls` itself errors with "Your Project was either deleted, transfer
 - Never run `vercel deploy` (CLI bypasses branch routing); push via Git only
 - Verify before directing — never guess at UI/CLI/file locations; check first
 - Repo-local git author email matters for Vercel attribution; use `Vantheos <ops@vantheos.com>` for auction-os
+- **Avoid Hono on Vercel — use native (req, res) handlers** (added today after Phase 1 debug)
+- Production-worthy from day one — no proof-of-concept / MVP / band-aid solutions; if a workaround is the only path, name it as such and propose the proper fix
