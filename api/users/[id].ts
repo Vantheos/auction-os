@@ -1,5 +1,5 @@
+import { handle } from '@hono/node-server/vercel';
 // api/users/[id].ts
-import { handle } from 'hono/vercel';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../_app';
@@ -34,5 +34,5 @@ app.patch('/api/users/:id', requireRole('admin'), async (c) => {
   return c.json(row);
 });
 
+export const fetch = (req: Request) => app.fetch(req);
 export default handle(app);
-export const config = { runtime: 'nodejs' };

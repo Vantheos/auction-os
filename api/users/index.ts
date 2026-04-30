@@ -1,5 +1,5 @@
+import { handle } from '@hono/node-server/vercel';
 // api/users/index.ts
-import { handle } from 'hono/vercel';
 import { z } from 'zod';
 import { createApp } from '../_app';
 import { authMiddleware, requireRole } from '../_middleware/auth';
@@ -49,5 +49,5 @@ app.post('/api/users', requireRole('admin'), async (c) => {
   return c.json(row, 201);
 });
 
+export const fetch = (req: Request) => app.fetch(req);
 export default handle(app);
-export const config = { runtime: 'nodejs' };

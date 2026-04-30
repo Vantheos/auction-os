@@ -1,5 +1,5 @@
+import { handle } from '@hono/node-server/vercel';
 // api/jobs/[id].ts
-import { handle } from 'hono/vercel';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../_app';
@@ -46,5 +46,5 @@ app.delete('/api/jobs/:id', requireRole('admin'), async (c) => {
   return c.json({ ok: true });
 });
 
+export const fetch = (req: Request) => app.fetch(req);
 export default handle(app);
-export const config = { runtime: 'nodejs' };
