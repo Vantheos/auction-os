@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-04-30. **Phase 1 implementation is complete.** Two manual user actions remain before the app is fully usable end-to-end (see "Manual prerequisites" below).
+> Last updated 2026-04-30. **Phase 1 implementation is complete and JWT hook activated on Dev + Test.** End-to-end auth verified: signing in as the seeded admin produces a JWT with `app_metadata.role = "admin"`. Production rollout (manual prereq #2 below) remains.
 
 ## Phase 1 status: ✅ All 22 tasks done
 
@@ -35,16 +35,11 @@
 
 Two actions only the user can perform. Neither blocks the codebase, but both are required before the live app actually works:
 
-### 1. Activate the JWT custom-claim hook in each Supabase dashboard
+### 1. ~~Activate the JWT custom-claim hook in each Supabase dashboard~~ ✅ Done for Dev + Test (Prod still pending — see #2)
 
-For each of the three projects (Dev, Test, Prod):
+Dashboard label is **JWT Claims Hook** (or "Customize Access Token (JWT) Claims hook"); function name is `custom_access_token_hook`. Both Dev and Test activated and verified — the JWT now carries `app_metadata.role: "admin"` for the seeded admin.
 
-- Open the project's dashboard
-- **Authentication → Hooks → Custom Access Token Hook**
-- Toggle ON, set URI to `public.custom_access_token_hook`
-- Save
-
-Without this, login produces a JWT without `app_metadata.role`, and the API auth middleware will 401 on every authenticated call. The DB-side function exists (Task 5) — only the cloud-side hook registration is missing.
+**Critical fix discovered during activation:** the original `0002_jwt_custom_claim_hook.sql` created the function without `SECURITY DEFINER`, so it ran as `supabase_auth_admin` and got blocked by RLS on `app_user` (the role-policy check in `0003_rls_policies.sql` is never true at hook execution time). Fix migration `0005_jwt_hook_security_definer.sql` adds SECURITY DEFINER + pinned search_path. Applied to Dev + Test. **Prod will get this baseline correctly when migrations are first applied** (Task 21 / manual prereq #2).
 
 ### 2. (Production-only) Apply migrations + seed admin
 
@@ -72,7 +67,13 @@ When ready to deploy to prod:
 15. **Task 5 cloud-hook activation** — only DB-side function installed by migration; cloud-side hook registration in dashboard is a separate manual step (see "Manual prerequisites" #1)
 16. **Task 12 / Drizzle wrapped errors** — postgres error code lives in `err.cause?.code` (Drizzle wraps it). Used `err.code ?? err.cause?.code` for the unique-constraint 409 detection
 17. **Task 14-19 / `tsconfig.json`** — added `"types": ["vite/client"]` so `import.meta.env` typechecks. Build-blocking fix
-18. **Task 20** — Playwright test file + config committed; smoke test cannot fully pass until manual prereq #1 (hook activation) is done. Vercel CLI also reports stray `vercel.js`/`vercel.d.ts` artifacts as duplicate configs — added to `.gitignore`
+18. **Task 20** — Playwright test file + config committed; cleanup added stray `vercel.js`/`vercel.d.ts` artifacts to `.gitignore`
+19. **Post-Phase-1 fix — JWT hook RLS bypass** — `0005_jwt_hook_security_definer.sql` adds `SECURITY DEFINER` + `SET search_path = public` to `custom_access_token_hook`. The original migration ran as `supabase_auth_admin`, which has GRANT SELECT but is still blocked by the RLS policy on `app_user`. Result was `app_metadata.role = null`. Fix verified end-to-end: JWT now carries `role = "admin"` correctly.
+20. **Post-Phase-1 fix — `tsconfig.json` `vite/client` types** — Task 14-19 subagent edited tsconfig but never committed. Fresh-clone build would have failed. Now committed.
+21. **Post-Phase-1 fix — Hono Vercel adapter** — switched from `hono/vercel` (Web-Standards pass-through; only works on Vercel Edge or with Web Request invocation) to `@hono/node-server/vercel` (proper Node IncomingMessage → Web Request adapter). Production Vercel Fluid Compute also accepts the new adapter. Each `api/*.ts` file now exports both a `fetch` named export (for Vitest direct invocation) and the Node-style adapter as default (for Vercel runtime). Test files updated to `import { fetch as handler }`.
+22. **Post-Phase-1 fix — Vercel function config** — removed `runtime: 'nodejs'` from per-file `export const config` and from `vercel.ts`. The string `'nodejs'` is parsed as a custom runtime package name expecting `@version`, not as a runtime selector. Node.js is the platform default; omitting the key is correct.
+23. **Post-Phase-1 fix — Playwright config** — simplified to a single `webServer` entry running just `vercel dev`. The previous config ran both `npm run dev` and `vercel dev` in parallel, which fought for port 3000 (vercel dev itself spawns vite as the framework dev command).
+24. **Known limitation — Playwright e2e under `vercel dev`** — Vercel's local emulator (`@vercel/node` dev-server) parses POST request bodies in a way that doesn't round-trip cleanly through the Web Request body stream — `c.req.json()` returns null for POSTs under vercel dev. The 21 Vitest API tests verify the handlers work correctly when given a real Web Request (which is what Vercel's actual production runtime hands them), and the JWT auth path is verified via direct `fetch` test. **End-to-end Playwright validation will happen against a Vercel preview deployment**, not local vercel dev.
 
 ## Key architectural decisions still in force
 
