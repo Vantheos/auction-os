@@ -38,14 +38,37 @@ function tryExec(cmd: string, opts: { stripGithubToken?: boolean } = {}): { ok: 
 }
 
 async function checkSupabase(label: string, url: string, serviceKey: string, dbUrl: string) {
-  // REST API
+  // REST API: supabase-js v2 resolves with { data, error } rather than rejecting
+  // on PostgREST errors. We deliberately query a nonexistent table — a structured
+  // "table not found" error proves the round trip and auth worked. Auth failures
+  // surface as messages like "Invalid API key" / "JWT expired" and must be treated
+  // as failures even though the response is "structured".
   const sb = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const restRes = await sb.from('_does_not_matter').select('count').limit(1).then(
-    () => ({ ok: true }),
-    (err: any) => ({ ok: err?.code === '42P01' || err?.message?.includes('relation'), reason: err?.message })
-  );
-  // 42P01 = relation does not exist → REST is reachable, just no table. That's fine.
-  check(`${label}: Supabase REST reachable`, restRes.ok, restRes.reason);
+  let restOk = false;
+  let restReason: string | undefined;
+  try {
+    const { error } = await sb.from('_does_not_matter').select('count').limit(1);
+    if (!error) {
+      restOk = true;
+    } else {
+      const msg = (error.message ?? '').toLowerCase();
+      const looksLikeAuthFailure =
+        msg.includes('invalid api key') || msg.includes('jwt') || msg.includes('unauthorized');
+      if (looksLikeAuthFailure) {
+        restOk = false;
+        restReason = error.message;
+      } else {
+        // Any other PostgREST error (table not found, schema cache, etc.) means
+        // PostgREST is reachable AND service_role key authenticated.
+        restOk = true;
+      }
+    }
+  } catch (e: any) {
+    // Thrown = network/DNS/transport failure. That's a real reachability problem.
+    restOk = false;
+    restReason = e?.message ?? String(e);
+  }
+  check(`${label}: Supabase REST reachable`, restOk, restReason);
 
   // Direct DB
   let dbOk = false;

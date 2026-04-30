@@ -32,7 +32,13 @@ if (Object.keys(setup).length === 0) {
 
 // cwd outside the project so vercel api doesn't misparse /vN/... as a local api/ dir
 const VERCEL_API_CWD = process.env.TEMP ?? process.env.TMP ?? '/tmp';
-const VERCEL_ENV = { ...process.env, GITHUB_TOKEN: '' };
+const PROJECT_ROOT = process.cwd();
+// Strip both GitHub token env vars so a stale token doesn't shadow keyring auth
+// when child processes shell out to gh. Omit the keys entirely (not just zero them) —
+// some tools treat empty-string env vars as "set but empty" and still try to use them.
+const VERCEL_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => k !== 'GITHUB_TOKEN' && k !== 'GH_TOKEN')
+);
 
 function vercelApiPost(projectId: string, key: string, value: string, scope: Scope) {
   const body = JSON.stringify({ key, value, target: [scope], type: 'encrypted' });
@@ -45,9 +51,11 @@ function vercelApiPost(projectId: string, key: string, value: string, scope: Sco
 }
 
 function vercelEnvSet(key: string, value: string, scope: Scope, projectId: string) {
-  // Remove existing value (silently ignore if not present).
+  // Remove existing value (silently ignore if not present). Pin cwd to project root
+  // so `vercel env rm` finds .vercel/project.json regardless of how the script is invoked.
   try {
     execSync(`vercel env rm ${key} ${scope} --yes`, {
+      cwd: PROJECT_ROOT,
       env: VERCEL_ENV,
       stdio: ['ignore', 'ignore', 'ignore'],
     });
