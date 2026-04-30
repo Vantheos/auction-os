@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatePill, AiStatusPill, RolePill } from '@/components/ui/pill';
+import { useToast } from '@/components/ui/toast';
 
 type SwatchProps = { name: string; value: string; sample: string; textOn?: string };
 
@@ -49,6 +50,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="grid grid-cols-[140px_1fr] gap-4 items-start py-2">
       <div className="text-xs text-textDim font-mono pt-2">{label}</div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function ToastDemo() {
+  const { toast } = useToast();
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button onClick={() => toast({ title: 'Lot 13 saved', variant: 'success' })}>Trigger success</Button>
+      <Button variant="outline" onClick={() => toast({ title: 'Label print failed', description: 'Printer offline.', variant: 'warning', actionLabel: 'Retry', onAction: () => {} })}>Trigger warning</Button>
+      <Button variant="destructive" onClick={() => toast({ title: 'Failed to delete', description: 'Server returned 500.', variant: 'danger' })}>Trigger danger</Button>
+      <Button variant="secondary" onClick={() => toast({ title: 'Move complete', variant: 'info' })}>Trigger info</Button>
     </div>
   );
 }
@@ -357,6 +370,10 @@ export function DesignSystem() {
           <RolePill role="office" />
           <RolePill role="warehouse" />
         </Row>
+      </Section>
+
+      <Section title="Toasts">
+        <Row label="trigger"><ToastDemo /></Row>
       </Section>
 
       <Section title="Typography">
