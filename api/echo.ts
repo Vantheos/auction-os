@@ -6,6 +6,37 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export default async function handler(req: IncomingMessage & { body?: unknown; rawBody?: unknown }, res: ServerResponse) {
+  const start = Date.now();
+
+  // Try to actually read the body via the Node stream, with a 5s timeout
+  // so we can distinguish "stream hangs" from "stream returns nothing fast".
+  let readMethod: string | null = null;
+  let readBytes: number | null = null;
+  let readMs: number | null = null;
+  let readError: string | null = null;
+
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    try {
+      readMethod = 'for-await';
+      const chunks: Buffer[] = [];
+      const readPromise = (async () => {
+        for await (const chunk of req) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer));
+        }
+        return Buffer.concat(chunks);
+      })();
+      const timeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('read-timed-out-after-5s')), 5000);
+      });
+      const buf = await Promise.race([readPromise, timeout]);
+      readBytes = (buf as Buffer).length;
+      readMs = Date.now() - start;
+    } catch (e) {
+      readError = (e as Error).message;
+      readMs = Date.now() - start;
+    }
+  }
+
   const probe = {
     method: req.method,
     url: req.url,
@@ -13,13 +44,11 @@ export default async function handler(req: IncomingMessage & { body?: unknown; r
     contentLength: req.headers['content-length'] ?? null,
     hasBodyProp: 'body' in req,
     bodyType: typeof req.body,
-    bodyValue: req.body === undefined ? null : (typeof req.body === 'object' ? req.body : String(req.body).slice(0, 200)),
     hasRawBodyProp: 'rawBody' in req,
-    rawBodyType: typeof req.rawBody,
     rawBodyIsBuffer: Buffer.isBuffer(req.rawBody),
-    rawBodyLength: Buffer.isBuffer(req.rawBody) ? req.rawBody.length : (typeof req.rawBody === 'string' ? (req.rawBody as string).length : null),
     streamReadable: req.readable,
     streamReadableEnded: req.readableEnded,
+    streamRead: { method: readMethod, bytes: readBytes, ms: readMs, error: readError },
   };
 
   res.statusCode = 200;
