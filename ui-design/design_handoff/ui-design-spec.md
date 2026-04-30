@@ -373,7 +373,7 @@ Saving updates the `system_settings` row. The hourly Vercel cron then reads the 
 
 ## 7. Label printing (touchpoints in the UI)
 
-Labels print automatically when the operator taps **Next** (mobile cataloging). They're 4" × 2" thermal labels via a Zebra ZD450 + Zebra Browser Print local helper.
+Labels print automatically when the operator taps **Next** (mobile cataloging). They're 2" × 1" thermal labels via a Zebra ZD450 + Zebra Browser Print local helper. (Original spec called for 4"×2"; reduced to 2"×1" by user direction. Authoritative dimension lives in v1 spec §10.2.)
 
 UI touchpoints:
 

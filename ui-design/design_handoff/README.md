@@ -84,7 +84,7 @@ Plus admin-only hard delete from any state.
 
 **AI:** generates title / description / reference price for each lot. Runs manually (button) or on a schedule (admin-configurable in Settings). Each AI field is independently `success | partial | failure` — partial = some fields populated, failure = none.
 
-**Label printing:** 4″×2″ thermal labels via Zebra ZD450 + Zebra Browser Print local helper. Triggered manually by a button (see `SPEC-DEVIATIONS.md` D-004 for why we removed auto-print).
+**Label printing:** 2″×1″ thermal labels via Zebra ZD450 + Zebra Browser Print local helper. Triggered manually by a button (see `SPEC-DEVIATIONS.md` D-004 for why we removed auto-print). (Original handoff documented 4″×2″; downsized to 2″×1″ post-handoff per user direction.)
 
 ---
 
