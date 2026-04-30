@@ -8,6 +8,7 @@ export default defineConfig({
     pool: 'forks',
     poolOptions: { forks: { singleFork: true } }, // tests share one DB; serialize
     setupFiles: ['./tests/helpers/setup.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
   },
   resolve: {
     alias: {
