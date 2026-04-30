@@ -25,7 +25,6 @@ export default {
         'state-sold':         { DEFAULT: '#15803D', bg: '#DCFCE7' },
         'state-picked-up':    { DEFAULT: '#475569', bg: '#E2E8F0' },
         'state-not-sellable': { DEFAULT: '#B91C1C', bg: '#FEE2E2' },
-        'state-in-progress':  { DEFAULT: '#475569', bg: '#F1F5F9' },
 
         // AI status colors (used by inventory column even though AI ships in Phase 4)
         'ai-success': '#15803D',

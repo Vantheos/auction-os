@@ -372,7 +372,6 @@ export function DesignSystem() {
           <StatePill state="sold" />
           <StatePill state="picked-up" />
           <StatePill state="not-sellable" />
-          <StatePill state="in-progress" />
         </Row>
         <Row label="ai status">
           <AiStatusPill status="success" />

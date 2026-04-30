@@ -2,13 +2,14 @@
 import { cn } from '@/lib/utils';
 import type { HTMLAttributes } from 'react';
 
-type LotState = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-sellable' | 'in-progress';
+// Mirrors the LotState union in api/_lib/lot-state.ts. Keep these two sources of truth aligned.
+type LotState = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-sellable';
 type AiStatus = 'success' | 'partial' | 'failure' | 'not-run';
 type Role = 'admin' | 'office' | 'warehouse';
 
 const STATE_LABEL: Record<LotState, string> = {
   assigned: 'Assigned', unassigned: 'Unassigned', sold: 'Sold',
-  'picked-up': 'Picked up', 'not-sellable': 'Not sellable', 'in-progress': 'In progress',
+  'picked-up': 'Picked up', 'not-sellable': 'Not sellable',
 };
 
 const STATE_CLS: Record<LotState, string> = {
@@ -17,7 +18,6 @@ const STATE_CLS: Record<LotState, string> = {
   sold: 'bg-state-sold-bg text-state-sold',
   'picked-up': 'bg-state-picked-up-bg text-state-picked-up',
   'not-sellable': 'bg-state-not-sellable-bg text-state-not-sellable',
-  'in-progress': 'bg-state-in-progress-bg text-state-in-progress',
 };
 
 const AI_LABEL: Record<AiStatus, string> = {
@@ -41,8 +41,19 @@ export function StatePill({ state, className, ...rest }: { state: LotState } & H
   return <span className={cn(baseCls, STATE_CLS[state], className)} {...rest}>{STATE_LABEL[state]}</span>;
 }
 
+// Intentionally unstyled (no padding/border) — renders as plain colored text, not a pill shape.
+// Used as an inline annotation in the inventory AI-status column per the design handoff.
 export function AiStatusPill({ status, className, ...rest }: { status: AiStatus } & HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('inline-flex items-center text-xs font-semibold', AI_CLS[status], className)} {...rest}>{AI_LABEL[status]}</span>;
+  const defaultAriaLabel = status === 'not-run' ? 'AI not run' : undefined;
+  return (
+    <span
+      aria-label={defaultAriaLabel}
+      className={cn('inline-flex items-center text-xs font-semibold', AI_CLS[status], className)}
+      {...rest}
+    >
+      {AI_LABEL[status]}
+    </span>
+  );
 }
 
 export function RolePill({ role, className, ...rest }: { role: Role } & HTMLAttributes<HTMLSpanElement>) {
