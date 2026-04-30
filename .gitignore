@@ -30,6 +30,8 @@ drizzle.config.js
 drizzle.config.d.ts
 vercel.config.js
 vercel.config.d.ts
+vercel.js
+vercel.d.ts
 
 # Logs
 *.log
