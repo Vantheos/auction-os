@@ -86,6 +86,22 @@ Both branches' commits are now authored by `Vantheos <ops@vantheos.com>` (was th
 
 `.gitignore` shows as modified in `git status` — `vercel link` appended a duplicate `.vercel` line to the file. It's harmless; a previous controller note flagged that the user is aware of this and didn't want it reverted.
 
+## Known recovery procedures
+
+### Blank screen on Vercel preview (or any) deploy
+
+**Symptom:** Preview URL loads but shows a completely blank page. View source shows the SPA shell HTML but React never mounts.
+
+**Cause:** Vercel project is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars. `src/lib/supabase.ts` throws at module-load when those are undefined, which prevents React from mounting → blank screen. This happens whenever the Vercel project gets recreated or env vars get cleared and `npm run env:setup` isn't re-run afterward (happened once on 2026-04-30 — env vars dropped during project recreation troubleshooting and weren't re-pushed until later).
+
+**Fix:**
+1. `vercel env ls` — confirm the 18 expected vars are present across `production`, `preview`, `development` scopes. If missing or empty, that's the cause.
+2. `npm run env:setup` — re-pushes all 18 vars from `.env.setup` to the Vercel project.
+3. Trigger a rebuild: `git commit --allow-empty -m "ci: rebuild after env vars pushed"` then `git push origin <branch>`.
+4. The new preview URL (visible in `vercel ls auction-os`) becomes the working one. Old preview URLs from before the env-var fix stay broken — those are not recoverable without a new build.
+
+If `vercel env ls` itself errors with "Your Project was either deleted, transferred to a new Team, or you don't have access to it anymore," the local link in `.vercel/project.json` is stale. Re-link with `vercel link --yes --project auction-os`, then re-check.
+
 ## Resume prompt (paste verbatim after context refresh)
 
 > Welcome back. Read `STATE.md` first. Phase 1 of auction-os is implementation-complete and both Vercel deploys are Ready. The user planned to do the manual click-through test on the preview URL when they return — ask them how that went. If the 6 manual test steps in STATE.md all pass, Phase 1 is signed off and the next thing to do is **write the Phase 2 plan** (in `docs/superpowers/plans/`). Phase 2 is "Mobile cataloging + label printing" per the v1 design spec at `docs/superpowers/specs/2026-04-29-v1-design.md`. Don't start any Phase 2 implementation without an approved plan. The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Memory in `~/.claude/projects/d--Dev-auction-os/memory/` has the lessons learned — read MEMORY.md early.
