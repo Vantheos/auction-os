@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatePill, AiStatusPill, RolePill } from '@/components/ui/pill';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/toast';
 
 type SwatchProps = { name: string; value: string; sample: string; textOn?: string };
@@ -265,6 +266,20 @@ export function DesignSystem() {
             <Input id="ds-error" defaultValue="" aria-invalid />
             <p className="text-xs text-danger">This field is required.</p>
           </div>
+        </Row>
+      </Section>
+
+      <Section title="Checkbox">
+        <Row label="default">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox /> Unchecked
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox defaultChecked /> Checked
+          </label>
+          <label className="flex items-center gap-2 text-sm text-textDim">
+            <Checkbox disabled /> Disabled
+          </label>
         </Row>
       </Section>
 
