@@ -5,8 +5,14 @@ import 'dotenv/config';
 import { execSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import postgres from 'postgres';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { config as parseEnv } from 'dotenv';
+
+// On Windows, npm-installed CLIs (vercel, gh on some setups) live in %APPDATA%\npm.
+// Git-bash doesn't include that path by default — prepend so child processes resolve.
+if (process.platform === 'win32' && process.env.APPDATA) {
+  process.env.PATH = `${process.env.APPDATA}\\npm;${process.env.PATH ?? ''}`;
+}
 
 const REQUIRED_SETUP_KEYS = [
   'DEV_SUPABASE_URL', 'DEV_SUPABASE_ANON_KEY', 'DEV_SUPABASE_SERVICE_ROLE_KEY', 'DEV_DATABASE_URL',
@@ -20,8 +26,14 @@ function check(label: string, ok: boolean, detail?: string) {
   console.log(`${ok ? '✓' : '✗'} ${label}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failed++;
 }
-function tryExec(cmd: string): { ok: boolean; out: string } {
-  try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim() }; }
+function tryExec(cmd: string, opts: { stripGithubToken?: boolean } = {}): { ok: boolean; out: string } {
+  // gh CLI prefers GITHUB_TOKEN over keyring auth; if the env var is set but invalid,
+  // every gh call 401s even though `gh auth login` (keyring) succeeded. Strip it for
+  // gh invocations so the keyring credential is used.
+  const env = opts.stripGithubToken
+    ? Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'GITHUB_TOKEN' && k !== 'GH_TOKEN'))
+    : process.env;
+  try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], env }).toString().trim() }; }
   catch (e: any) { return { ok: false, out: e.message ?? '' }; }
 }
 
@@ -66,13 +78,13 @@ async function main() {
   check('node CLI', node.ok, node.out);
   const npm = tryExec('npm --version');
   check('npm CLI', npm.ok, npm.out);
-  const gh = tryExec('gh api user --jq .login');
+  const gh = tryExec('gh api user --jq .login', { stripGithubToken: true });
   check(`gh CLI logged in as ${setup.GITHUB_OWNER}`, gh.ok && gh.out === setup.GITHUB_OWNER, gh.out);
   const vercel = tryExec('vercel whoami');
   check('vercel CLI logged in', vercel.ok, vercel.out);
 
   // 3. GitHub repo exists
-  const repoCheck = tryExec(`gh repo view ${setup.GITHUB_OWNER}/${setup.GITHUB_REPO} --json name --jq .name`);
+  const repoCheck = tryExec(`gh repo view ${setup.GITHUB_OWNER}/${setup.GITHUB_REPO} --json name --jq .name`, { stripGithubToken: true });
   check(`GitHub repo ${setup.GITHUB_OWNER}/${setup.GITHUB_REPO} exists`, repoCheck.ok, repoCheck.out);
 
   // 4. Three Supabase projects reachable

@@ -16,6 +16,12 @@ import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { config as parseEnv } from 'dotenv';
 
+// On Windows, npm-installed CLIs (vercel) live in %APPDATA%\npm.
+// Git-bash doesn't include that path by default — prepend so child processes resolve.
+if (process.platform === 'win32' && process.env.APPDATA) {
+  process.env.PATH = `${process.env.APPDATA}\\npm;${process.env.PATH ?? ''}`;
+}
+
 type Scope = 'production' | 'preview' | 'development';
 
 const setup = parseEnv({ path: '.env.setup' }).parsed ?? {};
