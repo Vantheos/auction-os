@@ -46,5 +46,5 @@ app.delete('/api/jobs/:id', requireRole('admin'), async (c) => {
   return c.json({ ok: true });
 });
 
-export const fetch = (req: Request) => app.fetch(req);
+export const testFetch = (req: Request) => app.fetch(req);
 export default handle(app);

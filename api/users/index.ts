@@ -49,5 +49,5 @@ app.post('/api/users', requireRole('admin'), async (c) => {
   return c.json(row, 201);
 });
 
-export const fetch = (req: Request) => app.fetch(req);
+export const testFetch = (req: Request) => app.fetch(req);
 export default handle(app);

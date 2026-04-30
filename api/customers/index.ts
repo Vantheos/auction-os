@@ -30,6 +30,5 @@ app.post('/api/customers', requireRole('admin', 'office'), async (c) => {
   return c.json(row, 201);
 });
 
-const handler = (req: Request) => app.fetch(req);
-export { handler as fetch };
+export const testFetch = (req: Request) => app.fetch(req);
 export default handle(app);

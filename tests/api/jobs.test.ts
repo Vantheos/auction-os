@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { appUser, customer as customerTable } from '../../db/schema';
-import { fetch as indexHandler } from '../../api/jobs/index';
-import { fetch as idHandler } from '../../api/jobs/[id]';
+import { testFetch as indexHandler } from '../../api/jobs/index';
+import { testFetch as idHandler } from '../../api/jobs/[id]';
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';
 const WAREHOUSE = '00000000-0000-0000-0000-000000000003';

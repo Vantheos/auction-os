@@ -34,5 +34,5 @@ app.patch('/api/users/:id', requireRole('admin'), async (c) => {
   return c.json(row);
 });
 
-export const fetch = (req: Request) => app.fetch(req);
+export const testFetch = (req: Request) => app.fetch(req);
 export default handle(app);

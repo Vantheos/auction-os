@@ -42,5 +42,5 @@ app.post('/api/jobs', requireRole('admin', 'office'), async (c) => {
   }
 });
 
-export const fetch = (req: Request) => app.fetch(req);
+export const testFetch = (req: Request) => app.fetch(req);
 export default handle(app);
