@@ -15,4 +15,11 @@ export const config: VercelConfig = {
       maxDuration: 60,
     },
   },
+  // SPA fallback: any non-/api/* path that isn't a static file gets the
+  // Vite-built index.html so React Router can handle the route. Without
+  // this, direct URL navigation or a hard refresh on /customers, /login,
+  // etc. returns 404 — only navigation starting from / works.
+  rewrites: [
+    { source: '/((?!api/).*)', destination: '/index.html' },
+  ],
 };
