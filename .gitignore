@@ -17,6 +17,19 @@ dist/
 build/
 .vercel
 .turbo
+*.tsbuildinfo
+
+# Compiled config artifacts (we author tailwind.config.ts; tsc -b shouldn't emit
+# tailwind.config.js / .d.ts to project root)
+tailwind.config.js
+tailwind.config.d.ts
+vite.config.js
+vite.config.d.ts
+postcss.config.js.map
+drizzle.config.js
+drizzle.config.d.ts
+vercel.config.js
+vercel.config.d.ts
 
 # Logs
 *.log

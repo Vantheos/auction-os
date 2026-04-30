@@ -1,86 +1,93 @@
 # Working state — Auction Inventory SaaS
 
-> Quick-resume note. Last updated 2026-04-30 (Stage 0b complete; pre-Stage 0c save point).
+> Quick-resume note. Last updated 2026-04-30 (Tasks 1, 0, 2 complete; on to Task 3).
 
 ## Where we are
 
-**Brainstorming + design pass + Phase 1 plan all complete.** User approved the spec and the 6-phase plan decomposition. **Stage 0a + Stage 0b are done.** Supabase access token revoked. Ready for **Stage 0c — subagent-driven execution of Task 1 + Task 0**.
+**Phase 1 execution underway.** Repo scaffolded, env scripts working, frontend stack (Vite + React + Tailwind + shadcn/ui) building cleanly with Mica Slate tokens. Next up: **Task 3 — Drizzle schema for all v1 tables.**
 
-User has paused here to restart VSCode and clear conversation context before continuing. **Do not dispatch any subagents on resume until the user explicitly says go.**
+## Phase 1 progress
 
-## Environment topology (decided + executed)
+| # | Task | Status |
+|---|---|---|
+| 1 | Repo init + base tooling | ✅ done |
+| 0 | Env scripts (verify-env, env-setup) | ✅ done |
+| 2 | Vite + React + Tailwind + shadcn/ui frontend | ✅ done |
+| 3 | Drizzle schema for all v1 tables | next |
+| 4 | Apply schema to Dev + Test Supabase | pending |
+| 5 | JWT Custom Access Token Hook (role injection) | pending |
+| 6 | RLS policies for v1 tables | pending |
+| 7 | Audit-log triggers | pending |
+| 8 | Initial admin seed script | pending |
+| 9 | Hono API scaffold + auth middleware | pending |
+| 10 | Test infrastructure (Vitest + DB helpers) | pending |
+| 11 | Customer CRUD endpoints (TDD) | pending |
+| 12 | Job CRUD endpoints (TDD) | pending |
+| 13 | User management endpoints (admin TDD) | pending |
+| 14 | Frontend Supabase client, auth helpers, API wrapper | pending |
+| 15 | Login page + ProtectedRoute | pending |
+| 16 | Admin shell (rail nav + layout) | pending |
+| 17 | Customers page (list + create dialog) | pending |
+| 18 | Customer detail page (jobs section) | pending |
+| 19 | Wire routes into App.tsx | pending |
+| 20 | Playwright smoke test | pending |
+| 21 | Vercel deployment readiness | pending |
 
-**Cloud-first with three Supabase projects on the user's existing $25/mo Pro plan. No local Supabase. No Docker required.**
+## Plan deviations applied (worth amending the plan with)
 
-| Environment | Purpose | DB | Status |
-|---|---|---|---|
-| Local dev (`npm run dev`) | Daily coding | **Dev** Supabase project | Created `auction-os-dev` (us-east-1, ACTIVE_HEALTHY, ref `yhqvzfiogobmbfhyxyll`) |
-| `npm test` (Vitest) | API tests with `truncateAll()` | **Test** Supabase project | Created `auction-os-test` (us-east-1, ACTIVE_HEALTHY, ref `flpwsibabhdmpjcdzoqd`) |
-| Vercel preview (per branch / PR) | Auto-deployed preview URLs | **Dev** Supabase project | Vercel project linked: `vantheos-4047s-projects/auction-os` |
-| Vercel production (`main`) | Production | **Prod** Supabase project | Created `auction-os-prod` (us-east-1, ACTIVE_HEALTHY, ref `przkbkjxdqsxoqkngvog`) |
+1. **Task 1 / Step 1.2** — `@vercel/config@^1.0.0` → `^0.2.1` (plan version doesn't exist on npm)
+2. **Task 1 / Step 1.2** — `drizzle-orm@^0.36.0` → `^0.45.0` (CVE GHSA-gpj5-g38j-94v9 fixed in 0.45.2)
+3. **Task 1 / Step 1.6** — README step 3 `supabase start` → `npm run supabase:start`
+4. **Task 1 / Step 1.4** — skipped; pre-existing `.gitignore` is a strict superset
+5. **Task 0 / Step 0.3** — `env-setup.ts` uses `vercel api /v10/projects/.../env` (REST POST) instead of `vercel env add` due to CLI v52 non-interactive bug. Functional outcome identical.
+6. **Task 0 / Stage 0b deferred item** — `gh repo create Vantheos/auction-os --private --source=. --remote=origin` executed during Task 0. Repo exists, no push.
+7. **Task 0 / follow-up fix** — Windows PATH normalization (`%APPDATA%\npm`) + `GITHUB_TOKEN` / `GH_TOKEN` strip for child processes so persistent invalid tokens don't shadow keyring auth.
+8. **Task 0 / DATABASE_URL form** — must be Supabase **Shared Pooler** (toggle "Use IPv4 connection" ON in Connect modal). Format: `postgres://postgres.<ref>:<pwd>@aws-X-us-east-Y.pooler.supabase.com:6543/postgres`. Direct connection (`db.<ref>.supabase.co`) is IPv6-only on Pro plan and won't work locally or from Vercel.
+9. **Task 2 / Step 2.8** — shadcn CLI v4 deprecated `--style new-york --base-color slate` flags. Used `--preset nova` (`radix-nova` style, `neutral` baseColor). The Mica Slate tokens in `tailwind.config.ts` are the actual design system; shadcn's internal style mostly affects component baselines we override with Tailwind classes. Style preset is acceptably stylistic — re-init to `new-york` later if visual quality requires.
+10. **Task 2 / Step 2.8** — `form` not in nova registry; hand-written `src/components/ui/form.tsx` following canonical shadcn 4 pattern with `radix-ui` umbrella import.
+11. **Task 2 / shadcn 4 deps** — `radix-ui` umbrella package (Feb 2026 standard), `tw-animate-css`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`. `@fontsource-variable/geist` installed but not imported (Geist is shadcn 4's default font; we use Segoe UI Variable per Mica Slate). `shadcn` itself moved to devDependencies.
+12. **Task 2 / `tailwind.config.ts` addition** — `outlineColor.ring` token added to support shadcn's `@apply outline-ring/50` reset.
 
-**Accounts (all under user's personal accounts; will migrate to relative's accounts before production data, per user decision):**
-- GitHub: **`Vantheos`** — authenticated via stored gh credentials (no env var). GitHub repo not yet created.
-- Vercel: `vantheos-4047` personal scope, free Hobby tier (sufficient for Phase 1)
-- Supabase: AndreMan org, $25/mo Pro plan
+## Key architectural decisions still in force
 
-## Key architectural decision made during Stage 0b
-
-**Supabase JWT signing is ES256 (asymmetric), not HS256.** Modern Supabase publishes the public verification key at `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`. The Hono auth middleware uses `jose.createRemoteJWKSet` to fetch and cache it — **no shared `JWT_SECRET` is stored anywhere**.
-
-This required updates to:
-- `.env.setup.example` — `JWT_SECRET` lines removed
-- Phase 1 plan Task 0.1, 0.2, 0.3 — env var references removed
-- Phase 1 plan Task 1.5 — `.env.example` updated
-- Phase 1 plan Task 9.3 — auth middleware code rewritten for ES256 + JWKS
-- Phase 1 plan Task 10.2, 10.4 — test infrastructure regenerates an ES256 keypair per test run and injects local JWKS via a `setJwksForTesting()` escape hatch
-- Phase 1 plan Task 21 — deployment env var list updated
-- v1 design spec §3 — JWT signing and verification approach documented
+- **JWT signing: ES256** via Supabase JWKS at `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`. Hono middleware uses `jose.createRemoteJWKSet`. No shared `JWT_SECRET` anywhere.
+- **Three Supabase projects** (`auction-os-dev`, `auction-os-test`, `auction-os-prod`) on user's Pro plan. Test = isolated CI/local-test DB. Prod = production. Dev = local + Vercel preview.
+- **Mica Slate** (Option C) is the design system. Tokens in `tailwind.config.ts`. shadcn components inherit Mica Slate via Tailwind classes.
 
 ## Files of record
 
 | File | Purpose |
 |---|---|
-| `.env.setup` | Populated with all credentials for the three Supabase projects (gitignored) |
+| `.env.setup` | Real credentials for the three Supabase projects (gitignored) |
 | `.env.setup.example` | Template, ES256 model |
-| `.gitignore` | Protects `.env*` and `.vercel/` |
+| `.env`, `.env.test` | Auto-generated by `npm run env:setup`; pointed at Dev / Test (gitignored) |
+| `.gitignore` | Protects `.env*`, `.vercel/`, `node_modules/`, `*.tsbuildinfo`, compiled config artifacts |
 | `.vercel/` | Vercel project link metadata (gitignored) |
-| `docs/superpowers/specs/2026-04-29-v1-design.md` | v1 design spec (engineering source of truth) |
-| `docs/superpowers/plans/2026-04-29-phase-1-foundation.md` | **Phase 1 plan** — Tasks 0–21. Self-consistent for ES256. |
-| `overview.md` | Working narrative (v1.0) |
-| `ui-design.md` | Pre-design brief, points to `ui-design/design_handoff/` |
-| `ui-design/design_handoff/` | Final visual mockups |
+| `.claude/settings.json` | Project allowlist (read-only Bash + MCP read tools) |
+| `.claude/settings.local.json` | User-private allowlist additions |
+| `package.json` | All Phase 1 deps; shadcn 4 ecosystem; scripts including `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, etc. |
+| `scripts/verify-env.ts` | Read-only environment health check (Windows-PATH-aware, GH_TOKEN-stripping) |
+| `scripts/env-setup.ts` | Pushes env vars to Vercel via `vercel api`; writes `.env` + `.env.test` |
+| `tsconfig.json`, `tsconfig.node.json` | TS config (ESNext + project references) |
+| `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js` | Frontend build config |
+| `components.json` | shadcn/ui config (`radix-nova` style, `@/components/ui` alias) |
+| `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/globals.css`, `src/lib/{query,utils}.ts` | Frontend entry |
+| `src/components/ui/{button,dialog,form,input,label,select,table}.tsx` | shadcn-installed primitives |
+| `README.md` | Minimal local-dev instructions |
+| `docs/superpowers/specs/2026-04-29-v1-design.md` | v1 design spec |
+| `docs/superpowers/plans/2026-04-29-phase-1-foundation.md` | Phase 1 plan (Tasks 0–21) |
 | `STATE.md` | This file |
-
-## Stage 0 sub-stage progress
-
-| Sub-stage | Description | Status |
-|---|---|---|
-| Stage 0a | CLI auth verification (Node, git, Docker, Vercel CLI, gh CLI, npm prefix on PATH) | ✅ Complete |
-| Stage 0b | Supabase projects + Vercel link + .env.setup populated + ES256/JWKS adopted + PAT revoked | ✅ Complete |
-| Stage 0c | Subagent executes Task 1 (`npm install` + scaffold) → Task 0 (write verify-env + env-setup scripts, run them) | ← next (pending user "go") |
-| Stage 1+ | Subagent continues with Tasks 2–21 (frontend scaffold, schema, RLS, audit, API endpoints, etc.) | pending |
-
-## Phase decomposition
-
-| # | Phase | Status |
-|---|---|---|
-| 1 | Foundation | **In progress** — Stage 0c next |
-| 2 | Mobile cataloging + label printing | Pending |
-| 3 | Inventory management | Pending |
-| 4 | Lifecycle, audit, frozen states | Pending |
-| 5 | AI subsystem | Pending |
-| 6 | Admin & polish | Pending |
 
 ## Resume prompt (paste verbatim after restart + new conversation)
 
-> Continue work on auction-os. Stage 0a + 0b are complete per `STATE.md`. Read `STATE.md` first, then `docs/superpowers/plans/2026-04-29-phase-1-foundation.md`. The Supabase PAT was revoked at the end of Stage 0b — do not regenerate it; the env-setup script doesn't need it. Stage 0c is **subagent-driven execution starting with plan Task 1**, but **wait for me to explicitly say "go" before dispatching the first subagent**. Use subagent-driven-development mode (fresh subagent per task; user reviews between tasks).
+> Continue work on auction-os. Read `STATE.md` first. Tasks 1, 0, 2 are complete. Next is **Task 3 — Drizzle schema for all v1 tables** (`docs/superpowers/plans/2026-04-29-phase-1-foundation.md` lines 802+). Use subagent-driven-development mode (fresh subagent per task). The user authorized continuous execution through Phase 1 unless another foundation-threatening issue appears (e.g., schema/RLS architecture broken, security finding I can't safely fix). For minor plan deviations like dep version corrections, handle inline and document under "Plan deviations applied" in STATE.md.
 
-## Key user preferences captured (in memory)
+## Key user preferences (in memory)
 
 - Top-down spec process; one focused round per area
 - File-based feedback for substantive input
 - Mention CWD only when it matters
-- Validate environment before running commands (pre-flight checks first)
+- Validate environment before running commands
 - Don't just agree — push back when better alternatives exist
 - Minimize manual human effort; automate where possible
+- Auto mode authorized; continue through Phase 1 autonomously unless foundation issues arise

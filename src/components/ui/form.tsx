@@ -41,12 +41,15 @@ const useFormField = () => {
   const itemContext = React.useContext(FormItemContext);
   const { getFieldState, formState } = useFormContext();
 
-  const fieldState = getFieldState(fieldContext.name, formState);
-
-  if (!fieldContext) {
+  // FormFieldContext is initialized with `{} as FormFieldContextValue`, so checking
+  // for falsiness wouldn't help — `fieldContext.name` is the real "outside <FormField>"
+  // signal. Throw before passing it to getFieldState so misuse fails loudly instead
+  // of silently feeding `undefined` through react-hook-form.
+  if (!fieldContext.name) {
     throw new Error('useFormField should be used within <FormField>');
   }
 
+  const fieldState = getFieldState(fieldContext.name, formState);
   const { id } = itemContext;
 
   return {
