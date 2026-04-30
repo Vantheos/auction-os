@@ -10,10 +10,10 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/design-system" element={<DesignSystem />} />
       <Route element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
         <Route path="/customers" element={<Customers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
+        <Route path="/design-system" element={<DesignSystem />} />
         <Route path="/" element={<Navigate to="/customers" replace />} />
         <Route path="*" element={<Navigate to="/customers" replace />} />
       </Route>

@@ -14,6 +14,7 @@
 | Vercel production deploy | ✅ Ready (still inert — Prod Supabase has no schema yet) |
 | **Manual click-through on preview** | ✅ all 6 steps passed |
 | **Audit-log actor capture** | ✅ wired via `asActor(userId, fn)` GUC pattern |
+| **Design system bridged** | ✅ shadcn vars wired to Mica Slate tokens; button variants reviewed and approved |
 | Phase 2 plan | ❌ not yet written |
 
 ## Deploy URLs
@@ -23,6 +24,19 @@
   - Has the seeded admin (`admin@auction-os.local` / `admin1234!`)
   - All 5 migrations applied + JWT hook activated
 - **Production:** latest `main` deploy — backed by **Prod Supabase** (`auction-os-prod`), no schema, no users, no hook activated. Intentionally inert until v1 cutover.
+
+## Design system (post-Phase-1, pre-Phase-2)
+
+The Mica Slate tokens from the design pass lived in `tailwind.config.ts` but were never wired to the shadcn primitives — shadcn reads from CSS variables (`--primary`, `--secondary`, etc.) which were stuck on shadcn's stock greyscale defaults. Result: every Phase 1 button rendered as charcoal-on-wash with no brand presence.
+
+Fix (commits `cc08184`, `a07921a`, `96e117a`, `1d149e2`):
+- `globals.css` — bridged `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--card`, `--popover` to Mica Slate values
+- `tailwind.config.ts` — added matching `colors.primary` / `colors.secondary` / etc. as `var(--*)` so utility classes like `bg-primary` actually resolve. Renamed Mica `accent` (`#1E40AF`) → `brand` to free up `accent` for shadcn's hover-bg meaning. Updated 2 callsites (`text-accent` → `text-brand`).
+- `button.tsx` — refined per inline review: `outline` uses `borderStrong` (visible 14% border), `secondary` uses `info-bg` pale-blue tint with brand text (visually distinct from outline), `destructive` is now solid red bg + white text (was 10% subtle bg — wrong weight for "Delete customer" confirmations), `ghost` left as intentional no-chrome / hover-bg-only.
+- `/design-system` route — auth-gated reference page (no nav link, URL-only access) at `src/routes/DesignSystem.tsx` rendering all variants, sizes, inputs, dialog, table, status badges, typography, plus "buttons in real usage context" examples. Use it as the canonical visual reference when adding new screens.
+- `vercel.ts` — added SPA fallback rewrite (`/((?!api/).*) → /index.html`) so direct URL navigation to client-side routes (`/customers`, `/design-system`, etc.) works on hard refresh. Without this, direct nav 404'd.
+
+This is design system bridging only — no new design decisions, just propagating what the design pass already specified. Next time you see something visually weak, this is the layer to touch.
 
 ## What we fixed today (post-handoff)
 

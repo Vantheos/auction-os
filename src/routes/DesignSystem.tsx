@@ -56,15 +56,14 @@ export function DesignSystem() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-wash">
-      <div className="max-w-4xl mx-auto p-8 space-y-8">
-        <div>
-          <h1 className="text-xl font-semibold text-text">Design system audit</h1>
-          <p className="text-sm text-textDim mt-1">
-            Mica Slate tokens applied to shadcn primitives. Use this page to spot affordance
-            and consistency gaps before building Phase 2 UI on top. No auth — direct review.
-          </p>
-        </div>
+    <div className="space-y-8 max-w-4xl">
+      <div>
+        <h1 className="text-xl font-semibold text-text">Design system reference</h1>
+        <p className="text-sm text-textDim mt-1">
+          Mica Slate tokens applied to shadcn primitives. Reference page for visual
+          consistency as we build out Phase 2+ UI. No nav link — accessible by URL only.
+        </p>
+      </div>
 
       <Section title="Color tokens (Mica Slate)">
         <div className="grid grid-cols-2 gap-2">
@@ -348,7 +347,6 @@ export function DesignSystem() {
           <p className="text-xs font-mono text-textDim">Monospace caption (font-mono) — for IDs, dates.</p>
         </div>
       </Section>
-      </div>
     </div>
   );
 }
