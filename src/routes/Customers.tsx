@@ -54,7 +54,7 @@ export function Customers() {
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell className="text-textDim font-mono text-xs">{new Date(c.createdAt).toLocaleString()}</TableCell>
-                <TableCell><Link to={`/customers/${c.id}`} className="text-accent hover:underline text-sm">View jobs →</Link></TableCell>
+                <TableCell><Link to={`/customers/${c.id}`} className="text-brand hover:underline text-sm">View jobs →</Link></TableCell>
               </TableRow>
             ))}
             {data.length === 0 && <TableRow><TableCell colSpan={3} className="text-textDim text-center">No customers yet</TableCell></TableRow>}

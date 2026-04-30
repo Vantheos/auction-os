@@ -5,11 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        accent: '#1E40AF',
+        // Mica Slate app palette
+        brand: '#1E40AF',                  // was `accent` — renamed to avoid collision with shadcn `accent` (hover bg)
         text: '#0F172A',
         textDim: '#475569',
         textFaint: '#94A3B8',
-        border: 'rgba(15,23,42,0.08)',
         borderStrong: 'rgba(15,23,42,0.14)',
         surface: 'rgba(255,255,255,0.72)',
         surfaceAlt: '#F8FAFC',
@@ -18,6 +18,44 @@ export default {
         warning: { DEFAULT: '#92400E', bg: '#FEF3C7' },
         danger: { DEFAULT: '#B91C1C', bg: '#FEE2E2' },
         info: { DEFAULT: '#1E40AF', bg: '#DBEAFE' },
+
+        // shadcn token bridge — these names are read by shadcn primitives
+        // (Button, Dialog, Input, etc.). Values come from CSS variables in
+        // globals.css, which are wired to the Mica palette above. Keep them
+        // as `var(--*)` so a token tweak in globals.css propagates everywhere.
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+          foreground: 'var(--destructive-foreground)',
+        },
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
       },
       fontFamily: {
         sans: ['"Segoe UI Variable"', '"Segoe UI"', 'system-ui', '-apple-system', 'sans-serif'],

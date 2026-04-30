@@ -27,7 +27,7 @@ export function AdminShell() {
               className={({ isActive }) =>
                 `block px-3 py-2 rounded text-sm ${
                   !item.enabled ? 'text-textFaint cursor-not-allowed pointer-events-none' :
-                  isActive ? 'bg-info-bg text-accent font-medium' : 'text-textDim hover:bg-surfaceAlt'
+                  isActive ? 'bg-info-bg text-brand font-medium' : 'text-textDim hover:bg-surfaceAlt'
                 }`
               }
             >

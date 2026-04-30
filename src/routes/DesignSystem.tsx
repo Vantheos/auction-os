@@ -127,6 +127,102 @@ export function DesignSystem() {
         </Row>
       </Section>
 
+      <Section title="Buttons — in real usage context">
+        {/* Toolbar above a list */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Toolbar above a list — primary action right-aligned</p>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-text">Customers</h3>
+              <Button>New customer</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Inline action group */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Inline action group — primary + secondary side by side</p>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="flex items-center gap-2">
+              <Button>Save changes</Button>
+              <Button variant="outline">Discard</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Card with footer actions */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Card with footer actions — outline cancel, primary confirm (right-aligned)</p>
+          <div className="rounded-lg border border-border bg-surfaceSolid p-4 space-y-3">
+            <div>
+              <h3 className="text-base font-semibold text-text">Confirm assignment</h3>
+              <p className="text-sm text-textDim mt-1">
+                Move 3 lots from Job <span className="font-mono">2026-04-Smith-001</span> to <span className="font-mono">2026-04-Jones-002</span>?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline">Cancel</Button>
+              <Button>Confirm</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Destructive action card */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Destructive confirmation</p>
+          <div className="rounded-lg border border-border bg-surfaceSolid p-4 space-y-3">
+            <div>
+              <h3 className="text-base font-semibold text-text">Delete customer?</h3>
+              <p className="text-sm text-textDim mt-1">
+                This will also delete all jobs and lots under "Smith Estate". Cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline">Cancel</Button>
+              <Button variant="destructive">Delete customer</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Inline ghost actions in a row (table-style) */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Row-level ghost actions inside a table-like list</p>
+          <div className="rounded-lg border border-border bg-surface overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto] items-center px-3 py-2.5 border-b border-border">
+              <div>
+                <div className="text-sm font-medium text-text">2026-04-Smith-001</div>
+                <div className="text-xs text-textDim">Open · 12 lots</div>
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost">View</Button>
+                <Button size="sm" variant="ghost">Close</Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] items-center px-3 py-2.5">
+              <div>
+                <div className="text-sm font-medium text-text">2026-04-Jones-002</div>
+                <div className="text-xs text-textDim">Closed · 8 lots</div>
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost">View</Button>
+                <Button size="sm" variant="ghost">Reopen</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading state */}
+        <div className="space-y-2">
+          <p className="text-xs text-textDim">Loading state — disabled while in flight</p>
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="flex gap-2">
+              <Button disabled>Creating…</Button>
+              <Button variant="outline" disabled>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      </Section>
+
       <Section title="Inputs and form fields">
         <Row label="default">
           <div className="w-64 space-y-1.5">
