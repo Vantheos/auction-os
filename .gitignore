@@ -54,4 +54,8 @@ test-results/
 # Supabase CLI
 .supabase
 
+# Claude Code: project allowlist (.claude/settings.json) is tracked;
+# user-private trust decisions live in .claude/settings.local.json and are NOT
+.claude/settings.local.json
+
 .vercel

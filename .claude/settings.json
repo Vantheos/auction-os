@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ffprobe *)",
+      "mcp__github__get_file_contents",
+      "mcp__github__get_me",
+      "mcp__github__list_branches",
+      "mcp__github__search_repositories",
+      "mcp__vercel__list_projects",
+      "mcp__vercel__get_project",
+      "mcp__vercel__list_teams",
+      "mcp__plugin_vercel-plugin_vercel__get_project",
+      "mcp__Claude_Preview__preview_screenshot"
+    ]
+  }
+}
