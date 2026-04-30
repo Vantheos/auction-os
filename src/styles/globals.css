@@ -12,38 +12,41 @@
     @apply bg-wash text-text font-sans antialiased;
   }
   :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    /* Bridged to Mica Slate tokens (mirrors tailwind.config.ts) so shadcn
+       primitives use the same palette as the rest of the app. */
+    --background: #FFFFFF;
+    --foreground: #0F172A;            /* text */
+    --card: rgba(255, 255, 255, 0.72); /* surface — translucent over wash */
+    --card-foreground: #0F172A;
+    --popover: #FFFFFF;                /* solid for floating surfaces */
+    --popover-foreground: #0F172A;
+    --primary: #1E40AF;                /* accent — Mica deep blue */
+    --primary-foreground: #FFFFFF;
+    --secondary: #F8FAFC;              /* surfaceAlt */
+    --secondary-foreground: #0F172A;
+    --muted: #F8FAFC;
+    --muted-foreground: #475569;       /* textDim */
+    --accent: #EFF1F4;                 /* slightly stronger hover than secondary */
+    --accent-foreground: #1E40AF;      /* accent text on hover */
+    --destructive: #B91C1C;            /* danger */
+    --destructive-foreground: #FFFFFF;
+    --border: rgba(15, 23, 42, 0.08);
+    --input: rgba(15, 23, 42, 0.14);   /* borderStrong — visible field outline */
+    --ring: #1E40AF;                   /* focus ring uses brand */
+    --chart-1: #1E40AF;
+    --chart-2: #15803D;
+    --chart-3: #92400E;
+    --chart-4: #475569;
+    --chart-5: #0F172A;
+    --radius: 10px;                    /* matches tailwind borderRadius.lg */
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #0F172A;
+    --sidebar-primary: #1E40AF;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #F8FAFC;
+    --sidebar-accent-foreground: #0F172A;
+    --sidebar-border: rgba(15, 23, 42, 0.08);
+    --sidebar-ring: #1E40AF;
   }
   .dark {
     --background: oklch(0.145 0 0);
