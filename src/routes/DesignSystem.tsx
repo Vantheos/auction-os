@@ -84,6 +84,9 @@ export function DesignSystem() {
       </Section>
 
       <Section title="Buttons — variants">
+        <p className="text-xs text-textDim -mt-2">
+          Hover each row to see hover states. Ghost has no chrome by design — it picks up a subtle bg on hover.
+        </p>
         <Row label="default">
           <Button>Primary action</Button>
           <Button disabled>Disabled</Button>
@@ -97,11 +100,12 @@ export function DesignSystem() {
           <Button variant="secondary" disabled>Disabled</Button>
         </Row>
         <Row label="ghost">
-          <Button variant="ghost">Ghost</Button>
+          <Button variant="ghost">Ghost (hover me)</Button>
           <Button variant="ghost" disabled>Disabled</Button>
         </Row>
         <Row label="destructive">
-          <Button variant="destructive">Delete</Button>
+          <Button variant="destructive">Delete customer</Button>
+          <Button variant="destructive" disabled>Disabled</Button>
         </Row>
         <Row label="link">
           <Button variant="link">View details</Button>

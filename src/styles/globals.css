@@ -22,8 +22,8 @@
     --popover-foreground: #0F172A;
     --primary: #1E40AF;                /* accent — Mica deep blue */
     --primary-foreground: #FFFFFF;
-    --secondary: #F8FAFC;              /* surfaceAlt */
-    --secondary-foreground: #0F172A;
+    --secondary: #DBEAFE;              /* info-bg — pale brand-blue tint, distinct from outline */
+    --secondary-foreground: #1E40AF;   /* brand text on the tinted bg */
     --muted: #F8FAFC;
     --muted-foreground: #475569;       /* textDim */
     --accent: #EFF1F4;                 /* slightly stronger hover than secondary */

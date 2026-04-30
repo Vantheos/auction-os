@@ -9,15 +9,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // Primary action: solid brand blue, white text.
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Secondary action with structure: white bg, visible slate border (borderStrong = 14% opacity for real visibility).
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-borderStrong bg-background hover:bg-muted aria-expanded:bg-muted",
+        // Tertiary action: brand-tinted pale-blue bg + brand text. Visually distinct from outline.
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary",
+        // Quaternary action: no chrome by default, subtle bg on hover. For toolbars and row-level actions.
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted",
+        // Dangerous action: solid red bg + white text, so "Delete X" reads as serious.
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/40",
+        // Inline text link styled as the brand-blue link primitive.
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
