@@ -101,3 +101,42 @@ describe('GET /api/lots', () => {
     expect(page1.body.total).toBe(5);
   });
 });
+
+describe('GET /api/lots — filter & pagination edge cases', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('coerces NaN limit to default (50)', async () => {
+    const { jobId } = await seed();
+    await call('POST', { jobId }, 'admin', ADMIN);
+    const res = await call('GET', null, 'admin', ADMIN, '?limit=abc');
+    expect(res.status).toBe(200);
+    expect(res.body.lots).toHaveLength(1);
+  });
+
+  it('coerces negative offset to 0', async () => {
+    const { jobId } = await seed();
+    await call('POST', { jobId }, 'admin', ADMIN);
+    const res = await call('GET', null, 'admin', ADMIN, '?offset=-5');
+    expect(res.status).toBe(200);
+    expect(res.body.lots).toHaveLength(1);
+  });
+
+  it('filters by aiStatus including not-run', async () => {
+    const { jobId } = await seed();
+    await call('POST', { jobId }, 'admin', ADMIN);  // lastAiRunStatus is NULL
+    const res = await call('GET', null, 'admin', ADMIN, '?aiStatus=not-run');
+    expect(res.status).toBe(200);
+    expect(res.body.lots).toHaveLength(1);
+  });
+
+  it('filters by dateFrom (inclusive)', async () => {
+    const { jobId } = await seed();
+    await call('POST', { jobId }, 'admin', ADMIN);
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const a = await call('GET', null, 'admin', ADMIN, `?dateFrom=${encodeURIComponent(future)}`);
+    expect(a.body.lots).toHaveLength(0);
+    const b = await call('GET', null, 'admin', ADMIN, `?dateFrom=${encodeURIComponent(past)}`);
+    expect(b.body.lots).toHaveLength(1);
+  });
+});
