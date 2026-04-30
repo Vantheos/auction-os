@@ -229,7 +229,6 @@ To `tailwind.config.ts` (extending the bridged Mica system from this session):
 
 **Lot state pills:**
 ```
-in_progress    → text #475569 on bg #F1F5F9    [reserved for Phase 3]
 unassigned     → text #92400E on bg #FEF3C7
 assigned       → text #1E40AF on bg #DBEAFE
 sold           → text #15803D on bg #DCFCE7
@@ -260,16 +259,17 @@ These extend the existing semantic palette — same colors, just named for state
 
 ### 4.1 State machine (recap from §2.2)
 
-5 stored states + 1 client-only:
+5 stored states:
 
 | State | Stored | Editable? | `(customer, job, lot_number)` |
 |---|---|---|---|
-| `in_progress` | NO (client-only, Phase 3) | yes (in cataloging) | reserved client-side |
 | `assigned` | YES | yes | NOT NULL |
 | `unassigned` | YES | yes | NULL |
 | `sold` | YES | **yes** (per handoff D-001) | NOT NULL |
 | `picked-up` | YES | **frozen** | NOT NULL |
 | `not-sellable` | YES | **frozen** | NULL |
+
+> **Note on the Phase 3 cataloging flow:** the v1 design spec (`2026-04-29-v1-design.md`) describes a "Lot in progress" screen during mobile cataloging. That is a screen name, not a stored state and not a pill-rendered state. The first photo creates a row directly in `assigned`. There is no `in_progress` `LotState` member in the type system or pill primitive.
 
 ### 4.2 Modal variant strategy
 
