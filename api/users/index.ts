@@ -1,11 +1,11 @@
 import { handle } from '@hono/node-server/vercel';
 // api/users/index.ts
 import { z } from 'zod';
-import { createApp } from '../_app';
-import { authMiddleware, requireRole } from '../_middleware/auth';
-import { getDb } from '../_lib/db';
-import { appUser } from '../../db/schema';
-import { jsonError } from '../_lib/responses';
+import { createApp } from '../_app.js';
+import { authMiddleware, requireRole } from '../_middleware/auth.js';
+import { getDb } from '../_lib/db.js';
+import { appUser } from '../../db/schema.js';
+import { jsonError } from '../_lib/responses.js';
 import { createClient } from '@supabase/supabase-js';
 
 const app = createApp();

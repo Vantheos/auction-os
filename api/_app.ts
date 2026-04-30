@@ -2,7 +2,7 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
-import type { AuthContext } from './_middleware/auth';
+import type { AuthContext } from './_middleware/auth.js';
 
 export function createApp() {
   const app = new Hono<AuthContext>();

@@ -1,7 +1,7 @@
 // api/_middleware/auth.ts
 import { createMiddleware } from 'hono/factory';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { jsonError } from '../_lib/responses';
+import { jsonError } from '../_lib/responses.js';
 
 export type AuthContext = {
   Variables: {
