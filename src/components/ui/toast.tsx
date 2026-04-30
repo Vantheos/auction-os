@@ -59,6 +59,8 @@ export function Toaster() {
     <div
       role="region"
       aria-label="Notifications"
+      aria-live="polite"
+      aria-atomic="false"
       className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"
     >
       {ctx.toasts.map((t) => (
@@ -77,7 +79,7 @@ export function Toaster() {
           {t.actionLabel && (
             <button
               type="button"
-              onClick={() => { t.onAction?.(); ctx.dismiss(t.id); }}
+              onClick={() => { try { t.onAction?.(); } finally { ctx.dismiss(t.id); } }}
               className="text-xs font-semibold text-brand hover:underline shrink-0"
             >
               {t.actionLabel}
