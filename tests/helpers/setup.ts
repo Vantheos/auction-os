@@ -1,6 +1,6 @@
 // tests/helpers/setup.ts
 import { config } from 'dotenv';
-import { setJwksForTesting } from '../../api/_middleware/auth';
+import { setJwksForTesting } from '../../api/_lib/auth';
 import { getTestKeys } from './test-jwt';
 
 // Load .env.test (Test Supabase project) instead of .env (Dev project)

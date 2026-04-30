@@ -1,6 +1,20 @@
 // api/_lib/responses.ts
-import type { Context } from 'hono';
+// JSON response helpers for native (req, res) Vercel handlers.
 
-export function jsonError(c: Context, status: number, code: string, message: string) {
-  return c.json({ error: { code, message } }, status as 400 | 401 | 403 | 404 | 409 | 500);
+import type { ServerResponse } from 'node:http';
+
+export function jsonOk(res: ServerResponse, body: unknown, status = 200) {
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify(body));
+}
+
+export function jsonError(res: ServerResponse, status: number, code: string, message: string) {
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify({ error: { code, message } }));
+}
+
+export function methodNotAllowed(res: ServerResponse) {
+  return jsonError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
 }

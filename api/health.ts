@@ -1,9 +1,8 @@
-import { handle } from '@hono/node-server/vercel';
 // api/health.ts
-import { createApp } from './_app.js';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { jsonOk, methodNotAllowed } from './_lib/responses.js';
 
-const app = createApp();
-app.get('/api/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }));
-
-export const testFetch = (req: Request) => app.fetch(req);
-export default handle(app);
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res);
+  return jsonOk(res, { ok: true, ts: new Date().toISOString() });
+}

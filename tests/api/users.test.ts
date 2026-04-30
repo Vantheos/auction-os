@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
+import { callHandler, type CallResult } from '../helpers/call-handler';
 import { appUser } from '../../db/schema';
-import { testFetch as indexHandler } from '../../api/users/index';
-import { testFetch as idHandler } from '../../api/users/[id]';
+import indexHandler from '../../api/users/index';
+import idHandler from '../../api/users/[id]';
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';
 const OFFICE = '00000000-0000-0000-0000-000000000002';
@@ -15,26 +16,37 @@ async function seedUsers() {
   ]);
 }
 
-async function call(handler: any, url: string, method: string, body: unknown, role: 'admin' | 'office' | 'warehouse', userId: string) {
+async function callIndex(method: string, body: unknown, role: 'admin' | 'office' | 'warehouse', userId: string): Promise<CallResult<any>> {
   const token = await mintTestJwt({ userId, role });
-  return handler(new Request(`http://test${url}`, {
+  return callHandler(indexHandler, {
     method,
+    url: '/api/users',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: body ? JSON.stringify(body) : undefined,
-  }));
+    body: body ?? undefined,
+  });
+}
+
+async function callId(id: string, method: string, body: unknown, role: 'admin' | 'office' | 'warehouse', userId: string): Promise<CallResult<any>> {
+  const token = await mintTestJwt({ userId, role });
+  return callHandler(idHandler, {
+    method,
+    url: `/api/users/${id}?id=${id}`,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body ?? undefined,
+  });
 }
 
 describe('GET /api/users', () => {
   beforeEach(async () => { await truncateAll(); await seedUsers(); });
 
   it('admin lists users', async () => {
-    const res = await call(indexHandler, '/api/users', 'GET', null, 'admin', ADMIN);
+    const res = await callIndex('GET', null, 'admin', ADMIN);
     expect(res.status).toBe(200);
-    expect((await res.json()).users).toHaveLength(2);
+    expect(res.body.users).toHaveLength(2);
   });
 
   it('office is forbidden', async () => {
-    const res = await call(indexHandler, '/api/users', 'GET', null, 'office', OFFICE);
+    const res = await callIndex('GET', null, 'office', OFFICE);
     expect(res.status).toBe(403);
   });
 });
@@ -43,13 +55,13 @@ describe('PATCH /api/users/:id', () => {
   beforeEach(async () => { await truncateAll(); await seedUsers(); });
 
   it('admin changes role', async () => {
-    const res = await call(idHandler, `/api/users/${OFFICE}`, 'PATCH', { role: 'warehouse' }, 'admin', ADMIN);
+    const res = await callId(OFFICE, 'PATCH', { role: 'warehouse' }, 'admin', ADMIN);
     expect(res.status).toBe(200);
-    expect((await res.json()).role).toBe('warehouse');
+    expect(res.body.role).toBe('warehouse');
   });
 
   it('office cannot change roles', async () => {
-    const res = await call(idHandler, `/api/users/${ADMIN}`, 'PATCH', { role: 'warehouse' }, 'office', OFFICE);
+    const res = await callId(ADMIN, 'PATCH', { role: 'warehouse' }, 'office', OFFICE);
     expect(res.status).toBe(403);
   });
 });
