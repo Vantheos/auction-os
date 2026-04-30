@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Liquidation OS — Option C · Cataloging</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1F1F1F;
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #0F172A; overflow: hidden;
+    --c-accent: #1E40AF;
+  }
+  #root { height: 100vh; display: flex; flex-direction: column; }
+  .topbar {
+    height: 48px; background: #1F1F1F; color: #fff; display: flex; align-items: center;
+    gap: 14px; padding: 0 16px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .topbar .brand { font-weight: 700; letter-spacing: 0.3px; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .topbar .brand b { color: #fff; }
+  .topbar .crumb { font-size: 11px; color: rgba(255,255,255,0.45); }
+  .stage { flex: 1; min-height: 0; overflow: hidden; position: relative; background: #1F1F1F; }
+  .stage-inner { width: 100%; height: 100%; }
+  .play-btn {
+    background: var(--c-accent); border: none; color: #fff; padding: 5px 12px; border-radius: 6px;
+    font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ghost-btn {
+    background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.85);
+    padding: 4px 10px; border-radius: 6px; font-family: inherit; font-size: 11px; cursor: pointer;
+  }
+  .ghost-btn:hover { background: rgba(255,255,255,0.06); }
+  /* Each screen card on the canvas */
+  .canvas { display: flex; gap: 28px; padding: 28px 32px; align-items: flex-start; min-width: 100%; height: 100%; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; }
+  .screen-card { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+  .screen-label {
+    color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .screen-label .pip { width: 18px; height: 18px; border-radius: 50%; background: var(--c-accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .screen-sub { color: rgba(255,255,255,0.4); font-size: 10px; max-width: 380px; line-height: 1.5; }
+  .focus-mode .canvas { justify-content: center; padding: 20px; }
+  .focus-mode .screen-card.hidden { display: none; }
+  .focus-mode .screen-card { transform: scale(1.05); transform-origin: top center; }
+  .focus-bar {
+    display: flex; align-items: center; gap: 10px; padding: 0 4px;
+  }
+  .focus-bar button { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #fff; padding: 4px 10px; border-radius: 4px; font-family: inherit; font-size: 11px; cursor: pointer; }
+  .focus-bar button:disabled { opacity: 0.4; cursor: default; }
+  .focus-bar button.primary { background: var(--c-accent); border-color: var(--c-accent); }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="android-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="option-c-flow.jsx"></script>
+
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accent": "#1E40AF",
+    "mode": "canvas",
+    "screen": "picker",
+    "printFail": false
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(() => {
+      document.documentElement.style.setProperty('--c-accent', t.accent);
+    }, [t.accent]);
+
+    // Live state for the playable flow
+    const [session, setSession] = React.useState(null);
+    const [lotNumber, setLotNumber] = React.useState(10);
+    const [photos, setPhotos] = React.useState([{ hue: 28 }, { hue: 200 }, { hue: 140 }]);
+    const [savedCount, setSavedCount] = React.useState(0);
+    const [step, setStep] = React.useState('picker'); // picker | progress | success | photoMgr | endConfirm
+    const [photoFocusIdx, setPhotoFocusIdx] = React.useState(0);
+    const successTimer = React.useRef(null);
+
+    const beginSession = (sess) => {
+      setSession(sess);
+      const startNum = (sess.job?.lots ?? 0) + 1;
+      setLotNumber(startNum);
+      setPhotos([{ hue: 28 }, { hue: 200 }, { hue: 140 }]);
+      setSavedCount(0);
+      setStep('progress');
+    };
+    const saveAndNext = () => {
+      setStep('success');
+      setSavedCount(c => c + 1);
+      successTimer.current = setTimeout(() => {
+        setLotNumber(n => n + 1);
+        setPhotos([]);
+        setStep('progress');
+      }, 1400);
+    };
+    React.useEffect(() => () => clearTimeout(successTimer.current), []);
+
+    const reset = () => {
+      setStep('picker'); setSession(null); setSavedCount(0); setLotNumber(10);
+      setPhotos([{ hue: 28 }, { hue: 200 }, { hue: 140 }]);
+    };
+
+    const canvasMode = t.mode === 'canvas';
+
+    // ── Static canvas: snapshot every screen side-by-side ──
+    if (canvasMode) {
+      const sampleSession = { customer: CUSTOMERS[0], job: JOBS_BY_CUSTOMER.smith[0] };
+      const samplePhotos = [{ hue: 28 }, { hue: 200 }, { hue: 140 }, { hue: 60 }];
+      return (
+        <div data-screen-label="C · Cataloging end-to-end" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <TopBar t={t} setTweak={setTweak} />
+          <div className="stage">
+            <div className="canvas">
+              <ScreenCard num="1" label="Customer / Job picker" sub="Pre-session. Operator picks consignor + auction. Begin button locked until both are chosen.">
+                <PickerScreen onBegin={() => {}} defaultCustomer="smith" defaultJob="2026-04-Smith-001" />
+              </ScreenCard>
+
+              <ScreenCard num="2" label="Lot in progress" sub="Big lot number. Capture CTA. Photo strip with cover badge. Required Special Notes + conditional Size. Optional fields collapsed.">
+                <LotInProgressScreen
+                  session={sampleSession}
+                  lotNumber={90}
+                  photos={samplePhotos}
+                  onChangePhotos={() => {}}
+                  onSaveAndNext={() => {}}
+                  onEnd={() => {}}
+                  onOpenPhotoMgr={() => {}}
+                  printFailing={false}
+                  dismissPrint={() => {}}
+                />
+              </ScreenCard>
+
+              <ScreenCard num="3" label="Save · advancing to next" sub="Brief success splash after Next. Confirms label printed. Auto-advances to fresh Lot in 1.2s.">
+                <SaveSuccessScreen savedLot={90} nextLot={91} session={sampleSession} />
+              </ScreenCard>
+
+              <ScreenCard num="4" label="Print failure (non-blocking)" sub="Lot still saves; toast surfaces over the next Lot in progress screen. Retry, dismiss, or keep going.">
+                <LotInProgressScreen
+                  session={sampleSession}
+                  lotNumber={91}
+                  photos={[]}
+                  onChangePhotos={() => {}}
+                  onSaveAndNext={() => {}}
+                  onEnd={() => {}}
+                  onOpenPhotoMgr={() => {}}
+                  printFailing={true}
+                  dismissPrint={() => {}}
+                />
+              </ScreenCard>
+
+              <ScreenCard num="5" label="Photo manager" sub="Tap any thumbnail. Retake, reorder, delete. First photo is the cover.">
+                <PhotoMgrScreen
+                  photos={samplePhotos}
+                  focusIdx={1}
+                  onClose={() => {}}
+                  onChangePhotos={() => {}}
+                />
+              </ScreenCard>
+
+              <ScreenCard num="6" label="End session confirm" sub="Lots are already saved server-side; this confirms only the in-progress draft will be discarded.">
+                <div style={{ position: 'relative' }}>
+                  <LotInProgressScreen
+                    session={sampleSession}
+                    lotNumber={90}
+                    photos={samplePhotos}
+                    onChangePhotos={() => {}}
+                    onSaveAndNext={() => {}}
+                    onEnd={() => {}}
+                    onOpenPhotoMgr={() => {}}
+                    printFailing={false}
+                    dismissPrint={() => {}}
+                  />
+                  <EndConfirmScreen savedCount={9} onCancel={() => {}} onConfirm={() => {}} />
+                </div>
+              </ScreenCard>
+            </div>
+          </div>
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label="Mode" />
+            <TweakRadio label="Mode" value={t.mode} options={['canvas','play']} onChange={(v) => setTweak('mode', v)} />
+            <TweakSection label="Theme" />
+            <TweakColor label="Accent" value={t.accent} onChange={(v) => setTweak('accent', v)} />
+            <TweakSection label="Notes" />
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', lineHeight: 1.5, padding: '4px 0' }}>
+              Switch to <b>play</b> to walk the flow yourself: pick a customer & job, capture photos, hit Next.
+            </div>
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    // ── Play mode: real navigation ──
+    const screen = !session ? 'picker' : step;
+    return (
+      <div data-screen-label={`C · Cataloging · ${screen}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar t={t} setTweak={setTweak} extraRight={
+          session && (
+            <>
+              <span className="crumb">{session.customer.name} · {session.job.id}</span>
+              <button className="ghost-btn" onClick={reset}>Reset flow</button>
+            </>
+          )
+        } />
+        <div className="stage" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {screen === 'picker' && <PickerScreen onBegin={beginSession} />}
+          {screen === 'progress' && (
+            <LotInProgressScreen
+              session={session}
+              lotNumber={lotNumber}
+              photos={photos}
+              onChangePhotos={setPhotos}
+              onSaveAndNext={saveAndNext}
+              onEnd={() => setStep('endConfirm')}
+              onOpenPhotoMgr={(i) => { setPhotoFocusIdx(i); setStep('photoMgr'); }}
+              printFailing={t.printFail}
+              dismissPrint={() => setTweak('printFail', false)}
+            />
+          )}
+          {screen === 'success' && <SaveSuccessScreen savedLot={lotNumber} nextLot={lotNumber + 1} session={session} />}
+          {screen === 'photoMgr' && (
+            <PhotoMgrScreen
+              photos={photos}
+              focusIdx={photoFocusIdx}
+              onClose={() => setStep('progress')}
+              onChangePhotos={setPhotos}
+            />
+          )}
+          {screen === 'endConfirm' && (
+            <div style={{ position: 'relative' }}>
+              <LotInProgressScreen
+                session={session}
+                lotNumber={lotNumber}
+                photos={photos}
+                onChangePhotos={() => {}}
+                onSaveAndNext={() => {}}
+                onEnd={() => {}}
+                onOpenPhotoMgr={() => {}}
+                printFailing={false}
+                dismissPrint={() => {}}
+              />
+              <EndConfirmScreen
+                savedCount={savedCount}
+                onCancel={() => setStep('progress')}
+                onConfirm={reset}
+              />
+            </div>
+          )}
+        </div>
+
+        <TweaksPanel title="Tweaks">
+          <TweakSection label="Mode" />
+          <TweakRadio label="Mode" value={t.mode} options={['canvas','play']} onChange={(v) => setTweak('mode', v)} />
+          <TweakSection label="Theme" />
+          <TweakColor label="Accent" value={t.accent} onChange={(v) => setTweak('accent', v)} />
+          <TweakSection label="Print error" />
+          <TweakToggle label="Simulate print failure" value={t.printFail} onChange={(v) => setTweak('printFail', v)} />
+          <TweakButton label="Reset flow" onClick={reset} />
+        </TweaksPanel>
+      </div>
+    );
+  }
+
+  function TopBar({ t, setTweak, extraRight }) {
+    return (
+      <div className="topbar">
+        <span className="brand"><b>LIQUIDATION OS</b> · Option C — Cataloging end-to-end</span>
+        <div style={{ flex: 1 }} />
+        {extraRight}
+        <span className="crumb" style={{ marginLeft: 12 }}>
+          {t.mode === 'canvas' ? 'All screens' : 'Live walkthrough'}
+        </span>
+      </div>
+    );
+  }
+
+  function ScreenCard({ num, label, sub, children }) {
+    return (
+      <div className="screen-card">
+        <div className="screen-label"><span className="pip">{num}</span>{label}</div>
+        <div className="screen-sub">{sub}</div>
+        {children}
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

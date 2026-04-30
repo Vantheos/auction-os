@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Liquidation OS — Option C · Lot Lifecycle</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1F1F1F;
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #0F172A; overflow: hidden;
+    --c-accent: #1E40AF;
+  }
+  #root { height: 100vh; display: flex; flex-direction: column; }
+  .topbar {
+    height: 48px; background: #1F1F1F; color: #fff; display: flex; align-items: center;
+    gap: 14px; padding: 0 16px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .topbar .brand { font-weight: 700; letter-spacing: 0.3px; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .topbar .brand b { color: #fff; }
+  .topbar .crumb { font-size: 11px; color: rgba(255,255,255,0.45); }
+  .stage { flex: 1; min-height: 0; overflow: auto; position: relative; background: #1F1F1F; }
+  .canvas { display: flex; flex-direction: column; gap: 36px; padding: 28px 32px 60px; min-width: 100%; box-sizing: border-box; }
+  .row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: nowrap; }
+  .screen-card { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+  .screen-label {
+    color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .screen-label .pip { width: 18px; height: 18px; border-radius: 50%; background: var(--c-accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .screen-sub { color: rgba(255,255,255,0.45); font-size: 10px; max-width: 540px; line-height: 1.55; }
+  .section-h {
+    color: rgba(255,255,255,0.95); font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+    padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 12px;
+  }
+  .section-h:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="option-c-flow.jsx"></script>
+<script type="text/babel" src="option-c-lifecycle.jsx"></script>
+
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accent": "#1E40AF",
+    "mode": "canvas",
+    "playLot": 15,
+    "playOverlay": "none",
+    "isAdmin": true
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(() => {
+      document.documentElement.style.setProperty('--c-accent', t.accent);
+    }, [t.accent]);
+
+    const lots = LIFECYCLE_LOTS;
+
+    if (t.mode === 'play') {
+      const [selected, setSelected] = [
+        // play mode owns selection state
+        // (using useState below)
+      ];
+      return <PlayMode t={t} setTweak={setTweak} lots={lots} />;
+    }
+
+    // ─── Canvas mode: every state side-by-side
+    const sold = lots.find(l => l.state === 'sold');
+    const pickedUp = lots.find(l => l.state === 'picked-up');
+    const notSell = lots.find(l => l.state === 'not-sellable');
+    const partial = lots.find(l => l.ai === 'partial');
+    const failed  = lots.find(l => l.ai === 'failure');
+    const assigned = lots.find(l => l.state === 'assigned' && l.ai === 'success');
+    const assignedIds = lots.filter(l => l.state === 'assigned').map(l => l.id);
+    const mixedIds = [sold.id, pickedUp.id, notSell.id]; // mixed-state demo
+
+    return (
+      <div data-screen-label="C · Lifecycle" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar t={t} extra="All lifecycle screens · canvas" />
+        <div className="stage">
+          <div className="canvas">
+
+            {/* ── Section 1: Inventory is the action hub ── */}
+            <div className="section-h">1 · Inventory list — the action hub</div>
+            <div className="screen-sub" style={{ maxWidth: 720 }}>
+              All searching, filtering, and selection happens here. Click a row → lot detail modal (single-lot actions).
+              Multi-select → bulk action bar appears at the bottom (move, change status, run AI, export, delete).
+            </div>
+            <div className="row">
+              <ScreenCard num="1a" label="Default — no selection" sub="Status column (renamed from State). Header checkbox for select-all. AI status icons inline. Filter chips above include Customer, Job, Status, AI status, Date.">
+                <InventoryListSnippet lots={lots} width={760} />
+              </ScreenCard>
+            </div>
+            <div className="row">
+              <ScreenCard num="1b" label="Selection — bulk action bar" sub="3 lots selected. Floating action bar at the bottom. All bulk actions are single buttons; nothing per-lot is repeated in subsequent dialogs. Disabled buttons explain why on hover.">
+                <InventoryListSnippet lots={lots} width={760} selected={[lots[3].id, lots[5].id, lots[0].id]} onChangeSelected={() => {}} />
+              </ScreenCard>
+            </div>
+
+            {/* ── Section 2: Single-lot actions (modal) ── */}
+            <div className="section-h">2 · Single-lot · all actions in modal footer</div>
+            <div className="row">
+              <ScreenCard num="2a" label="Editable lot (assigned)" sub="Footer shows: Edit, Reprint label, Move to another auction, Change status, Delete (admin), Close. Move is only here for `assigned` lots.">
+                <LifecycleLotModal lot={assigned} />
+              </ScreenCard>
+              <ScreenCard num="2b" label="Sold (still editable)" sub="Spec said sold is read-only; we made it editable so a sale that falls through can be corrected and reverted to unassigned. Sale block shown but fields above remain editable.">
+                <LifecycleLotModal lot={sold} />
+              </ScreenCard>
+            </div>
+            <div className="row">
+              <ScreenCard num="2c" label="Picked up — frozen (terminal)" sub="True read-only. Lock pill in header. Change-status disabled (no legal transitions). Reprint label still works.">
+                <LifecycleLotModal lot={pickedUp} />
+              </ScreenCard>
+              <ScreenCard num="2d" label="Not-sellable — frozen (terminal)" sub="True read-only. Reason captured at time of state change. Photo dimmed slightly.">
+                <LifecycleLotModal lot={notSell} />
+              </ScreenCard>
+            </div>
+            <div className="row">
+              <ScreenCard num="2e" label="State menu open" sub="Single-lot status change. Items requiring confirmation marked. Only legal targets per the state machine.">
+                <LifecycleLotModal lot={sold} overlay="state" />
+              </ScreenCard>
+              <ScreenCard num="2f" label="Confirm — sold → picked-up" sub="Confirmation modal, single-lot. Same pattern reused for bulk.">
+                <LifecycleLotModal lot={sold} overlay="confirm:sold:picked-up" />
+              </ScreenCard>
+            </div>
+
+            {/* ── Section 3: Bulk dialogs (selection-only) ── */}
+            <div className="section-h">3 · Bulk dialogs — action only, lots are not re-listed</div>
+            <div className="screen-sub" style={{ maxWidth: 720 }}>
+              Bulk dialogs assume selection is already made. They show the action and any required input — never the lot list.
+              A small label in the header (e.g. <i>Lot 16, Lot 18 +1 more</i>) confirms scope without re-displaying the rows.
+            </div>
+            <div className="row">
+              <ScreenCard num="3a" label="Bulk · move to another auction" sub="Same destination picker as single-lot. Confirms with 'Move 3 lots'. Reprint labels checkbox preserved.">
+                <InventoryListSnippet lots={lots} width={720} selected={assignedIds} onChangeSelected={() => {}} bulkAction="move" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+              <ScreenCard num="3b" label="Bulk · change status (shared transitions)" sub="3 assigned lots selected. Only statuses legal for ALL selected lots are offered. Tap a status to apply to all 3.">
+                <InventoryListSnippet lots={lots} width={720} selected={assignedIds} onChangeSelected={() => {}} bulkAction="state" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+            </div>
+            <div className="row">
+              <ScreenCard num="3c" label="Bulk · change status (mixed — blocked)" sub="A sold + a picked-up + a not-sellable lot selected. No shared legal target. Empty state instructs the user to refine selection. (Bulk button on the action bar is also disabled in this case.)">
+                <InventoryListSnippet lots={lots} width={720} selected={mixedIds} onChangeSelected={() => {}} bulkAction="state" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+              <ScreenCard num="3d" label="Bulk · run AI" sub="Single confirmation. Warns that existing AI fields will be overwritten on success.">
+                <InventoryListSnippet lots={lots} width={720} selected={assignedIds} onChangeSelected={() => {}} bulkAction="ai" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+            </div>
+            <div className="row">
+              <ScreenCard num="3e" label="Bulk · delete (admin only)" sub="Destructive — danger styling. Audit history retained server-side; lot data removed.">
+                <InventoryListSnippet lots={lots} width={720} selected={assignedIds} onChangeSelected={() => {}} bulkAction="delete" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+              <ScreenCard num="3f" label="Bulk · export CSV" sub="Light confirmation dialog with CSV column manifest.">
+                <InventoryListSnippet lots={lots} width={720} selected={assignedIds} onChangeSelected={() => {}} bulkAction="export" onChangeBulkAction={() => {}} />
+              </ScreenCard>
+            </div>
+
+            {/* ── Section 4: AI status detail ── */}
+            <div className="section-h">4 · AI status detail (in single-lot modal)</div>
+            <div className="row">
+              <ScreenCard num="4a" label="Partial AI run" sub="Title and description populated; reference price lookup failed. Re-run AI button surfaced inline.">
+                <LifecycleLotModal lot={partial} />
+              </ScreenCard>
+              <ScreenCard num="4b" label="Failed AI run" sub="AI failed entirely. Title/description blank. Error message prominent; Re-run is the primary recovery.">
+                <LifecycleLotModal lot={failed} />
+              </ScreenCard>
+            </div>
+
+          </div>
+        </div>
+        <Tweaks t={t} setTweak={setTweak} lots={lots} />
+      </div>
+    );
+  }
+
+  function PlayMode({ t, setTweak, lots }) {
+    const [selected, setSelected] = React.useState([]);
+    const [bulkAction, setBulkAction] = React.useState(null);
+    const [openLotId, setOpenLotId] = React.useState(null);
+    const [overlay, setOverlay] = React.useState(null);
+    const openLot = lots.find(l => l.id === openLotId);
+
+    return (
+      <div data-screen-label="C · Lifecycle · play" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar t={t} extra="Play · select rows for bulk, click a row for single" />
+        <div className="stage" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 30, gap: 24 }}>
+          <InventoryListSnippet
+            lots={lots}
+            width={openLot ? 520 : 920}
+            height={620}
+            selected={selected}
+            onChangeSelected={setSelected}
+            bulkAction={bulkAction}
+            onChangeBulkAction={setBulkAction}
+            isAdmin={t.isAdmin}
+            onOpenLot={(id) => { setOpenLotId(id); setOverlay(null); }}
+            highlightId={openLotId}
+          />
+          {openLot && (
+            <LifecycleLotModal
+              lot={openLot}
+              overlay={overlay}
+              onChangeOverlay={setOverlay}
+              onClose={() => setOpenLotId(null)}
+              isAdmin={t.isAdmin}
+            />
+          )}
+        </div>
+        <Tweaks t={t} setTweak={setTweak} lots={lots} />
+      </div>
+    );
+  }
+
+  function TopBar({ t, extra }) {
+    return (
+      <div className="topbar">
+        <span className="brand"><b>LIQUIDATION OS</b> · Option C — Lot lifecycle (pass #2)</span>
+        <div style={{ flex: 1 }} />
+        <span className="crumb">{extra}</span>
+      </div>
+    );
+  }
+
+  function ScreenCard({ num, label, sub, children }) {
+    return (
+      <div className="screen-card">
+        <div className="screen-label"><span className="pip">{num}</span>{label}</div>
+        <div className="screen-sub">{sub}</div>
+        {children}
+      </div>
+    );
+  }
+
+  function Tweaks({ t, setTweak, lots }) {
+    return (
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Mode" />
+        <TweakRadio label="Mode" value={t.mode} options={['canvas','play']} onChange={(v) => setTweak('mode', v)} />
+        <TweakSection label="Theme" />
+        <TweakColor label="Accent" value={t.accent} onChange={(v) => setTweak('accent', v)} />
+        <TweakSection label="Play mode" />
+        <TweakSelect
+          label="Lot to inspect"
+          value={t.playLot}
+          options={lots.map(l => ({ label: `${l.lot_number} · ${l.title.slice(0, 30)} · ${l.state}`, value: l.id }))}
+          onChange={(v) => setTweak('playLot', Number(v))}
+        />
+        <TweakToggle label="Viewer is admin" value={t.isAdmin} onChange={(v) => setTweak('isAdmin', v)} />
+      </TweaksPanel>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

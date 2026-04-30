@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Liquidation OS — Option C · Admin shell</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1F1F1F;
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #0F172A; overflow: hidden;
+    --c-accent: #1E40AF;
+  }
+  #root { height: 100vh; display: flex; flex-direction: column; }
+  .topbar {
+    height: 48px; background: #1F1F1F; color: #fff; display: flex; align-items: center;
+    gap: 14px; padding: 0 16px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .topbar .brand { font-weight: 700; letter-spacing: 0.3px; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .topbar .brand b { color: #fff; }
+  .topbar .crumb { font-size: 11px; color: rgba(255,255,255,0.45); }
+  .stage { flex: 1; min-height: 0; overflow: auto; position: relative; background: #1F1F1F; }
+  .canvas { display: flex; flex-direction: column; gap: 36px; padding: 28px 32px 60px; min-width: 100%; box-sizing: border-box; }
+  .row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: nowrap; }
+  .screen-card { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+  .screen-label {
+    color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .screen-label .pip { width: 18px; height: 18px; border-radius: 50%; background: var(--c-accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .screen-sub { color: rgba(255,255,255,0.45); font-size: 10px; max-width: 540px; line-height: 1.55; }
+  .section-h {
+    color: rgba(255,255,255,0.95); font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+    padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 12px;
+  }
+  .section-h:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="option-c-flow.jsx"></script>
+<script type="text/babel" src="option-c-lifecycle.jsx"></script>
+<script type="text/babel" src="option-c-admin.jsx"></script>
+
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accent": "#1E40AF",
+    "mode": "canvas",
+    "playPage": "customers",
+    "playCust": "smith"
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(() => {
+      document.documentElement.style.setProperty('--c-accent', t.accent);
+    }, [t.accent]);
+
+    if (t.mode === 'play') {
+      return <PlayMode t={t} setTweak={setTweak} />;
+    }
+
+    return (
+      <div data-screen-label="C · Admin" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar t={t} extra="Admin shell · canvas" />
+        <div className="stage">
+          <div className="canvas">
+
+            <div className="section-h">1 · Customers — list + jobs (jobs live here, per spec §8.2)</div>
+            <div className="screen-sub" style={{ maxWidth: 720 }}>
+              Customers are the only place consignors are managed. Selecting a customer reveals their jobs (= auctions).
+              "View lots" deep-links into the inventory page pre-filtered by that customer + job — there is no separate Auctions page.
+            </div>
+            <div className="row">
+              <ScreenCard num="1" label="Customers · Smith Estate selected">
+                <AdminShell active="customers"><CustomersPage activeCustId="smith" /></AdminShell>
+              </ScreenCard>
+            </div>
+
+            <div className="section-h">2 · Users (admin-only)</div>
+            <div className="row">
+              <ScreenCard num="2" label="Users list" sub="Avatar, role pill, status (active / inactive / pending invite), last sign-in. Invite, change role, deactivate via row menu.">
+                <AdminShell active="users"><UsersPage /></AdminShell>
+              </ScreenCard>
+            </div>
+
+            <div className="section-h">3 · Settings (admin-only)</div>
+            <div className="screen-sub" style={{ maxWidth: 720 }}>
+              Three cards: <b>Label printer</b> (Browser Print helper URL, model, label size, test connection),
+              <b> AI schedule</b> (enabled / hourly · daily / time of day, last run summary), <b>Organization</b> (name, timezone, logo).
+            </div>
+            <div className="row">
+              <ScreenCard num="3" label="Settings · Printer · AI schedule · Org">
+                <AdminShell active="settings"><SettingsPage /></AdminShell>
+              </ScreenCard>
+            </div>
+
+            <div className="section-h">4 · Audit (admin-only reporting view)</div>
+            <div className="screen-sub" style={{ maxWidth: 720 }}>
+              Per spec §6.10: "Audit history is admin-only via a dedicated reporting view." This page is that view.
+              Action color-coded chips, actor (operators + AI), from→to deltas where applicable.
+              Filter by action / actor / date; export CSV. Lot detail modal does NOT show audit.
+            </div>
+            <div className="row">
+              <ScreenCard num="4" label="Audit log">
+                <AdminShell active="audit"><AuditPage /></AdminShell>
+              </ScreenCard>
+            </div>
+
+          </div>
+        </div>
+        <Tweaks t={t} setTweak={setTweak} />
+      </div>
+    );
+  }
+
+  function PlayMode({ t, setTweak }) {
+    const [page, setPage] = React.useState(t.playPage);
+    return (
+      <div data-screen-label="C · Admin · play" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar t={t} extra="Play · navigate via the rail" />
+        <div className="stage" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 30 }}>
+          <AdminShell active={page} onNav={setPage} width={1180} height={740}>
+            {page === 'customers' && <CustomersPage activeCustId={t.playCust} />}
+            {page === 'users' && <UsersPage />}
+            {page === 'settings' && <SettingsPage />}
+            {page === 'audit' && <AuditPage />}
+            {page === 'inventory' && (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, color: '#64748B', textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Inventory page</div>
+                <div style={{ fontSize: 12, maxWidth: 360 }}>Already covered in earlier passes — the inventory hub is the same page used everywhere else for browsing, filtering, selecting, and deep-linking from customers.</div>
+              </div>
+            )}
+          </AdminShell>
+        </div>
+        <Tweaks t={t} setTweak={setTweak} />
+      </div>
+    );
+  }
+
+  function TopBar({ t, extra }) {
+    return (
+      <div className="topbar">
+        <span className="brand"><b>LIQUIDATION OS</b> · Option C — Admin shell (pass #3)</span>
+        <div style={{ flex: 1 }} />
+        <span className="crumb">{extra}</span>
+      </div>
+    );
+  }
+
+  function ScreenCard({ num, label, sub, children }) {
+    return (
+      <div className="screen-card">
+        <div className="screen-label"><span className="pip">{num}</span>{label}</div>
+        {sub && <div className="screen-sub">{sub}</div>}
+        {children}
+      </div>
+    );
+  }
+
+  function Tweaks({ t, setTweak }) {
+    return (
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Mode" />
+        <TweakRadio label="Mode" value={t.mode} options={['canvas','play']} onChange={(v) => setTweak('mode', v)} />
+        <TweakSection label="Theme" />
+        <TweakColor label="Accent" value={t.accent} onChange={(v) => setTweak('accent', v)} />
+        <TweakSection label="Play mode" />
+        <TweakSelect
+          label="Starting page"
+          value={t.playPage}
+          options={[
+            { label: 'Customers', value: 'customers' },
+            { label: 'Users', value: 'users' },
+            { label: 'Settings', value: 'settings' },
+            { label: 'Audit', value: 'audit' },
+          ]}
+          onChange={(v) => setTweak('playPage', v)}
+        />
+        <TweakSelect
+          label="Customer"
+          value={t.playCust}
+          options={CUSTOMERS.map(c => ({ label: c.name, value: c.id }))}
+          onChange={(v) => setTweak('playCust', v)}
+        />
+      </TweaksPanel>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
