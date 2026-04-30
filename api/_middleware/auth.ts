@@ -53,3 +53,9 @@ export function requireRole(...allowed: Array<'admin' | 'office' | 'warehouse'>)
     await next();
   });
 }
+
+// Test-only escape hatch: override the JWKS used for verification.
+// Called by tests/helpers/setup.ts. Has no effect in production.
+export function setJwksForTesting(testJwks: any) {
+  jwks = testJwks;
+}
