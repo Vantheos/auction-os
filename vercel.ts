@@ -11,7 +11,7 @@ export const config: VercelConfig = {
       // `runtime: 'nodejs'` here is rejected as an invalid custom runtime
       // ("Function Runtimes must have a valid version") because Vercel
       // parses the string as a package name expecting an @version suffix.
-      memory: 1024,
+      // memory removed — ignored on Active CPU billing per platform warning.
       maxDuration: 60,
     },
   },
