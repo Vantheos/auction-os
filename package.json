@@ -19,6 +19,7 @@
     "supabase:start": "supabase start",
     "supabase:reset": "supabase db reset",
     "seed:admin": "tsx scripts/seed-admin.ts",
+    "seed:test-lots": "tsx scripts/seed-test-lots.ts",
     "probe:preview": "tsx scripts/probe-deploy.ts"
   },
   "dependencies": {
