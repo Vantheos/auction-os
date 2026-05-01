@@ -167,21 +167,29 @@ export function Inventory() {
         open={bulkDialog === 'export'}
         onClose={() => setBulkDialog(null)}
         onConfirm={async () => {
-          const qs = writeFiltersToUrl(new URLSearchParams(), filters).toString();
-          const url = `/api/lots/export${qs ? '?' + qs : ''}`;
-          const { data } = await import('@/lib/supabase').then((m) => m.supabase.auth.getSession());
-          const token = data.session?.access_token;
-          const r = await fetch(url, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
-          if (!r.ok) { toast({ title: 'Export failed', variant: 'danger' }); return; }
-          const blob = await r.blob();
-          const filename = `lots-${Date.now()}.csv`;
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = filename;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          setBulkDialog(null);
-          toast({ title: 'Export ready', description: `Downloaded ${filename}`, variant: 'success' });
+          try {
+            const qs = writeFiltersToUrl(new URLSearchParams(), filters).toString();
+            const url = `/api/lots/export${qs ? '?' + qs : ''}`;
+            const { data } = await import('@/lib/supabase').then((m) => m.supabase.auth.getSession());
+            const token = data.session?.access_token;
+            if (!token) { toast({ title: 'Export failed', description: 'Not signed in', variant: 'danger' }); return; }
+            const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+            if (!r.ok) { toast({ title: 'Export failed', description: `Server returned ${r.status}`, variant: 'danger' }); return; }
+            const blob = await r.blob();
+            const filename = `lots-${Date.now()}.csv`;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+            setBulkDialog(null);
+            toast({ title: 'Export ready', description: `Downloaded ${filename}`, variant: 'success' });
+          } catch (err) {
+            console.error('Export error:', err);
+            toast({ title: 'Export failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'danger' });
+          }
         }}
       />
     </div>
