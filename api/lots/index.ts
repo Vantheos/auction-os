@@ -8,6 +8,16 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { customer, job, lot } from '../../db/schema.js';
 
+async function fetchLotJoined(db: ReturnType<typeof getDb>, id: string) {
+  const [row] = await db
+    .select({ lot, customerName: customer.name, jobNumber: job.jobNumber, customerId: customer.id })
+    .from(lot)
+    .leftJoin(job, eq(lot.jobId, job.id))
+    .leftJoin(customer, eq(job.customerId, customer.id))
+    .where(eq(lot.id, id));
+  return row ? { ...row.lot, customerName: row.customerName, jobNumber: row.jobNumber, customerId: row.customerId } : null;
+}
+
 const CreateSchema = z.object({
   jobId: z.string().uuid(),
   quantity: z.number().int().positive().optional(),
@@ -149,7 +159,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           }).returning();
           return row;
         });
-        return jsonOk(res, created, 201);
+        const fresh = await fetchLotJoined(getDb(), created.id);
+        return jsonOk(res, fresh ?? created, 201);
       } catch (err: unknown) {
         const e = err as { code?: string; cause?: { code?: string } };
         const pgCode = e.code ?? e.cause?.code;

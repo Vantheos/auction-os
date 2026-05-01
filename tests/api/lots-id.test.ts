@@ -90,6 +90,12 @@ describe('PATCH /api/lots/[id]', () => {
     expect(res.body.jobId).toBeNull();
     expect(res.body.lotNumber).toBeNull();
   });
+
+  it('404 on PATCH of unknown id', async () => {
+    await seed();
+    const res = await call('00000000-0000-0000-0000-000000000099', 'PATCH', { title: 'X' }, 'admin', ADMIN);
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('DELETE /api/lots/[id]', () => {
@@ -103,5 +109,11 @@ describe('DELETE /api/lots/[id]', () => {
     const { lotId } = await seed();
     const res = await call(lotId, 'DELETE', null, 'office', OFFICE);
     expect(res.status).toBe(403);
+  });
+
+  it('404 on delete of unknown id', async () => {
+    await seed();
+    const res = await call('00000000-0000-0000-0000-000000000099', 'DELETE', null, 'admin', ADMIN);
+    expect(res.status).toBe(404);
   });
 });

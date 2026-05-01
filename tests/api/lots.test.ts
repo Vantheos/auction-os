@@ -44,6 +44,15 @@ describe('POST /api/lots', () => {
     expect(res.body.intakeOperatorId).toBe(WAREHOUSE);
   });
 
+  it('POST response includes joined customerName + jobNumber', async () => {
+    const { jobId } = await seed();
+    const res = await call('POST', { jobId }, 'admin', ADMIN);
+    expect(res.status).toBe(201);
+    expect(res.body.customerName).toBe('Smith Estate');
+    expect(res.body.jobNumber).toBe('2026-04-Smith-001');
+    expect(res.body.customerId).toBeDefined();
+  });
+
   it('increments lot_number per job (10, 11, 12, ...)', async () => {
     const { jobId } = await seed();
     const a = await call('POST', { jobId }, 'admin', ADMIN);

@@ -103,6 +103,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const [row] = await tx.update(lot).set(update).where(eq(lot.id, id)).returning();
         return row;
       });
+      if (!updated) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
       const fresh = await fetchLot(getDb(), id);
       return jsonOk(res, fresh ?? updated);
     }
