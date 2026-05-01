@@ -6,8 +6,9 @@ import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
-import { customer, job, lot } from '../../db/schema.js';
+import { customer, job, lot, lotPhoto } from '../../db/schema.js';
 import { LotStateError, validateTransition, type LotState } from '../_lib/lot-state.js';
+import { removeObjects } from '../_lib/storage.js';
 
 const PatchSchema = z.object({
   state: z.enum(['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable']).optional(),
@@ -112,11 +113,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (req.method === 'DELETE') {
       const { userId } = await requireAuth(req, 'admin');
+
+      // Capture storage paths BEFORE deleting (cascade drops lot_photo rows).
+      const photoPaths = (await getDb().select({ p: lotPhoto.storagePath })
+        .from(lotPhoto)
+        .where(eq(lotPhoto.lotId, id))).map((r) => r.p);
+
       const deleted = await asActor(userId, async (tx) => {
         const [row] = await tx.delete(lot).where(eq(lot.id, id)).returning();
         return row;
       });
       if (!deleted) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+
+      // Best-effort: remove storage objects after the DB transaction commits.
+      // If this fails, the cleanup-orphan-lots cron will not catch them
+      // (lot row is gone), so any failure is logged for manual reconciliation.
+      if (photoPaths.length > 0) {
+        await removeObjects(photoPaths);
+      }
+
       return jsonOk(res, { ok: true });
     }
 

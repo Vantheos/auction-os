@@ -41,14 +41,7 @@ describe('GET /api/lots/[id]/photos', () => {
     const res = await callHandler(handler, { method: 'GET', url: `/api/lots/${lotId}/photos?id=${lotId}` });
     expect(res.status).toBe(401);
   });
-  it('rejects POST/DELETE/PATCH (capture is Phase 3)', async () => {
-    const lotId = await seed();
-    const token = await mintTestJwt({ userId: ADMIN, role: 'admin' });
-    const res = await callHandler(handler, {
-      method: 'POST', url: `/api/lots/${lotId}/photos?id=${lotId}`,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: {},
-    });
-    expect(res.status).toBe(405);
-  });
+  // POST/PATCH/DELETE removed — capture endpoints landed in Phase 3.
+  // Comprehensive coverage of POST + signedUrl augmentation lives in
+  // tests/api/photos-create.test.ts (Phase B test suite).
 });

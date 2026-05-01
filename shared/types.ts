@@ -37,6 +37,8 @@ export type LotDTO = {
   intakeTimestamp: string;
   createdAt: string;
   updatedAt: string;
+  // Phase 3: cover thumbnail signed URL (only present on list responses)
+  coverSignedUrl?: string | null;
 };
 
 export type LotPhotoDTO = {
@@ -47,6 +49,26 @@ export type LotPhotoDTO = {
   status: 'pending' | 'uploaded' | 'failed';
   capturedAt: string;
   capturedBy: string;
+  // Phase 3: signed read URL — present on GET responses for uploaded photos
+  signedUrl?: string | null;
+};
+
+// Returned in CreateLotResponse.firstPhoto when the request included
+// firstPhoto: { displayOrder: 1 }. Client uses uploadUrl to PUT the file.
+export type CreatedFirstPhotoDTO = {
+  id: string;
+  lotId: string;
+  storagePath: string;
+  displayOrder: 1;
+  status: 'pending';
+  uploadUrl: string;
+  token: string;
+};
+
+// Returned in POST /api/lots/[id]/photos for subsequent photos
+export type CreatedPhotoDTO = LotPhotoDTO & {
+  uploadUrl: string;
+  token: string;
 };
 
 export type LotsListResponse = { lots: LotDTO[]; total: number };
@@ -62,6 +84,14 @@ export type CreateLotRequest = {
   specialNotesCategory?: 'None' | 'TOOL ONLY' | 'READ' | 'CLOTHING';
   specialNotesText?: string;
   untested?: boolean;
+  // Phase 3: when present, the server creates the first lot_photo row in the
+  // same transaction as the lot row and returns it (with a signed upload URL)
+  // in CreateLotResponse.firstPhoto.
+  firstPhoto?: { displayOrder: 1 };
+};
+
+export type CreateLotResponse = LotDTO & {
+  firstPhoto?: CreatedFirstPhotoDTO | null;
 };
 
 export type SystemSettingsDTO = {

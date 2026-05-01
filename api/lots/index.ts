@@ -7,7 +7,8 @@ import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { pgCodeOf, PG_UNIQUE_VIOLATION } from '../_lib/pg-errors.js';
-import { customer, job, lot } from '../../db/schema.js';
+import { signUploadUrl, bulkSignReadUrls } from '../_lib/storage.js';
+import { customer, job, lot, lotPhoto } from '../../db/schema.js';
 
 async function fetchLotJoined(db: ReturnType<typeof getDb>, id: string) {
   const [row] = await db
@@ -30,6 +31,9 @@ const CreateSchema = z.object({
   specialNotesCategory: z.enum(['None', 'TOOL ONLY', 'READ', 'CLOTHING']).optional(),
   specialNotesText: z.string().max(200).optional(),
   untested: z.boolean().optional(),
+  // Phase 3: when present, atomically create the first lot_photo row + return
+  // a signed upload URL in the same transaction. Cataloging always passes this.
+  firstPhoto: z.object({ displayOrder: z.literal(1) }).optional(),
 });
 
 const STATES = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'] as const;
@@ -90,16 +94,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+      // Subquery: cover photo (display_order = 1) per lot, when status = 'uploaded'.
+      // Pending or failed covers are excluded — there's no Storage object to sign yet.
+      const coverSub = db
+        .select({ lotId: lotPhoto.lotId, storagePath: lotPhoto.storagePath })
+        .from(lotPhoto)
+        .where(and(eq(lotPhoto.displayOrder, 1), eq(lotPhoto.status, 'uploaded')))
+        .as('cover');
+
       const rows = await db
         .select({
           lot,
           customerName: customer.name,
           jobNumber: job.jobNumber,
           customerId: customer.id,
+          coverPath: coverSub.storagePath,
         })
         .from(lot)
         .leftJoin(job, eq(lot.jobId, job.id))
         .leftJoin(customer, eq(job.customerId, customer.id))
+        .leftJoin(coverSub, eq(coverSub.lotId, lot.id))
         .where(where)
         .orderBy(desc(lot.createdAt))
         .limit(limit)
@@ -112,12 +126,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         .where(where);
       const total = totalQ[0]?.n ?? 0;
 
+      // Bulk-sign cover read URLs (~300 px thumbnail). Best-effort: paths that
+      // fail to sign get null on the response, client falls back to placeholder.
+      const coverPaths = rows.map((r) => r.coverPath).filter((p): p is string => !!p);
+      const signed = coverPaths.length > 0
+        ? await bulkSignReadUrls(coverPaths, { width: 300, quality: 80 })
+        : new Map<string, string>();
+
       return jsonOk(res, {
-        lots: rows.map(({ lot: l, customerName, jobNumber, customerId }) => ({
+        lots: rows.map(({ lot: l, customerName, jobNumber, customerId, coverPath }) => ({
           ...l,
           customerName,
           jobNumber,
           customerId,
+          coverSignedUrl: coverPath ? signed.get(coverPath) ?? null : null,
         })),
         total,
       });
@@ -136,7 +158,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
       try {
         const created = await asActor(userId, async (tx) => {
-          // Reserve next lot_number for this job: max + 1, default 10
+          // Serialize lot_number allocation per job. The advisory lock is held
+          // for the duration of the transaction; concurrent POSTs for the same
+          // job queue rather than collide on the partial unique index. The
+          // existing 409 LOT_NUMBER_CONFLICT path stays as defense-in-depth.
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parsed.data.jobId}))`);
+
           const [maxRow] = await tx
             .select({ maxN: sql<number>`COALESCE(MAX(${lot.lotNumber}), 9) + 1` })
             .from(lot)
@@ -158,10 +185,47 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             state: 'assigned',
             intakeOperatorId: userId,
           }).returning();
-          return row;
+
+          // Atomic first-photo creation: when the cataloging client passes
+          // firstPhoto: { displayOrder: 1 }, insert a pending lot_photo row in
+          // the same transaction. Avoids the orphan window between lot insert
+          // and first photo insert.
+          let firstPhoto: { id: string; storagePath: string } | null = null;
+          if (parsed.data.firstPhoto) {
+            const photoId = crypto.randomUUID();
+            const storagePath = `lots/${row.id}/${photoId}.jpg`;
+            const [photoRow] = await tx.insert(lotPhoto).values({
+              id: photoId,
+              lotId: row.id,
+              storagePath,
+              displayOrder: 1,
+              status: 'pending',
+              capturedBy: userId,
+            }).returning();
+            firstPhoto = { id: photoRow.id, storagePath: photoRow.storagePath };
+          }
+
+          return { lot: row, firstPhoto };
         });
-        const fresh = await fetchLotJoined(getDb(), created.id);
-        return jsonOk(res, fresh ?? created, 201);
+
+        // Sign upload URL outside the transaction (it makes a network call to
+        // Supabase Storage; doing it inside would hold the lock longer).
+        let firstPhoto: Record<string, unknown> | null = null;
+        if (created.firstPhoto) {
+          const { uploadUrl, token } = await signUploadUrl(created.firstPhoto.storagePath);
+          firstPhoto = {
+            id: created.firstPhoto.id,
+            lotId: created.lot.id,
+            storagePath: created.firstPhoto.storagePath,
+            displayOrder: 1,
+            status: 'pending',
+            uploadUrl,
+            token,
+          };
+        }
+
+        const fresh = await fetchLotJoined(getDb(), created.lot.id);
+        return jsonOk(res, { ...(fresh ?? created.lot), firstPhoto }, 201);
       } catch (err: unknown) {
         if (pgCodeOf(err) === PG_UNIQUE_VIOLATION) {
           return jsonError(res, 409, 'LOT_NUMBER_CONFLICT', 'Another lot was just assigned this number; retry');

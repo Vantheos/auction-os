@@ -22,4 +22,10 @@ export const config: VercelConfig = {
   rewrites: [
     { source: '/((?!api/).*)', destination: '/index.html' },
   ],
+  // Phase 3: sweep abandoned in-progress lots every 15 minutes.
+  // Vercel auto-injects an Authorization: Bearer ${CRON_SECRET} header
+  // when invoking; the handler verifies via requireCronAuth.
+  crons: [
+    { path: '/api/cron/cleanup-orphan-lots', schedule: '*/15 * * * *' },
+  ],
 };
