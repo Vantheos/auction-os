@@ -96,6 +96,22 @@ describe('PATCH /api/lots/[id]', () => {
     const res = await call('00000000-0000-0000-0000-000000000099', 'PATCH', { title: 'X' }, 'admin', ADMIN);
     expect(res.status).toBe(404);
   });
+
+  it('rejects field edits on sold lots (sold is frozen)', async () => {
+    const { lotId } = await seed();
+    await call(lotId, 'PATCH', { state: 'sold' }, 'admin', ADMIN);
+    const res = await call(lotId, 'PATCH', { title: 'New title' }, 'admin', ADMIN);
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('FROZEN');
+  });
+
+  it('allows state-only PATCH on sold lots (e.g., sold → picked-up)', async () => {
+    const { lotId } = await seed();
+    await call(lotId, 'PATCH', { state: 'sold' }, 'admin', ADMIN);
+    const res = await call(lotId, 'PATCH', { state: 'picked-up' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('picked-up');
+  });
 });
 
 describe('DELETE /api/lots/[id]', () => {

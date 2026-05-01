@@ -15,7 +15,9 @@ import type { LotDTO, LotState } from '@shared/types';
 
 type Props = { lot: LotDTO; onClose?: () => void; canEdit?: boolean; canDelete?: boolean; };
 
-const FROZEN_STATES: LotState[] = ['picked-up', 'not-sellable'];
+// Sold lots are frozen for field edits — they preserve what was shown to bidders
+// on the auction platform. To edit a sold lot, transition it to unassigned first.
+const FROZEN_STATES: LotState[] = ['sold', 'picked-up', 'not-sellable'];
 
 export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: Props) {
   const isFrozen = FROZEN_STATES.includes(lot.state);

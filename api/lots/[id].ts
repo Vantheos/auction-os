@@ -79,8 +79,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         }
       }
 
-      // Frozen states: only state change allowed (no field edits)
-      const isFrozen = current.state === 'picked-up' || current.state === 'not-sellable';
+      // Frozen states: only state change allowed (no field edits).
+      // `sold` is frozen because the lot was sold to a buyer at the price/quantity
+      // displayed on the auction platform; edits would mutate what was sold.
+      const isFrozen = current.state === 'sold' || current.state === 'picked-up' || current.state === 'not-sellable';
       const hasFieldEdits = Object.keys(parsed.data).some((k) => k !== 'state');
       if (isFrozen && hasFieldEdits) {
         return jsonError(res, 422, 'FROZEN', `Lot in ${current.state} cannot be edited`);
