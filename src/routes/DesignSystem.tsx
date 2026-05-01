@@ -19,6 +19,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { StatePill, AiStatusPill, RolePill } from '@/components/ui/pill';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/toast';
+import { LotDetail } from '@/components/lot/LotDetail';
+import type { LotDTO } from '@shared/types';
+
+const MOCK_LOT: LotDTO = {
+  id: '00000000-0000-0000-0000-000000000013', jobId: 'j', customerId: 'c',
+  customerName: 'Smith Estate', jobNumber: '2026-04-Smith-001', lotNumber: 13,
+  quantity: 1, title: '$45- 1x Antique Brass Vase', description: 'Patina, no chips. ~8" tall.',
+  price: '45.00', condition: 'used', ref1: null, ref2: null,
+  specialNotesCategory: 'TOOL ONLY', specialNotesText: null, untested: false,
+  state: 'assigned', lastAiRunStatus: 'success', lastAiRunError: null,
+  intakeOperatorId: 'u', intakeTimestamp: new Date().toISOString(),
+  createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+};
 
 type SwatchProps = { name: string; value: string; sample: string; textOn?: string };
 
@@ -388,6 +401,16 @@ export function DesignSystem() {
 
       <Section title="Toasts">
         <Row label="trigger"><ToastDemo /></Row>
+      </Section>
+
+      <Section title="Lot detail — assigned (editable)">
+        <LotDetail lot={MOCK_LOT} canEdit canDelete />
+      </Section>
+      <Section title="Lot detail — sold (editable per D-001)">
+        <LotDetail lot={{ ...MOCK_LOT, state: 'sold' }} canEdit canDelete />
+      </Section>
+      <Section title="Lot detail — picked-up (frozen)">
+        <LotDetail lot={{ ...MOCK_LOT, state: 'picked-up' }} canEdit canDelete />
       </Section>
 
       <Section title="Typography">
