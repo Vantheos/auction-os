@@ -1,11 +1,14 @@
 // scripts/probe-deploy.ts
-// Smoke-test a Vercel deployment by hitting /api/health.
+// Smoke-test a Vercel deployment by hitting a set of API endpoints.
 // Usage: npm run probe:preview -- <deployment-url>
 // Example: npm run probe:preview -- https://auction-xxxxx.vercel.app
 //
 // Uses `vercel curl` so it works against protected preview deployments
 // (the CLI mints a one-shot bypass token). Requires the Vercel CLI to be
 // installed and the local project to be linked via `vercel link`.
+//
+// Unauthed probes against protected endpoints expect 401 — this verifies
+// routing + function are alive without needing a valid JWT.
 
 import { spawnSync } from 'node:child_process';
 
@@ -15,31 +18,29 @@ if (!url) {
   process.exit(2);
 }
 
-const result = spawnSync('vercel', ['curl', '--deployment', url, '/api/health'], {
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
+type Probe = { name: string; path: string; method: string; body?: string; expectStatus?: number };
 
-if (result.status !== 0) {
-  console.error(`probe failed: vercel curl exited ${result.status}`);
-  if (result.stderr) console.error(result.stderr);
-  process.exit(1);
+const PROBES: Probe[] = [
+  { name: 'health', path: '/api/health', method: 'GET' },
+  { name: 'system-settings', path: '/api/system-settings', method: 'GET', expectStatus: 401 },
+  { name: 'lots-list', path: '/api/lots', method: 'GET', expectStatus: 401 },
+  { name: 'labels-render', path: '/api/labels/render', method: 'POST', body: '{"lotId":"00000000-0000-0000-0000-000000000000"}', expectStatus: 401 },
+];
+
+let failed = 0;
+for (const p of PROBES) {
+  const args = ['curl', '--deployment', url, p.path, '--', '-s', '-o', '/dev/null', '-w', '%{http_code}', '-X', p.method];
+  if (p.body) args.push('-H', 'Content-Type: application/json', '-d', p.body);
+  const r = spawnSync('vercel', args, { encoding: 'utf8', shell: process.platform === 'win32' });
+  if (r.status !== 0) {
+    console.error(`✗ ${p.name}: vercel curl exit ${r.status}\n${r.stderr}`);
+    failed++;
+    continue;
+  }
+  const code = parseInt(r.stdout.trim().split('\n').pop() ?? '0', 10);
+  const ok = p.expectStatus ? code === p.expectStatus : code >= 200 && code < 300;
+  if (ok) console.log(`✓ ${p.name} → ${code}`);
+  else { console.error(`✗ ${p.name} → ${code} (expected ${p.expectStatus ?? '2xx'})`); failed++; }
 }
 
-const body = result.stdout.trim();
-let parsed: unknown;
-try {
-  parsed = JSON.parse(body);
-} catch {
-  console.error(`probe failed: /api/health did not return JSON`);
-  console.error(body);
-  process.exit(1);
-}
-
-if (typeof parsed !== 'object' || parsed === null || (parsed as { ok?: unknown }).ok !== true) {
-  console.error(`probe failed: unexpected response shape`);
-  console.error(JSON.stringify(parsed));
-  process.exit(1);
-}
-
-console.log(`✓ ${url}/api/health → ${body}`);
+process.exit(failed > 0 ? 1 : 0);
