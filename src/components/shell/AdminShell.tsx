@@ -2,11 +2,11 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { signOut, useSession, useRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
-const NAV = [
-  { to: '/inventory', label: 'Inventory', enabled: false },
+const NAV: { to: string; label: string; enabled: boolean; adminOnly?: boolean }[] = [
+  { to: '/inventory', label: 'Inventory', enabled: true },
   { to: '/customers', label: 'Customers', enabled: true },
   { to: '/users', label: 'Users', enabled: false },
-  { to: '/settings', label: 'Settings', enabled: false },
+  { to: '/settings', label: 'Settings', enabled: true, adminOnly: true },
   { to: '/audit', label: 'Audit', enabled: false },
 ];
 
@@ -19,7 +19,9 @@ export function AdminShell() {
       <aside className="w-56 bg-surface border-r border-border p-4 flex flex-col">
         <div className="font-semibold text-lg mb-6">Auction OS</div>
         <nav className="space-y-1 flex-1">
-          {NAV.map((item) => (
+          {NAV
+            .filter((item) => !item.adminOnly || role === 'admin')
+            .map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
