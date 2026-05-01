@@ -18,7 +18,7 @@
 | **Physical-printer round-trip test** | 🟡 deferred (intentional verification gap; fires when Zebra ZD450 is on hand) |
 | **Phase 3 design + plan** | ❌ not started — kicks off after Phase 2 sign-off |
 
-**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline`): 47 commits across the 8 phases plus 4 fix-up commits captured during code review (NaN guards, savepoint pattern, joined-DTO retrofit, pg-error helper extraction).
+**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline`): 55 commits across the 8 phases — task implementations, fix-up commits captured during code review (NaN guards, savepoint pattern, joined-DTO retrofit, pg-error helper extraction), spec/plan annotations to keep docs in sync with shipped code, and Phase H wrap-up.
 
 ## Phase 1 status: ✅ signed off
 
