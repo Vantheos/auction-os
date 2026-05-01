@@ -27,17 +27,26 @@ const PROBES: Probe[] = [
   { name: 'labels-render', path: '/api/labels/render', method: 'POST', body: '{"lotId":"00000000-0000-0000-0000-000000000000"}', expectStatus: 401 },
 ];
 
+// `vercel curl` may issue multiple sub-requests for protected POSTs (a
+// bypass-cookie probe followed by the real call). When the second call
+// fails with curl exit 6 (couldn't resolve host), the FIRST call's status
+// is still in stdout — extract it instead of bailing on the exit code.
+function firstStatus(stdout: string): number | null {
+  const m = stdout.match(/[1-5]\d{2}/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
 let failed = 0;
 for (const p of PROBES) {
   const args = ['curl', '--deployment', url, p.path, '--', '-s', '-o', '/dev/null', '-w', '%{http_code}', '-X', p.method];
   if (p.body) args.push('-H', 'Content-Type: application/json', '-d', p.body);
   const r = spawnSync('vercel', args, { encoding: 'utf8', shell: process.platform === 'win32' });
-  if (r.status !== 0) {
-    console.error(`✗ ${p.name}: vercel curl exit ${r.status}\n${r.stderr}`);
+  const code = firstStatus(r.stdout);
+  if (code === null) {
+    console.error(`✗ ${p.name}: vercel curl exit ${r.status}, no HTTP status in output\n${r.stderr}`);
     failed++;
     continue;
   }
-  const code = parseInt(r.stdout.trim().split('\n').pop() ?? '0', 10);
   const ok = p.expectStatus ? code === p.expectStatus : code >= 200 && code < 300;
   if (ok) console.log(`✓ ${p.name} → ${code}`);
   else { console.error(`✗ ${p.name} → ${code} (expected ${p.expectStatus ?? '2xx'})`); failed++; }
