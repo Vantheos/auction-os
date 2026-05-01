@@ -1,6 +1,24 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-04-30 PM ET. **Phase 1 (Foundation) signed off** after end-to-end manual test on preview passed all 6 steps. Two latent bugs were found and fixed during the manual test (see "What we fixed today"). Next: write the Phase 2 plan in `docs/superpowers/plans/`.
+> Last updated 2026-04-30 PM ET. **Phase 2 (Lot lifecycle + label printing) implementation complete; pending user manual test sign-off.** All 39 plan tasks implemented across 8 phases, 47 commits ahead of `phase-1-foundation`. 101/101 vitest suite green; typecheck clean; build clean with vendor chunk splitting. Manual click-through gauntlet (31 steps) is the final gate — see "Phase 2 manual test checklist" at the bottom of this file.
+
+## Phase 2 status: 🟡 implementation done, manual sign-off pending
+
+| Item | Status |
+|---|---|
+| Code (39 plan tasks, A–H) | ✅ done |
+| Vitest suite | ✅ 101 tests passing (was 35 after Phase 1; +66 in Phase 2) |
+| Migration `0006_system_settings_label_printer.sql` applied to Dev + Test | ✅ done |
+| Vercel Pro upgrade (Hobby's 12-function cap exceeded at 15) | ✅ user upgraded mid-flight |
+| Vendor chunk splitting (Inventory/Settings/LotDetail lazy) | ✅ main chunk dropped from ~514 KB to ~174 KB |
+| Vercel preview deploy | ✅ Ready (`auction-mesjg97wr-vantheos-4047s-projects.vercel.app` at sign-off; latest via `vercel ls auction-os`) |
+| `npm run probe:preview` | ✅ all 4 probes green (health 200; system-settings/lots/labels 401 unauth) |
+| Test data seeded to Dev | ✅ `npm run seed:test-lots` populated 6 lots in `Test Estate / 2026-04-Test-001` |
+| **Manual click-through (31 steps)** | ❌ pending — checklist at bottom of this file |
+| **Physical-printer round-trip test** | 🟡 deferred (intentional verification gap; fires when Zebra ZD450 is on hand) |
+| **Phase 3 design + plan** | ❌ not started — kicks off after Phase 2 sign-off |
+
+**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline`): 47 commits across the 8 phases plus 4 fix-up commits captured during code review (NaN guards, savepoint pattern, joined-DTO retrofit, pg-error helper extraction).
 
 ## Phase 1 status: ✅ signed off
 
