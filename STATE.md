@@ -178,3 +178,64 @@ If `vercel env ls` itself errors with "Your Project was either deleted, transfer
 - Repo-local git author email matters for Vercel attribution; use `Vantheos <ops@vantheos.com>` for auction-os
 - **Avoid Hono on Vercel — use native (req, res) handlers** (added today after Phase 1 debug)
 - Production-worthy from day one — no proof-of-concept / MVP / band-aid solutions; if a workaround is the only path, name it as such and propose the proper fix
+
+---
+
+## Phase 2 manual test checklist (sign-off)
+
+Run against the latest preview URL after `npm run seed:test-lots` has been applied to Dev.
+
+### Inventory
+1. Open preview URL → redirects to `/inventory`
+2. Inventory loads showing the 6 seeded lots (5 in `Test Estate / 2026-04-Test-001` + 1 unassigned `Mystery Item`)
+3. Filter by Customer "Test Estate" → list narrows to 5
+4. Filter by Job → list still shows 5
+5. Toggle State filter chips → list updates per selection
+6. Clear filters → all 6 lots return
+
+### Single-lot modal
+7. Click row → lot detail modal opens with the lot's data
+8. URL contains `?openLot=<id>`; refresh keeps modal open
+9. Edit title, click Save → toast "Lot updated"; row title updates after close
+10. Click Reprint label → toast "Printer not configured" (helper URL not set yet — expected)
+11. Click Change status → menu shows only legal transitions for current state
+12. Pick `sold` (from `assigned`) → state pill flips immediately (optimistic), no confirm
+13. Pick `picked-up` (from `sold`) → confirm modal appears; click Confirm → flips
+14. Open the picked-up lot → modal shows 🔒 Read-only; no form, only Reprint + Change-status buttons
+15. From a `not-sellable` lot, Change-status → `unassigned` → flips back; `(jobId, lotNumber)` cleared
+
+### Move
+16. On an `assigned` lot, click Move to another auction → dialog opens
+17. Pick destination customer + job; submit → toast "Lot updated"; lot now belongs to new job
+18. Move dialog should NOT show on a `sold` lot (button hidden — assigned-only per spec §4.2)
+
+### Bulk
+19. Select 2 assigned lots via row checkbox → bulk action bar appears at bottom
+20. Bulk Change status → only shared transitions shown; pick `sold` → both flip; toast "2 lots updated"
+21. Select 2 lots in different states (one assigned, one picked-up) → Bulk Change status dialog says "no shared legal transitions"
+22. Bulk Move → dialog → confirm → both move
+23. Bulk Delete (admin only) → type `DELETE` to enable submit → both deleted; toast confirms count
+24. Bulk Export CSV → CSV downloads; verify columns match v1 manifest (id, customer, job, lot_number, state, title, description, price, special_notes_category, special_notes_text, untested, quantity, ai_status, created_at, updated_at)
+
+### Settings
+25. As admin, navigate to `/settings`
+26. Set Helper URL to `http://localhost:9100`; click Test → reports "✗ Helper unreachable" (expected, no helper running)
+27. Click Save → toast "Settings saved"; refresh confirms persistence
+
+### Mobile lot view
+28. Visit `/lot/<a-lot-id>` directly in browser
+29. Resize browser to 375px wide (or open on a phone) — fields stack vertically, photo grid wraps, all actions reachable without horizontal scroll
+
+### Audit trail spot-check
+30. Run: `psql "$DEV_DATABASE_URL" -c "SELECT changed_at, action, changed_by FROM audit_log WHERE table_name = 'lot' ORDER BY changed_at DESC LIMIT 10;"`
+31. Confirm `changed_by` is non-NULL and matches the admin user's id for every recent mutation
+
+### Acceptance
+- [ ] All 31 steps above pass
+- [ ] No console errors visible during the flow
+- [ ] No `FUNCTION_INVOCATION_TIMEOUT` or 500s in `vercel logs`
+
+If all pass → Phase 2 is signed off. Move to Phase 3 plan (mobile cataloging + photo capture pipeline).
+
+**Deferred to physical-printer test (NOT a Phase 2 blocker):**
+- [ ] With Zebra Browser Print helper installed and Zebra ZD450 connected: Test button reports "✓ Helper reachable" and Reprint Label produces a physical 2"×1" label that scans correctly via QR
