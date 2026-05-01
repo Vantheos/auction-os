@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Liquidation OS — Option C · Mobile Inventory</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1F1F1F;
+    font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #0F172A; overflow: hidden;
+    --c-accent: #1E40AF;
+  }
+  #root { height: 100vh; display: flex; flex-direction: column; }
+  .topbar {
+    height: 48px; background: #1F1F1F; color: #fff; display: flex; align-items: center;
+    gap: 14px; padding: 0 16px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .topbar .brand { font-weight: 700; letter-spacing: 0.3px; font-size: 12px; color: rgba(255,255,255,0.55); }
+  .topbar .brand b { color: #fff; }
+  .topbar .crumb { font-size: 11px; color: rgba(255,255,255,0.45); }
+  .ghost-btn {
+    background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.85);
+    padding: 4px 10px; border-radius: 6px; font-family: inherit; font-size: 11px; cursor: pointer;
+  }
+  .stage { flex: 1; min-height: 0; overflow: hidden; position: relative; background: #1F1F1F; }
+  .canvas { display: flex; gap: 28px; padding: 28px 32px; align-items: flex-start; min-width: 100%; height: 100%; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; }
+  .screen-card { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+  .screen-label {
+    color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .screen-label .pip { width: 18px; height: 18px; border-radius: 50%; background: var(--c-accent); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .screen-sub { color: rgba(255,255,255,0.4); font-size: 10px; max-width: 380px; line-height: 1.5; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="android-frame.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="option-c-mobile-inventory.jsx"></script>
+
+<script type="text/babel">
+  function App() {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopBar />
+        <div className="stage">
+          <div className="canvas">
+            <ScreenCard num="1" label="Default — no filters active" sub="Sticky top bar (search + filter button). Single-column rows. State pill + AI annotation per row. Tap row to open modal.">
+              <MobileInventoryScreen />
+            </ScreenCard>
+
+            <ScreenCard num="2" label="Filters active — chip indicator" sub="Filter button shows count badge. Active-filter chips below top bar. Filtered list narrower.">
+              <MobileInventoryScreen filtered={true} />
+            </ScreenCard>
+
+            <ScreenCard num="3" label="Filter drawer open" sub="Bottom-sheet with full filter set: customer, job, lot status, AI status, date range. Apply or clear all.">
+              <MobileFilterSheet />
+            </ScreenCard>
+
+            <ScreenCard num="4" label="Lot detail — editable (assigned or unassigned)" sub="Full-screen modal. Warehouse-priority field order: Special Notes + Untested first, Quantity + Price next, then Title / Description / Refs. Conditional Size when CLOTHING. Action footer (Reprint, Move, Status).">
+              <MobileLotDetailScreen lot={SAMPLE_LOTS[2]} />
+            </ScreenCard>
+
+            <ScreenCard num="5" label="Lot detail — frozen (sold / picked-up / not-sellable)" sub="Per amended D-001, sold + picked-up + not-sellable are read-only. Lock icon in pill. Static field display. Footer drops Move; Status menu still allowed.">
+              <MobileLotDetailScreen lot={SAMPLE_LOTS[0]} />
+            </ScreenCard>
+
+            <ScreenCard num="6" label="Empty state" sub="No lots match current filters. Clear-filters CTA.">
+              <MobileInventoryScreen empty={true} />
+            </ScreenCard>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function TopBar() {
+    return (
+      <div className="topbar">
+        <span className="brand"><b>LIQUIDATION OS</b> · Option C — Mobile Inventory</span>
+        <div style={{ flex: 1 }} />
+        <span className="crumb">All screens · 412 px mobile canvas</span>
+      </div>
+    );
+  }
+
+  function ScreenCard({ num, label, sub, children }) {
+    return (
+      <div className="screen-card">
+        <div className="screen-label"><span className="pip">{num}</span>{label}</div>
+        <div className="screen-sub">{sub}</div>
+        {children}
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

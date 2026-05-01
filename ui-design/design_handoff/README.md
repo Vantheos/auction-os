@@ -44,12 +44,14 @@ design_handoff/
 ├─ 01-cataloging-and-inventory.html   ← IMPLEMENT
 ├─ 02-lot-lifecycle.html              ← IMPLEMENT
 ├─ 03-admin-shell.html                ← IMPLEMENT
+├─ 04-mobile-inventory.html           ← IMPLEMENT (added 2026-05-01 for Phase 3 — closes the mobile inventory gap from the original handoff)
 │
 ├─ shared.jsx                         ← sample data, icons, photo placeholder, state labels
 ├─ option-c.jsx                       ← inventory list + lot detail modal (used by file 00; logic ported into option-c-lifecycle.jsx)
 ├─ option-c-flow.jsx                  ← cataloging mobile screens + sample customer/job data
 ├─ option-c-lifecycle.jsx             ← lifecycle: bulk action bar, dialogs, frozen modals, AI states
 ├─ option-c-admin.jsx                 ← admin shell, customers, users, settings, audit
+├─ option-c-mobile-inventory.jsx      ← mobile inventory list + filter sheet + full-screen lot detail (Phase 3 addendum)
 ├─ option-a.jsx, option-b.jsx         ← reference only (other directions)
 ├─ tweaks-panel.jsx                   ← in-design tweak controls (not part of the product)
 ├─ android-frame.jsx                  ← phone bezel for mobile mockups (not part of the product)
@@ -76,11 +78,18 @@ Liquidation OS catalogs items in a warehouse, groups them into auction lots, and
 
 **Lot states (state machine):**
 ```
-in_progress → unassigned ⇄ assigned → sold → picked_up
-                ↓             ↓
-            not_sellable ←────┘
+in_progress → unassigned ⇄ assigned → sold ⇄ unassigned
+                ↓             ↓        ↓
+            not-sellable ←────┘    picked-up
 ```
-Plus admin-only hard delete from any state.
+- `sold → unassigned` is legal (sale falls through; lot returns to inventory)
+- `sold → picked-up` is the normal "buyer collects" path
+- `picked-up` and `not-sellable` are **terminal**
+- `sold` is **frozen** for field edits per amended D-001 — preserves what bidders saw on the auction platform
+- `in_progress` is client-side only (during cataloging before first save)
+- Plus admin-only hard delete from any state
+
+(Schema uses **hyphenated** state values: `picked-up`, `not-sellable`. Earlier doc revisions used underscores; hyphens are authoritative.)
 
 **AI:** generates title / description / reference price for each lot. Runs manually (button) or on a schedule (admin-configurable in Settings). Each AI field is independently `success | partial | failure` — partial = some fields populated, failure = none.
 
@@ -123,9 +132,9 @@ Lot state pills
   in_progress             #475569  on #F1F5F9
   unassigned              #92400E  on #FEF3C7
   assigned                #1E40AF  on #DBEAFE
-  sold                    #15803D  on #DCFCE7
-  picked_up               #475569  on #E2E8F0  (frozen)
-  not_sellable            #B91C1C  on #FEE2E2  (frozen)
+  sold                    #15803D  on #DCFCE7  (frozen — D-001 amended)
+  picked-up               #475569  on #E2E8F0  (frozen, terminal)
+  not-sellable            #B91C1C  on #FEE2E2  (frozen, terminal)
 
 AI state
   success                 #15803D
@@ -356,7 +365,7 @@ Lot {
   job_id, job_number,
   title, description,
   price?, ref_price?,
-  state: 'in_progress' | 'unassigned' | 'assigned' | 'sold' | 'picked_up' | 'not_sellable',
+  state: 'in_progress' | 'unassigned' | 'assigned' | 'sold' | 'picked-up' | 'not-sellable',
   ai: { title, description, ref_price } each: 'success' | 'partial' | 'failure' | 'not_run',
   ai_error?: string,
   photos: [{ url, isCover }],
@@ -398,7 +407,7 @@ The customer ended the design pass with these as known gaps. Build to spec where
 - **Empty / first-run states** for every list (no customers, no jobs, no lots, no users, no audit entries).
 - **Toast/notification system** for save success, AI complete, label sent, errors.
 - **Global search** across customers / jobs / lots from the topbar.
-- **Tablet/phone fallback** for Customers / Users / Settings / Audit (only mobile cataloging is designed for mobile).
+- **Tablet/phone fallback** for Customers / Users / Settings / Audit (mobile cataloging and mobile inventory are designed; the rest are desktop-only for v1).
 - **Login / forbidden / role-gated empty states** (e.g. Warehouse hitting `/admin`).
 - **Saved filter presets** management.
 

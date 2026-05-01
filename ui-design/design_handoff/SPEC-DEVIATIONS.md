@@ -7,11 +7,12 @@ Format: each entry has the spec section it touches, what the spec says, what we 
 
 ---
 
-## D-001 · `sold` is **editable**, not frozen
-- **Spec:** §11 Frozen-state visual treatment — "Lots in `sold`, `picked-up`, or `not-sellable` state render in the lot detail modal with all field-edit affordances **hidden** (read-only display)."
-- **Design:** `sold` lots remain **editable**. Only `picked-up` and `not-sellable` are read-only/frozen.
-- **Why:** A `sold → unassigned` transition is legal in the state machine (sale can fall through if the buyer never picks up). If the lot were frozen while sold, fields like price, photos, description couldn't be corrected before relisting. Treating `sold` as fully editable matches operator workflow.
-- **Touches:** Lot detail modal, state-machine UI affordances. Backend logic unchanged — `sold` was never terminal in the state machine; the spec's frozen rule contradicted its own state machine.
+## D-001 · `sold` is **frozen** (amended 2026-05-01 — original deviation reversed)
+- **Original spec:** §11 Frozen-state visual treatment — "Lots in `sold`, `picked-up`, or `not-sellable` state render in the lot detail modal with all field-edit affordances **hidden** (read-only display)."
+- **Original design deviation (reversed):** `sold` lots were marked editable. Only `picked-up` and `not-sellable` were read-only.
+- **Current decision (Phase 2 sign-off, commit `23c103c`):** `sold` is **frozen** alongside `picked-up` and `not-sellable`. All three states are read-only for field edits. To edit a sold lot, transition `sold → unassigned` first, edit, then re-assign.
+- **Why the reversal:** Sold lots have already been published to the third-party auction platform; bidders saw the title, description, price, and photos as they were at sale time. Editing the lot record after sale would create a divergence between what bidders saw and what the audit-trail / platform record shows. Preserving the "sold-time snapshot" is more important than convenience editing. The fall-through path (`sold → unassigned → edit → re-assign`) handles the legitimate case.
+- **Touches:** Lot detail modal (frozen rendering for sold), backend PATCH endpoint (returns 422 `FROZEN` for sold lots), state-machine UI affordances.
 
 ---
 

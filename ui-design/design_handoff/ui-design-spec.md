@@ -373,13 +373,15 @@ Saving updates the `system_settings` row. The hourly Vercel cron then reads the 
 
 ## 7. Label printing (touchpoints in the UI)
 
-Labels print automatically when the operator taps **Next** (mobile cataloging). They're 2" × 1" thermal labels via a Zebra ZD450 + Zebra Browser Print local helper. (Original spec called for 4"×2"; reduced to 2"×1" by user direction. Authoritative dimension lives in v1 spec §10.2.)
+> **Amended 2026-05-01:** This section originally specified auto-print on Next. That was reversed during design as **D-004** — labels now print on an **explicit Print Label button**, not automatically on Next. See `SPEC-DEVIATIONS.md` D-004. Phase 2 shipped this behavior. Section text below has been corrected.
+
+Labels are 2" × 1" thermal labels via a Zebra ZD450 + Zebra Browser Print local helper. Print is **manually triggered**, not automatic. (Original spec called for 4"×2"; reduced to 2"×1" by user direction. Authoritative dimension lives in v1 spec §10.2.)
 
 UI touchpoints:
 
-- **No new screen for printing** — happens silently on **Next**.
-- **Print failure indicator** — if the printer isn't responding, surface a non-blocking notice ("Label print failed — retry"). The lot still saves.
-- **Reprint button** — on the lot detail modal (§5), accessible to all roles.
+- **Print Label button** — explicit button on the cataloging Lot-in-progress screen (D-004). Tapping Next saves the lot but does **not** invoke the printer.
+- **Print failure recovery** — if the printer isn't responding, fire one silent retry; on second failure, surface a non-blocking toast ("Label print failed — Lot N saved. Reprint from Inventory."). The lot still saves and the operator can reprint later.
+- **Reprint button** — on the lot detail modal (§5), accessible in all states (including frozen) and to all roles.
 
 Label content (for designer reference — fixed format printed via ZPL):
 
