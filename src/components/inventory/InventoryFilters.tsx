@@ -40,7 +40,7 @@ export function InventoryFilters({ filters, onChange }: Props) {
           onChange={(e) => onChange({ ...filters, jobId: e.target.value || undefined })}
           className="h-8 rounded-md border border-borderStrong bg-surfaceSolid px-2 text-sm">
           <option value="">All jobs</option>
-          {jobs.data?.map((j) => <option key={j.id} value={j.id}>{j.jobNumber}</option>)}
+          {jobs.data?.filter((j) => !j.closedAt).map((j) => <option key={j.id} value={j.id}>{j.jobNumber}</option>)}
         </select>
       )}
 

@@ -67,6 +67,17 @@ describe('POST /api/lots/[id]/move', () => {
     expect(res.body.error.code).toBe('ILLEGAL_MOVE');
   });
 
+  it('admin moves an unassigned lot, transitioning state to assigned', async () => {
+    const { lotId, dstJobId } = await seed();
+    // Transition to unassigned: clears jobId/lotNumber per schema CHECK
+    await testDb.update(lot).set({ state: 'unassigned', jobId: null, lotNumber: null }).where(eq(lot.id, lotId));
+    const res = await call(lotId, { destinationJobId: dstJobId }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe('assigned');
+    expect(res.body.jobId).toBe(dstJobId);
+    expect(res.body.lotNumber).toBe(10);
+  });
+
   it('404 on unknown lot id', async () => {
     const { dstJobId } = await seed();
     const res = await call('00000000-0000-0000-0000-000000000099', { destinationJobId: dstJobId }, 'admin', ADMIN);

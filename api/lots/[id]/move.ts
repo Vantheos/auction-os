@@ -22,7 +22,7 @@ function getId(req: IncomingMessage): string | null {
 
 class IllegalMoveError extends Error {
   constructor(public from: string) {
-    super(`Cannot move lot in state ${from}; only assigned lots can be moved`);
+    super(`Cannot move lot in state ${from}; only assigned and unassigned lots can be moved`);
     this.name = 'IllegalMoveError';
   }
 }
@@ -61,9 +61,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         // Fetch + state guard inside the transaction
         const [current] = await tx.select().from(lot).where(eq(lot.id, id));
         if (!current) return null;
-        if (current.state !== 'assigned') {
+        if (current.state !== 'assigned' && current.state !== 'unassigned') {
           throw new IllegalMoveError(current.state);
         }
+        const wasUnassigned = current.state === 'unassigned';
         // Reserve next lot_number in destination, baseline 10
         const [maxRow] = await tx
           .select({ maxN: sql<number>`COALESCE(MAX(${lot.lotNumber}), 9) + 1` })
@@ -73,6 +74,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const [updated] = await tx.update(lot).set({
           jobId: parsed.data.destinationJobId,
           lotNumber: nextLotNumber,
+          ...(wasUnassigned ? { state: 'assigned' as const } : {}),
           updatedAt: new Date(),
         }).where(eq(lot.id, id)).returning();
         return updated.id;

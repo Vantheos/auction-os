@@ -86,7 +86,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         <Button variant="outline" onClick={() => printLabel.mutate(lot.id)} disabled={printLabel.isPending || lot.lotNumber === null}>
           {printLabel.isPending ? 'Printing…' : 'Reprint label'}
         </Button>
-        {!isFrozen && lot.state === 'assigned' && (
+        {!isFrozen && (lot.state === 'assigned' || lot.state === 'unassigned') && (
           <Button variant="outline" onClick={() => setMoveOpen(true)}>Move to another auction</Button>
         )}
         <ChangeStateMenu current={lot.state} onPick={handlePickState} disabled={changeState.isPending} />

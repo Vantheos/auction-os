@@ -96,13 +96,14 @@ async function applyMove(tx: Transaction, lotIds: string[], destinationJobId: st
         if (!current) {
           throw new BulkOpError('NOT_FOUND', 'Lot not found');
         }
-        // Spec §4.2: only assigned lots can be moved
-        if (current.state !== 'assigned') {
+        // Spec §4.2: assigned and unassigned lots can be moved
+        if (current.state !== 'assigned' && current.state !== 'unassigned') {
           throw new BulkOpError(
             'ILLEGAL_MOVE',
-            `Cannot move lot in state ${current.state}; only assigned lots can be moved`
+            `Cannot move lot in state ${current.state}; only assigned and unassigned lots can be moved`
           );
         }
+        const wasUnassigned = current.state === 'unassigned';
         // Reserve next lot_number in destination, baseline 10
         const [maxRow] = await sub
           .select({ maxN: sql<number>`COALESCE(MAX(${lot.lotNumber}), 9) + 1` })
@@ -111,6 +112,7 @@ async function applyMove(tx: Transaction, lotIds: string[], destinationJobId: st
         await sub.update(lot).set({
           jobId: destinationJobId,
           lotNumber: maxRow?.maxN ?? 10,
+          ...(wasUnassigned ? { state: 'assigned' as const } : {}),
           updatedAt: new Date(),
         }).where(eq(lot.id, id));
       });

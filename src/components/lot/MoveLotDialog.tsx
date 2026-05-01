@@ -41,18 +41,28 @@ export function MoveLotDialog({ open, onClose, onConfirm, busy }: Props) {
               {customers.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          {customerId && (
-            <div className="space-y-1">
-              <Label htmlFor="dest-job">Destination job</Label>
-              <select id="dest-job" value={jobId} onChange={(e) => setJobId(e.target.value)}
-                className="w-full h-9 rounded-md border border-borderStrong bg-surfaceSolid px-2 text-sm">
-                <option value="">Select…</option>
-                {jobs.data?.filter((j) => !j.closedAt).map((j) =>
-                  <option key={j.id} value={j.id}>{j.jobNumber}</option>
-                )}
-              </select>
-            </div>
-          )}
+          {customerId && (() => {
+            const openJobs = (jobs.data ?? []).filter((j) => !j.closedAt);
+            if (jobs.data && openJobs.length === 0) {
+              return (
+                <div className="text-sm text-textDim p-3 rounded-md border border-border bg-surfaceAlt">
+                  No open jobs for this customer. Create or reopen a job before moving.
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-1">
+                <Label htmlFor="dest-job">Destination job</Label>
+                <select id="dest-job" value={jobId} onChange={(e) => setJobId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-borderStrong bg-surfaceSolid px-2 text-sm">
+                  <option value="">Select…</option>
+                  {openJobs.map((j) =>
+                    <option key={j.id} value={j.id}>{j.jobNumber}</option>
+                  )}
+                </select>
+              </div>
+            );
+          })()}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={reprint} onChange={(e) => setReprint(e.target.checked)} className="size-4" />
             Reprint label after move

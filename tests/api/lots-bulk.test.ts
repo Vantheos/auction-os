@@ -142,6 +142,19 @@ describe('POST /api/lots/bulk — move', () => {
     const res = await call({ action: 'move', lotIds });
     expect(res.status).toBe(400);
   });
+
+  it('moves unassigned lots, transitioning state to assigned', async () => {
+    const { lotIds, customerId } = await seed3Lots();
+    // Move first lot to unassigned via direct DB update
+    await testDb.update(lot).set({ state: 'unassigned', jobId: null, lotNumber: null }).where(eq(lot.id, lotIds[0]));
+    const [j2] = await testDb.insert(job).values({ customerId, jobNumber: 'J-DEST' }).returning();
+    const res = await call({ action: 'move', lotIds: [lotIds[0]], params: { destinationJobId: j2.id } });
+    expect(res.status).toBe(200);
+    expect(res.body.results[0].ok).toBe(true);
+    const [moved] = await testDb.select().from(lot).where(eq(lot.id, lotIds[0]));
+    expect(moved.state).toBe('assigned');
+    expect(moved.jobId).toBe(j2.id);
+  });
 });
 
 describe('POST /api/lots/bulk — validation', () => {
