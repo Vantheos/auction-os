@@ -1,24 +1,50 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-04-30 PM ET. **Phase 2 (Lot lifecycle + label printing) implementation complete; pending user manual test sign-off.** All 39 plan tasks implemented across 8 phases, 47 commits ahead of `phase-1-foundation`. 101/101 vitest suite green; typecheck clean; build clean with vendor chunk splitting. Manual click-through gauntlet (31 steps) is the final gate — see "Phase 2 manual test checklist" at the bottom of this file.
+> Last updated 2026-05-01 PM ET. **Phase 2 (Lot lifecycle + label printing) signed off** after manual click-through on the preview surfaced 11 distinct issues, all resolved. 105/105 vitest suite green; typecheck clean; build clean with vendor chunk splitting. Branch `phase-2-lot-lifecycle` at `a517f9d`, 67 commits ahead of `phase-1-foundation`. Merging to `main` is deferred to v1 cutover per branch strategy.
 
-## Phase 2 status: 🟡 implementation done, manual sign-off pending
+## Phase 2 status: ✅ signed off
 
 | Item | Status |
 |---|---|
 | Code (39 plan tasks, A–H) | ✅ done |
-| Vitest suite | ✅ 101 tests passing (was 35 after Phase 1; +66 in Phase 2) |
+| Vitest suite | ✅ 105 tests passing (was 35 after Phase 1; +70 in Phase 2 incl. sign-off additions) |
 | Migration `0006_system_settings_label_printer.sql` applied to Dev + Test | ✅ done |
 | Vercel Pro upgrade (Hobby's 12-function cap exceeded at 15) | ✅ user upgraded mid-flight |
-| Vendor chunk splitting (Inventory/Settings/LotDetail lazy) | ✅ main chunk dropped from ~514 KB to ~174 KB |
-| Vercel preview deploy | ✅ Ready (`auction-mesjg97wr-vantheos-4047s-projects.vercel.app` at sign-off; latest via `vercel ls auction-os`) |
+| Vendor chunk splitting (Inventory/Settings/LotDetail lazy) | ✅ main chunk ~178 KB (was ~514 KB pre-split) |
+| Vercel preview deploy | ✅ Ready — latest via `vercel ls auction-os` |
 | `npm run probe:preview` | ✅ all 4 probes green (health 200; system-settings/lots/labels 401 unauth) |
 | Test data seeded to Dev | ✅ `npm run seed:test-lots` populated 6 lots in `Test Estate / 2026-04-Test-001` |
-| **Manual click-through (31 steps)** | ❌ pending — checklist at bottom of this file |
-| **Physical-printer round-trip test** | 🟡 deferred (intentional verification gap; fires when Zebra ZD450 is on hand) |
-| **Phase 3 design + plan** | ❌ not started — kicks off after Phase 2 sign-off |
+| **Manual sign-off click-through** | ✅ user verified all in-scope items; 11 issues found + all resolved (see below) |
+| **Physical-printer round-trip test** | 🟡 deferred (intentional gap; fires when Zebra ZD450 + Browser Print helper are on hand) |
+| **Audit-log spot-check (steps 30–31 of original checklist)** | 🟡 deferred — `psql` not installed locally; can be done via Supabase Studio SQL Editor when desired, low risk given Phase 1 verified actor capture works |
+| **Phase 3 design + plan** | ❌ not started — kicks off when ready |
 
-**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline`): 55 commits across the 8 phases — task implementations, fix-up commits captured during code review (NaN guards, savepoint pattern, joined-DTO retrofit, pg-error helper extraction), spec/plan annotations to keep docs in sync with shipped code, and Phase H wrap-up.
+**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline | wc -l`): 67 commits — 39 plan tasks, fix-up commits captured during code review (NaN guards, SAVEPOINT pattern, joined-DTO retrofit, `pg-errors` helper extraction), spec/plan annotations to keep docs in sync with shipped code, Phase H wrap-up, and the 12-commit sign-off fix batch documented below.
+
+## Sign-off bug fix batch (post-implementation, pre-cutover)
+
+User-driven manual click-through against the preview surfaced 11 issues across UI, ref forwarding (React 18 + shadcn nova preset compatibility), and a spec amendment to D-001. All resolved on `phase-2-lot-lifecycle`:
+
+| # | Issue | Resolution | Commit(s) |
+|---|---|---|---|
+| 1 | Login redirected to `/customers` not `/inventory` | One-line nav fix | `573a08f` |
+| 4 | Title field appeared empty on modal open (placeholder identical to seeded title) + `<Input>` not forwardRef-compatible with RHF | Generic placeholder + `forwardRef` on Input | `573a08f`, `808e6b0` |
+| 6 | Quantity field empty + Save Changes disabled with no changes | `valueAsNumber: true` on register; dropped `!isDirty` gate | `573a08f` |
+| 13 | Export CSV silent failure | try/catch + DOM-attach anchor + static import of supabase | `573a08f`, `a3ef7fe`, `f7c4b19` |
+| 5 | "Reprint label not responsive" | Working as designed — fetch fires, fails with `ERR_CONNECTION_REFUSED` because no Browser Print helper installed locally; toast confirmed firing. Deferred to physical-printer test. | (no code) |
+| 7 | Change status menu didn't open | `forwardRef` on Button/DropdownMenu primitives (React 18 needs explicit ref-forwarding; nova preset assumes React 19) | `0a87235` |
+| 11 | Move dialog jobs empty for selected customer | Closed jobs filtered out (correct); added empty-state message; also filtered closed jobs from inventory filter dropdown | `0f1a456` |
+| 12 | Delete button missing for admin | `useRole` was reading from stale `session.user.app_metadata`; fixed to decode JWT directly (the Custom Access Token Hook injects role into the JWT, not into the persistent user record) | `d5b3cd4` |
+| Side A | Move was assigned-only — couldn't move unassigned lots | Allowed move from `assigned` OR `unassigned`; auto-transitions to `assigned` on successful move | `0f1a456` |
+| 8 | Spec amendment: sold lots should be frozen | D-001 amended — sold is now frozen for field edits (preserves what bidders saw on the auction platform). Edits via sold → unassigned → edit → re-assign. Spec/plan markdown all updated to reflect. | `6ba14af`, `23c103c` |
+| Side B | shadcn nova preset assumes React 19 — broad ref-forwarding gap | One-shot `forwardRef` sweep across Button, Checkbox, Label, Dialog primitives, DropdownMenu primitives | `0a87235` |
+
+**Diagnostic helpers added during sign-off** (kept in repo per user direction; clean up at v1 cutover): `scripts/list-lots.ts`, `scripts/list-jobs.ts`, `scripts/check-auth-state.ts`, `scripts/check-jwt-hook.ts`. None wired into npm scripts — invoked via `npx tsx`.
+
+**Spec amendments captured during sign-off (in addition to in-flight ones from Phase 2 implementation):**
+- D-001 reversed: sold lots frozen instead of editable (`docs/superpowers/specs/2026-04-29-v1-design.md` D-001 row + §7.1 + §7.5 + §8.6; `docs/superpowers/specs/2026-04-30-phase-2-design.md` §2.2 comment + §4.1 note + §4.2 + §4.5; plan Task 25 design-system labels)
+- Move endpoint accepts `unassigned` source (Phase 2 spec §4.2 still says assigned-only; not yet re-amended in markdown — tracked as `(spec drift)` item to clean up before v1 cutover)
+- Closed jobs hidden from "normal activity" dropdowns (move dialogs + inventory filter); reporting/admin view will surface closed jobs separately (later phase)
 
 ## Phase 1 status: ✅ signed off
 
