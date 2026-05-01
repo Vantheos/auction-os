@@ -8,7 +8,7 @@ import { testDb, truncateAll } from '../helpers/test-db';
 import { callHandler } from '../helpers/call-handler';
 import { appUser, customer, job, lot, lotPhoto } from '../../db/schema';
 import handler from '../../api/cron/cleanup-orphan-lots';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';
 
