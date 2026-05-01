@@ -74,7 +74,7 @@ type State = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-sellable';
 const LEGAL_TRANSITIONS: Record<State, State[]> = {
   assigned:     ['sold', 'unassigned', 'not-sellable'],
   unassigned:   ['assigned', 'not-sellable'],
-  sold:         ['picked-up', 'unassigned'],   // D-001: sold not frozen; sold→unassigned for fall-through
+  sold:         ['picked-up', 'unassigned'],   // sold is frozen for field edits (amended D-001); sold→unassigned for fall-through
   'picked-up':  [],                             // terminal
   'not-sellable': ['unassigned'],               // can revert per handoff
 };
@@ -265,9 +265,11 @@ These extend the existing semantic palette — same colors, just named for state
 |---|---|---|---|
 | `assigned` | YES | yes | NOT NULL |
 | `unassigned` | YES | yes | NULL |
-| `sold` | YES | **yes** (per handoff D-001) | NOT NULL |
+| `sold` | YES | **frozen** (amended D-001 — see note) | NOT NULL |
 | `picked-up` | YES | **frozen** | NOT NULL |
 | `not-sellable` | YES | **frozen** | NULL |
+
+> **D-001 amended (2026-05-01):** sold lots are now **frozen for field edits**. Original D-001 made sold editable to support corrections; in practice, sold preserves what was shown to bidders on the auction platform (price, quantity, etc.) and edits would mutate the record of what was sold. Edits required after sale are made by transitioning sold → unassigned, editing, then re-assigning. State transitions out of sold (`picked-up`, `unassigned`) and Reprint Label remain available.
 
 > **Note on the Phase 3 cataloging flow:** the v1 design spec (`2026-04-29-v1-design.md`) describes a "Lot in progress" screen during mobile cataloging. That is a screen name, not a stored state and not a pill-rendered state. The first photo creates a row directly in `assigned`. There is no `in_progress` `LotState` member in the type system or pill primitive.
 
@@ -275,8 +277,8 @@ These extend the existing semantic palette — same colors, just named for state
 
 One `<LotDetail>` component, prop-discriminated by `lot.state`:
 
-- **Editable** (`assigned`, `sold`, `unassigned`): full RHF form, fields rendered as inputs, footer actions: `Save changes` · `Reprint label` · `Move to another auction` *(only `assigned`)* · `Change status` · `Delete` *(admin)* · `Close`
-- **Frozen** (`picked-up`, `not-sellable`): same data, fields rendered as static `<dl>`-style display, "🔒 Read-only" pill in modal header, footer: `Reprint label` · `Change status` *(limited)* · `Close`. `not-sellable` photo dimmed slightly per handoff
+- **Editable** (`assigned`, `unassigned`): full RHF form, fields rendered as inputs, footer actions: `Save changes` · `Reprint label` · `Move to another auction` · `Change status` · `Delete` *(admin)* · `Close`
+- **Frozen** (`sold`, `picked-up`, `not-sellable`): same data, fields rendered as static `<dl>`-style display, "🔒 Read-only" pill in modal header, footer: `Reprint label` · `Change status` *(legal transitions only)* · `Delete` *(admin)* · `Close`. `not-sellable` photo dimmed slightly per handoff
 - **Mobile/standalone view (`/lot/:id`)**: same `<LotDetail>` mounted in a full-page wrapper; respects the same editable/frozen variant logic; warehouse role can read but not edit (server enforces)
 
 ### 4.3 Confirmation patterns
@@ -292,9 +294,9 @@ TanStack Query `onMutate` snapshots the lot row → applies the optimistic updat
 
 ### 4.5 Editing rules per spec §7.5
 
-- Editable states: `title` (≤50 chars per §9.4), `description` (length open per §14 Round 1; UI uses 2000 char soft limit pending DDL pin), `price` (`numeric(10,2)`), `special_notes_category` (enum), `special_notes_text` (required when category surfaces text input — only `CLOTHING` in v1), `untested` (bool), `quantity` (int ≥ 1), `ref1` / `ref2` (optional text)
-- Frozen states: only Change-state and Reprint
-- The `(customer, job, lot_number)` triple is never edited inline — only via the Move action
+- Editable states (`assigned`, `unassigned`): `title` (≤50 chars per §9.4), `description` (length open per §14 Round 1; UI uses 2000 char soft limit pending DDL pin), `price` (`numeric(10,2)`), `special_notes_category` (enum), `special_notes_text` (required when category surfaces text input — only `CLOTHING` in v1), `untested` (bool), `quantity` (int ≥ 1), `ref1` / `ref2` (optional text)
+- Frozen states (`sold`, `picked-up`, `not-sellable`): only Change-state, Reprint, and Delete (admin). Field edits return 422 `FROZEN` from the server.
+- The `(customer, job, lot_number)` triple is never edited inline — only via the Move action (which is available on `assigned` and `unassigned`)
 
 ---
 
