@@ -1,0 +1,126 @@
+// api/lots/[id].ts
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { AuthError, requireAuth } from '../_lib/auth.js';
+import { readJson, EmptyBodyError } from '../_lib/body.js';
+import { asActor, getDb } from '../_lib/db.js';
+import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
+import { customer, job, lot } from '../../db/schema.js';
+import { LotStateError, validateTransition, type LotState } from '../_lib/lot-state.js';
+
+const PatchSchema = z.object({
+  state: z.enum(['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable']).optional(),
+  title: z.string().max(50).optional().nullable(),
+  description: z.string().max(2000).optional().nullable(),
+  price: z.string().regex(/^\d+(\.\d{1,2})?$/).optional().nullable(),
+  quantity: z.number().int().positive().optional(),
+  ref1: z.string().max(200).optional().nullable(),
+  ref2: z.string().max(200).optional().nullable(),
+  specialNotesCategory: z.enum(['None', 'TOOL ONLY', 'READ', 'CLOTHING']).optional(),
+  specialNotesText: z.string().max(200).optional().nullable(),
+  untested: z.boolean().optional(),
+});
+
+function getId(req: IncomingMessage): string | null {
+  const url = new URL(req.url ?? '', 'http://localhost');
+  const fromQuery = url.searchParams.get('id');
+  if (fromQuery) return fromQuery;
+  const segs = url.pathname.split('/').filter(Boolean);
+  return segs[segs.length - 1] || null;
+}
+
+async function fetchLot(db: ReturnType<typeof getDb>, id: string) {
+  const [row] = await db
+    .select({ lot, customerName: customer.name, jobNumber: job.jobNumber, customerId: customer.id })
+    .from(lot)
+    .leftJoin(job, eq(lot.jobId, job.id))
+    .leftJoin(customer, eq(job.customerId, customer.id))
+    .where(eq(lot.id, id));
+  return row ? { ...row.lot, customerName: row.customerName, jobNumber: row.jobNumber, customerId: row.customerId } : null;
+}
+
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const id = getId(req);
+    if (!id) return jsonError(res, 400, 'INVALID_REQUEST', 'Missing lot id');
+
+    if (req.method === 'GET') {
+      await requireAuth(req);
+      const row = await fetchLot(getDb(), id);
+      if (!row) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+      return jsonOk(res, row);
+    }
+
+    if (req.method === 'PATCH') {
+      const { userId } = await requireAuth(req, 'admin', 'office');
+      let body: unknown;
+      try { body = await readJson(req); }
+      catch (e) {
+        if (e instanceof EmptyBodyError) return jsonError(res, 400, 'INVALID_BODY', 'Empty body');
+        return jsonError(res, 400, 'INVALID_BODY', 'Invalid JSON');
+      }
+      const parsed = PatchSchema.safeParse(body);
+      if (!parsed.success) return jsonError(res, 400, 'INVALID_BODY', parsed.error.issues[0].message);
+
+      // Fetch current state for validation
+      const current = await fetchLot(getDb(), id);
+      if (!current) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+
+      // Validate state transition if state is being changed
+      if (parsed.data.state && parsed.data.state !== current.state) {
+        try {
+          validateTransition(current.state as LotState, parsed.data.state);
+        } catch (e) {
+          if (e instanceof LotStateError) {
+            return jsonError(res, 422, 'ILLEGAL_TRANSITION', e.message);
+          }
+          throw e;
+        }
+      }
+
+      // Frozen states: only state change allowed (no field edits)
+      const isFrozen = current.state === 'picked-up' || current.state === 'not-sellable';
+      const hasFieldEdits = Object.keys(parsed.data).some((k) => k !== 'state');
+      if (isFrozen && hasFieldEdits) {
+        return jsonError(res, 422, 'FROZEN', `Lot in ${current.state} cannot be edited`);
+      }
+
+      const update: Record<string, unknown> = { updatedAt: new Date() };
+      for (const [k, v] of Object.entries(parsed.data)) {
+        if (k !== 'state' && v !== undefined) update[k] = v;
+      }
+      // State transitions affect (job_id, lot_number) per state_tuple_consistent constraint
+      if (parsed.data.state) {
+        update.state = parsed.data.state;
+        if (parsed.data.state === 'unassigned' || parsed.data.state === 'not-sellable') {
+          update.jobId = null;
+          update.lotNumber = null;
+        }
+      }
+
+      const updated = await asActor(userId, async (tx) => {
+        const [row] = await tx.update(lot).set(update).where(eq(lot.id, id)).returning();
+        return row;
+      });
+      const fresh = await fetchLot(getDb(), id);
+      return jsonOk(res, fresh ?? updated);
+    }
+
+    if (req.method === 'DELETE') {
+      const { userId } = await requireAuth(req, 'admin');
+      const deleted = await asActor(userId, async (tx) => {
+        const [row] = await tx.delete(lot).where(eq(lot.id, id)).returning();
+        return row;
+      });
+      if (!deleted) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+      return jsonOk(res, { ok: true });
+    }
+
+    return methodNotAllowed(res);
+  } catch (err) {
+    if (err instanceof AuthError) return jsonError(res, err.status, err.code, err.message);
+    console.error(err);
+    return jsonError(res, 500, 'INTERNAL', 'Internal server error');
+  }
+}
