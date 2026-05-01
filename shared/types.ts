@@ -63,3 +63,13 @@ export type CreateLotRequest = {
   specialNotesText?: string;
   untested?: boolean;
 };
+
+export type SystemSettingsDTO = {
+  id: 1;
+  aiScheduleEnabled: boolean;
+  aiScheduleFrequency: 'hourly' | 'daily';
+  aiScheduleTimeOfDay: string;
+  aiLastRunAt: string | null;
+  labelPrinterHelperUrl: string | null;
+  updatedAt: string;
+};
