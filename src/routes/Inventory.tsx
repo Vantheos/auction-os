@@ -13,6 +13,7 @@ import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
 import { ExportCsvDialog } from '@/components/bulk/ExportCsvDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase';
 import type { LotState } from '@shared/types';
 
 const STATES_VALID: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
@@ -170,7 +171,7 @@ export function Inventory() {
           try {
             const qs = writeFiltersToUrl(new URLSearchParams(), filters).toString();
             const url = `/api/lots/export${qs ? '?' + qs : ''}`;
-            const { data } = await import('@/lib/supabase').then((m) => m.supabase.auth.getSession());
+            const { data } = await supabase.auth.getSession();
             const token = data.session?.access_token;
             if (!token) { toast({ title: 'Export failed', description: 'Not signed in', variant: 'danger' }); return; }
             const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
