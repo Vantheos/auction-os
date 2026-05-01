@@ -92,6 +92,7 @@ export const systemSettings = pgTable('system_settings', {
   aiScheduleFrequency: aiScheduleFrequencyEnum('ai_schedule_frequency').notNull().default('daily'),
   aiScheduleTimeOfDay: time('ai_schedule_time_of_day').notNull().default('23:00:00'),
   aiLastRunAt: timestamp('ai_last_run_at', { withTimezone: true }),
+  labelPrinterHelperUrl: text('label_printer_helper_url'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check('system_settings_singleton', sql`${t.id} = 1`),
