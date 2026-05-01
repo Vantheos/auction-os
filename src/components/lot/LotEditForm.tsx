@@ -28,7 +28,7 @@ type Props = {
 };
 
 export function LotEditForm({ lot, onSubmit, busy }: Props) {
-  const { register, handleSubmit, watch, formState: { errors, isDirty } } = useForm<LotFormValues>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<LotFormValues>({
     resolver: zodResolver(Schema),
     defaultValues: {
       title: lot.title ?? '',
@@ -49,7 +49,7 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label htmlFor="quantity">Quantity</Label>
-          <Input id="quantity" type="number" min={1} {...register('quantity')} />
+          <Input id="quantity" type="number" min={1} {...register('quantity', { valueAsNumber: true })} />
         </div>
         <label className="flex items-center gap-2 text-sm pt-6">
           <input type="checkbox" {...register('untested')} className="size-4" />
@@ -59,7 +59,7 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
 
       <div className="space-y-1">
         <Label htmlFor="title">Title <span className="text-textDim">(max 50 chars)</span></Label>
-        <Input id="title" maxLength={50} placeholder="$45- 1x Antique Brass Vase" {...register('title')} />
+        <Input id="title" maxLength={50} placeholder="e.g., 1x Antique Brass Vase" {...register('title')} />
         {errors.title && <p className="text-xs text-danger">{errors.title.message}</p>}
       </div>
 
@@ -103,7 +103,7 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
       </div>
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" disabled={!isDirty || busy}>
+        <Button type="submit" disabled={busy}>
           {busy ? 'Saving…' : 'Save changes'}
         </Button>
       </div>

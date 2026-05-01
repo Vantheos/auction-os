@@ -174,12 +174,14 @@ export function Inventory() {
           const r = await fetch(url, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
           if (!r.ok) { toast({ title: 'Export failed', variant: 'danger' }); return; }
           const blob = await r.blob();
+          const filename = `lots-${Date.now()}.csv`;
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = `lots-${Date.now()}.csv`;
+          a.download = filename;
           a.click();
           URL.revokeObjectURL(a.href);
           setBulkDialog(null);
+          toast({ title: 'Export ready', description: `Downloaded ${filename}`, variant: 'success' });
         }}
       />
     </div>
