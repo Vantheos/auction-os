@@ -43,7 +43,7 @@ User-driven manual click-through against the preview surfaced 11 issues across U
 
 **Spec amendments captured during sign-off (in addition to in-flight ones from Phase 2 implementation):**
 - D-001 reversed: sold lots frozen instead of editable (`docs/superpowers/specs/2026-04-29-v1-design.md` D-001 row + §7.1 + §7.5 + §8.6; `docs/superpowers/specs/2026-04-30-phase-2-design.md` §2.2 comment + §4.1 note + §4.2 + §4.5; plan Task 25 design-system labels)
-- Move endpoint accepts `unassigned` source (Phase 2 spec §4.2 still says assigned-only; not yet re-amended in markdown — tracked as `(spec drift)` item to clean up before v1 cutover)
+- Move endpoint accepts `unassigned` source — Phase 2 spec §1.1 + §4.2 + §4.5 + v1 spec §7.4 + §8.6 all updated to reflect
 - Closed jobs hidden from "normal activity" dropdowns (move dialogs + inventory filter); reporting/admin view will surface closed jobs separately (later phase)
 
 ## Phase 1 status: ✅ signed off

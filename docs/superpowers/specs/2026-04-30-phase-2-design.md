@@ -20,7 +20,7 @@
 1. Test lots can be created via Supabase dashboard or API and they appear correctly in the inventory list
 2. Inventory list loads, filters work (Customer, Job, Lot Status, AI Status, Date), pagination works, multi-select works
 3. Clicking a row opens the lot detail modal in the correct variant for the lot's state
-4. Single-lot actions all functional: edit fields and save, change state (legal transitions only, with confirms for terminal states), Move to another auction (`assigned` only), Reprint label, Delete (admin only)
+4. Single-lot actions all functional: edit fields and save, change state (legal transitions only, with confirms for terminal states), Move to another auction (`assigned` or `unassigned` source — moving an unassigned lot transitions it to `assigned` per the schema CHECK), Reprint label, Delete (admin only)
 5. Bulk action bar appears on multi-select; Move / Change-status / Delete (admin) / Export CSV all work end-to-end
 6. Frozen modals (`picked-up`, `not-sellable`) correctly disable edit affordances; Change-state still shows legal transitions
 7. Label printing: ZPL renders correctly per Labelary visual check, Browser Print integration sends to localhost (verifiable independently of physical printer), Test button on Settings reports connection status
