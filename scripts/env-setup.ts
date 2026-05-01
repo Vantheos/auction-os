@@ -77,6 +77,7 @@ console.log(`Project: ${projectInfo.name} (${PROJECT_ID})\n`);
 
 const ENV_VARS = [
   'SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL',
+  'CRON_SECRET',  // Phase 3: per-env secret guarding /api/cron/* endpoints
 ];
 
 console.log('Pushing env vars to Vercel...\n');
@@ -102,6 +103,7 @@ const envLocal = [
   `SUPABASE_ANON_KEY=${setup.DEV_SUPABASE_ANON_KEY}`,
   `SUPABASE_SERVICE_ROLE_KEY=${setup.DEV_SUPABASE_SERVICE_ROLE_KEY}`,
   `DATABASE_URL=${setup.DEV_DATABASE_URL}`,
+  `CRON_SECRET=${setup.DEV_CRON_SECRET}`,
   `VITE_SUPABASE_URL=${setup.DEV_SUPABASE_URL}`,
   `VITE_SUPABASE_ANON_KEY=${setup.DEV_SUPABASE_ANON_KEY}`,
   `VITE_API_BASE_URL=/api`,
@@ -115,6 +117,7 @@ const envTest = [
   `SUPABASE_ANON_KEY=${setup.TEST_SUPABASE_ANON_KEY}`,
   `SUPABASE_SERVICE_ROLE_KEY=${setup.TEST_SUPABASE_SERVICE_ROLE_KEY}`,
   `DATABASE_URL=${setup.TEST_DATABASE_URL}`,
+  `CRON_SECRET=${setup.TEST_CRON_SECRET}`,
   '',
 ].join('\n');
 writeFileSync('.env.test', envTest);
