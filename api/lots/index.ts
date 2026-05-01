@@ -6,6 +6,7 @@ import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
+import { pgCodeOf, PG_UNIQUE_VIOLATION } from '../_lib/pg-errors.js';
 import { customer, job, lot } from '../../db/schema.js';
 
 async function fetchLotJoined(db: ReturnType<typeof getDb>, id: string) {
@@ -162,9 +163,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const fresh = await fetchLotJoined(getDb(), created.id);
         return jsonOk(res, fresh ?? created, 201);
       } catch (err: unknown) {
-        const e = err as { code?: string; cause?: { code?: string } };
-        const pgCode = e.code ?? e.cause?.code;
-        if (pgCode === '23505') {
+        if (pgCodeOf(err) === PG_UNIQUE_VIOLATION) {
           return jsonError(res, 409, 'LOT_NUMBER_CONFLICT', 'Another lot was just assigned this number; retry');
         }
         throw err;

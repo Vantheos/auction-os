@@ -8,6 +8,9 @@ import { asActor, type Transaction } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { lot } from '../../db/schema.js';
 import { LotStateError, validateTransition, type LotState } from '../_lib/lot-state.js';
+import { pgCodeOf, PG_UNIQUE_VIOLATION, PG_FK_VIOLATION } from '../_lib/pg-errors.js';
+
+const VALID_STATES: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
 
 const Schema = z.object({
   action: z.enum(['change-state', 'move', 'delete']),
@@ -16,11 +19,6 @@ const Schema = z.object({
 });
 
 type Result = { id: string; ok: true } | { id: string; ok: false; error: { code: string; message: string } };
-
-function pgCodeOf(err: unknown): string | undefined {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e.code ?? e.cause?.code;
-}
 
 // Typed error for known per-lot failures thrown inside savepoints
 class BulkOpError extends Error {
@@ -123,12 +121,12 @@ async function applyMove(tx: Transaction, lotIds: string[], destinationJobId: st
         continue;
       }
       const pg = pgCodeOf(err);
-      if (pg === '23505') {
+      if (pg === PG_UNIQUE_VIOLATION) {
         results.push({ id, ok: false, error: { code: 'LOT_NUMBER_CONFLICT', message: 'Lot number collision; retry' } });
         continue;
       }
       // 23503 = FK violation — destination job does not exist
-      if (pg === '23503') {
+      if (pg === PG_FK_VIOLATION) {
         results.push({ id, ok: false, error: { code: 'INVALID_DESTINATION', message: 'Destination job does not exist' } });
         continue;
       }
@@ -167,6 +165,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           case 'change-state': {
             const to = (parsed.data.params as { to?: string } | undefined)?.to;
             if (!to) throw new MissingParamError('change-state requires params.to');
+            if (!VALID_STATES.includes(to as LotState)) {
+              throw new MissingParamError(`Invalid target state: ${to}`);
+            }
             return applyChangeState(tx, parsed.data.lotIds, to as LotState);
           }
           case 'delete':

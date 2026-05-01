@@ -158,4 +158,10 @@ describe('POST /api/lots/bulk — validation', () => {
     const res = await call({ action: 'delete', lotIds: [] });
     expect(res.status).toBe(400);
   });
+
+  it('400 on invalid params.to (not a valid state)', async () => {
+    const { lotIds } = await seed3Lots();
+    const res = await call({ action: 'change-state', lotIds, params: { to: 'deleted' } });
+    expect(res.status).toBe(400);
+  });
 });
