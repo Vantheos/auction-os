@@ -8,6 +8,7 @@
 // debounce) so a tab close mid-edit loses at most ~200ms of typing.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { useCatalogSession, useUpdateLotFields } from '@/hooks/useCatalogSession';
@@ -16,6 +17,8 @@ import { usePhotoCapture } from '@/hooks/usePhotoCapture';
 import { useCapturePhoto } from '@/hooks/useCatalogSession';
 import { useLot } from '@/hooks/useLots';
 import { useLabelPrint } from '@/hooks/useLabelPrint';
+import { useCustomers } from '@/hooks/useCustomers';
+import { useJobs } from '@/hooks/useJobs';
 import { PhotoStrip } from './PhotoStrip';
 import { PhotoManager } from './PhotoManager';
 import { PendingUploadsIndicator } from './PendingUploadsIndicator';
@@ -45,7 +48,7 @@ type Props = {
 };
 
 export function LotInProgress({ onEndSession }: Props) {
-  const { jobId, lotId, lotNumber, advance, captureFirst, isCapturingFirst, discardCurrent } = useCatalogSession();
+  const { customerId, jobId, lotId, lotNumber, advance, captureFirst, isCapturingFirst, discardCurrent } = useCatalogSession();
   const lotQ = useLot(lotId ?? undefined);
   const { mirror, loaded: mirrorLoaded, saveFields: saveMirror, clear: clearMirror } = useFormMirror(lotId);
   const updateFields = useUpdateLotFields(lotId);
@@ -53,9 +56,21 @@ export function LotInProgress({ onEndSession }: Props) {
   const printLabel = useLabelPrint();
   const { toast } = useToast();
 
+  // Customer + job lookup for the session header. Both queries cache, so the
+  // ambient impact is one fetch on first session entry per (customer, job).
+  const customers = useCustomers();
+  const jobs = useJobs(customerId ?? undefined);
+  const customer = customers.data?.find((c) => c.id === customerId);
+  const job = jobs.data?.find((j) => j.id === jobId);
+
   const [fields, setFields] = useState<FormFields>(EMPTY_FIELDS);
   const [hydrated, setHydrated] = useState(false);
   const [managerFocus, setManagerFocus] = useState<string | null>(null);
+  // "Additional Info" collapse — Title / Description / Price / Ref1 / Ref2
+  // hidden by default per option-c-flow design spec, so the Next button is
+  // reachable without scrolling on most lots. AI fills these on the
+  // back-channel; warehouse only expands to override AI output.
+  const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
   const autosaveTimer = useRef<number | null>(null);
   const printRetried = useRef(false);
 
@@ -200,7 +215,9 @@ export function LotInProgress({ onEndSession }: Props) {
         style={{ display: 'none' }}
       />
 
-      {/* Header */}
+      {/* Header — customer + job context on left, big lot number on right
+          (per option-c-flow design spec). Pending-uploads indicator moves
+          out of the header to the body status line below the photo strip. */}
       <div className="px-4 py-3 bg-gradient-to-b from-info-bg to-transparent border-b border-border flex items-center gap-3">
         <button
           type="button"
@@ -211,8 +228,8 @@ export function LotInProgress({ onEndSession }: Props) {
           ←
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-text truncate">In progress</div>
-          <PendingUploadsIndicator />
+          <div className="text-sm font-semibold text-text truncate">{customer?.name ?? '—'}</div>
+          <div className="text-[10px] text-textDim font-mono truncate mt-0.5">{job?.jobNumber ?? '—'}</div>
         </div>
         <div className="text-right flex-shrink-0">
           <div className="text-[10px] uppercase tracking-wide text-textDim font-semibold leading-none">Lot</div>
@@ -226,38 +243,13 @@ export function LotInProgress({ onEndSession }: Props) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         <PhotoStrip lotId={lotId} onCapture={openCamera} capturing={isCapturingFirst} onTapThumb={setManagerFocus} />
 
+        {/* Pending uploads status — moved here from header per option-c-flow
+            spec line 306 (status line below the photo strip). */}
+        <PendingUploadsIndicator />
+
         {hydrated && (
           <>
-            {/* Row 1 — Special Notes + Untested (warehouse priority) */}
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Special notes" required>
-                <select
-                  value={fields.specialNotesCategory}
-                  onChange={(e) => patch({ specialNotesCategory: e.target.value as FormFields['specialNotesCategory'] })}
-                  className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
-                >
-                  <option>None</option><option>TOOL ONLY</option><option>READ</option><option>CLOTHING</option>
-                </select>
-              </Field>
-              <Field label="Untested">
-                <button
-                  type="button"
-                  onClick={() => patch({ untested: !fields.untested })}
-                  className={`w-full h-10 px-3 rounded-md border flex items-center gap-2 text-sm font-medium ${
-                    fields.untested ? 'border-brand bg-info-bg text-brand' : 'border-borderStrong bg-surfaceSolid text-text'
-                  }`}
-                >
-                  <span className={`size-4 rounded-sm border-2 flex items-center justify-center text-white text-xs ${
-                    fields.untested ? 'border-brand bg-brand' : 'border-borderStrong'
-                  }`}>
-                    {fields.untested && '✓'}
-                  </span>
-                  Untested
-                </button>
-              </Field>
-            </div>
-
-            {/* Row 2 — Quantity stepper + Price */}
+            {/* Row 1 — Quantity stepper + Untested (per design spec). */}
             <div className="grid grid-cols-2 gap-2">
               <Field label="Quantity">
                 <div className="flex items-center h-10 border border-borderStrong rounded-md bg-surfaceSolid overflow-hidden">
@@ -277,16 +269,34 @@ export function LotInProgress({ onEndSession }: Props) {
                     className="w-9 h-full bg-surfaceAlt border-l border-border text-text">+</button>
                 </div>
               </Field>
-              <Field label="Price">
-                <input
-                  value={fields.price}
-                  onChange={(e) => patch({ price: e.target.value })}
-                  onBlur={flushAutosave}
-                  placeholder="$"
-                  className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
-                />
+              <Field label="Untested">
+                <button
+                  type="button"
+                  onClick={() => patch({ untested: !fields.untested })}
+                  className={`w-full h-10 px-3 rounded-md border flex items-center gap-2 text-sm font-medium ${
+                    fields.untested ? 'border-brand bg-info-bg text-brand' : 'border-borderStrong bg-surfaceSolid text-text'
+                  }`}
+                >
+                  <span className={`size-4 rounded-sm border-2 flex items-center justify-center text-white text-xs ${
+                    fields.untested ? 'border-brand bg-brand' : 'border-borderStrong'
+                  }`}>
+                    {fields.untested && '✓'}
+                  </span>
+                  Untested
+                </button>
               </Field>
             </div>
+
+            {/* Row 2 — Special Notes (full width, required) */}
+            <Field label="Special notes" required>
+              <select
+                value={fields.specialNotesCategory}
+                onChange={(e) => patch({ specialNotesCategory: e.target.value as FormFields['specialNotesCategory'] })}
+                className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+              >
+                <option>None</option><option>TOOL ONLY</option><option>READ</option><option>CLOTHING</option>
+              </select>
+            </Field>
 
             {/* Row 3 — conditional Size for CLOTHING */}
             {fields.specialNotesCategory === 'CLOTHING' && (
@@ -301,49 +311,74 @@ export function LotInProgress({ onEndSession }: Props) {
               </Field>
             )}
 
-            {/* Title */}
-            <Field label="Title" hint="max 50 chars">
-              <input
-                maxLength={50}
-                value={fields.title}
-                onChange={(e) => patch({ title: e.target.value })}
-                onBlur={flushAutosave}
-                placeholder="Optional — AI fills if left blank"
-                className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
-              />
-            </Field>
+            {/* Additional Info — collapsed by default. Title / Description /
+                Price / Ref1 / Ref2 hidden until expanded so the Next button
+                is reachable without scrolling. AI fills title/description/
+                price; warehouse only expands to override. */}
+            <button
+              type="button"
+              onClick={() => setShowAdditionalInfo(!showAdditionalInfo)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md border border-border bg-surfaceAlt text-sm font-medium text-textDim text-left"
+              aria-expanded={showAdditionalInfo}
+            >
+              {showAdditionalInfo ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Additional Info</span>
+            </button>
 
-            {/* Description */}
-            <Field label="Description">
-              <textarea
-                rows={3}
-                value={fields.description}
-                onChange={(e) => patch({ description: e.target.value })}
-                onBlur={flushAutosave}
-                placeholder="Optional"
-                className="w-full px-3 py-2 rounded-md border border-borderStrong bg-surfaceSolid text-sm resize-y"
-              />
-            </Field>
+            {showAdditionalInfo && (
+              <div className="space-y-3 p-3 rounded-md border border-border bg-surfaceSolid">
+                <Field label="Title" hint="max 50 chars">
+                  <input
+                    maxLength={50}
+                    value={fields.title}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    onBlur={flushAutosave}
+                    placeholder="AI will fill"
+                    className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+                  />
+                </Field>
 
-            {/* Refs */}
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Ref 1">
-                <input
-                  value={fields.ref1}
-                  onChange={(e) => patch({ ref1: e.target.value })}
-                  onBlur={flushAutosave}
-                  className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
-                />
-              </Field>
-              <Field label="Ref 2">
-                <input
-                  value={fields.ref2}
-                  onChange={(e) => patch({ ref2: e.target.value })}
-                  onBlur={flushAutosave}
-                  className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
-                />
-              </Field>
-            </div>
+                <Field label="Description">
+                  <textarea
+                    rows={3}
+                    value={fields.description}
+                    onChange={(e) => patch({ description: e.target.value })}
+                    onBlur={flushAutosave}
+                    placeholder="AI will fill"
+                    className="w-full px-3 py-2 rounded-md border border-borderStrong bg-surfaceSolid text-sm resize-y"
+                  />
+                </Field>
+
+                <Field label="Price">
+                  <input
+                    value={fields.price}
+                    onChange={(e) => patch({ price: e.target.value })}
+                    onBlur={flushAutosave}
+                    placeholder="$"
+                    className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+                  />
+                </Field>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Ref 1">
+                    <input
+                      value={fields.ref1}
+                      onChange={(e) => patch({ ref1: e.target.value })}
+                      onBlur={flushAutosave}
+                      className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+                    />
+                  </Field>
+                  <Field label="Ref 2">
+                    <input
+                      value={fields.ref2}
+                      onChange={(e) => patch({ ref2: e.target.value })}
+                      onBlur={flushAutosave}
+                      className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
 
             {/* Print Label — manual per D-004 */}
             <Button
