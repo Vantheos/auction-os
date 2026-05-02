@@ -1,5 +1,6 @@
 // src/components/lot/LotDetail.tsx
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { StatePill } from '@/components/ui/pill';
 import { LotEditForm, type LotFormValues } from './LotEditForm';
@@ -8,6 +9,10 @@ import { MoveLotDialog } from './MoveLotDialog';
 import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot } from '@/hooks/useLotMutations';
 import { useLabelPrint } from '@/hooks/useLabelPrint';
 import { useLotPhotos } from '@/hooks/useLots';
+import { useCapturePhoto } from '@/hooks/useCatalogSession';
+import { usePhotoCapture } from '@/hooks/usePhotoCapture';
+import { PhotoStrip } from '@/components/catalog/PhotoStrip';
+import { PhotoManager } from '@/components/catalog/PhotoManager';
 import { useRole } from '@/lib/auth';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -43,6 +48,19 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
       description: err instanceof Error ? err.message : 'Unknown error',
       variant: 'danger',
     });
+
+  // Photo add/manage — only wired for non-frozen lots. Frozen lots show
+  // the existing read-only grid below; PhotoStrip and PhotoManager are not
+  // mounted, so capture is impossible and tap-to-manage is a no-op.
+  const [managerFocus, setManagerFocus] = useState<string | null>(null);
+  const capturePhoto = useCapturePhoto(lot.id);
+  const { openCamera, inputRef, onChange: onCameraChange } = usePhotoCapture(async (blob) => {
+    try {
+      await capturePhoto.mutateAsync(blob);
+    } catch (err) {
+      errorToast('Photo capture failed')(err);
+    }
+  });
 
   const handleSave = async (values: LotFormValues): Promise<void> => {
     try {
@@ -85,25 +103,48 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         </div>
       </div>
 
-      {photos.data && photos.data.length > 0 && (
-        <div>
-          <div className="text-xs text-textDim mb-2">Photos ({photos.data.length})</div>
-          <div className="grid grid-cols-4 gap-2">
-            {photos.data.map((p) => (
-              <div
-                key={p.id}
-                className={`aspect-square rounded-md border border-border bg-surfaceAlt overflow-hidden ${lot.state === 'not-sellable' ? 'opacity-60' : ''}`}
-              >
-                {p.signedUrl ? (
-                  <img src={p.signedUrl} alt="" className="size-full object-cover" />
-                ) : p.status === 'pending' ? (
-                  <div className="size-full flex items-center justify-center text-[10px] text-textFaint">Uploading…</div>
-                ) : p.status === 'failed' ? (
-                  <div className="size-full flex items-center justify-center text-[10px] text-state-not-sellable">Failed</div>
-                ) : null}
-              </div>
-            ))}
+      {isFrozen ? (
+        // Frozen lots: read-only photo grid (no add, no manage). Preserves
+        // what bidders saw on the auction platform.
+        photos.data && photos.data.length > 0 && (
+          <div>
+            <div className="text-xs text-textDim mb-2">Photos ({photos.data.length})</div>
+            <div className="grid grid-cols-4 gap-2">
+              {photos.data.map((p) => (
+                <div
+                  key={p.id}
+                  className={`aspect-square rounded-md border border-border bg-surfaceAlt overflow-hidden ${lot.state === 'not-sellable' ? 'opacity-60' : ''}`}
+                >
+                  {p.signedUrl ? (
+                    <img src={p.signedUrl} alt="" className="size-full object-cover" />
+                  ) : p.status === 'pending' ? (
+                    <div className="size-full flex items-center justify-center text-[10px] text-textFaint">Uploading…</div>
+                  ) : p.status === 'failed' ? (
+                    <div className="size-full flex items-center justify-center text-[10px] text-state-not-sellable">Failed</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
+        )
+      ) : (
+        // Editable lots: same PhotoStrip + PhotoManager UX as cataloging.
+        // capture="environment" forces camera on mobile, file picker on desktop.
+        <div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={onCameraChange}
+            style={{ display: 'none' }}
+          />
+          <PhotoStrip
+            lotId={lot.id}
+            onCapture={openCamera}
+            capturing={capturePhoto.isPending}
+            onTapThumb={setManagerFocus}
+          />
         </div>
       )}
 
@@ -174,6 +215,21 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PhotoManager — portal-mounted full-viewport overlay so it sits
+          above any Dialog context (LotDetail can render inside the Inventory
+          modal). PhotoManager itself handles the cataloging-vs-not branch
+          internally via its session.lotId === lotId fallback. */}
+      {managerFocus !== null && createPortal(
+        <div className="fixed inset-0 z-[100]">
+          <PhotoManager
+            lotId={lot.id}
+            initialFocusId={managerFocus}
+            onClose={() => setManagerFocus(null)}
+          />
+        </div>,
+        document.body,
+      )}
 
       <Dialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
         <DialogContent>

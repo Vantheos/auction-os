@@ -19,10 +19,15 @@ type CombinedPhoto = {
   src: string | null;       // signed URL from server, or local blob URL
 };
 
-export function PhotoStrip({ lotId, onCapture, capturing }: {
+export function PhotoStrip({ lotId, onCapture, capturing, onTapThumb }: {
   lotId: string | null;
   onCapture: () => void;
   capturing?: boolean;
+  // When provided, tapping a thumbnail invokes this callback instead of
+  // navigating to the cataloging photo-manager route. Used by LotDetail
+  // (inventory modal + /lot/:id page) to open PhotoManager as a portal
+  // overlay rather than a route change.
+  onTapThumb?: (photoId: string) => void;
 }) {
   const navigate = useNavigate();
   const photosQ = useLotPhotos(lotId ?? undefined);
@@ -70,6 +75,10 @@ export function PhotoStrip({ lotId, onCapture, capturing }: {
   const canAdd = combined.length < MAX_PHOTOS && !capturing;
   const isFirstCapture = combined.length === 0;
   const handleTap = (photoId: string) => {
+    if (onTapThumb) {
+      onTapThumb(photoId);
+      return;
+    }
     if (lotId) navigate(`/catalog/session/photos?customer=${'placeholder'}&focus=${photoId}`);
   };
 
