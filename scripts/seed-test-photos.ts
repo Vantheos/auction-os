@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { eq, sql } from 'drizzle-orm';
-import { lot, lotPhoto, appUser } from '../db/schema';
+import { lotPhoto, appUser } from '../db/schema';
 import crypto from 'node:crypto';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
