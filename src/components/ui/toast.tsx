@@ -66,7 +66,7 @@ export function Toaster() {
       aria-label="Notifications"
       aria-live="polite"
       aria-atomic="false"
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"
+      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-sm pointer-events-none"
     >
       {ctx.toasts.map((t) => (
         <div
