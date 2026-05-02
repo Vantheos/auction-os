@@ -150,6 +150,12 @@ function FormMessage({
   );
 }
 
+// react-refresh/only-export-components: useFormField is a hook that reads
+// FormFieldContext + FormItemContext defined in this file. Splitting it
+// out would either require exporting the contexts (leaking internals) or
+// circular imports. Hooks co-located with their primitives is the shadcn
+// convention. Accept the warning.
+/* eslint-disable react-refresh/only-export-components */
 export {
   useFormField,
   Form,
@@ -160,3 +166,4 @@ export {
   FormMessage,
   FormField,
 };
+/* eslint-enable react-refresh/only-export-components */

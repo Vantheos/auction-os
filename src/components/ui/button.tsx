@@ -73,4 +73,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   )
 })
 
+// react-refresh/only-export-components: buttonVariants is the cva helper
+// co-located with the Button component (shadcn convention). Splitting it
+// to a sibling file would scatter related styling logic across two files
+// for marginal HMR-experience gain. Accept the warning here.
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants }

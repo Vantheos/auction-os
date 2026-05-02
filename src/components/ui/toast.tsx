@@ -39,6 +39,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return <ToastCtx.Provider value={{ toast, dismiss, toasts }}>{children}</ToastCtx.Provider>;
 }
 
+// react-refresh/only-export-components: useToast reads ToastCtx defined
+// in this file. Splitting it requires exporting the context (leaking
+// internals) or circular imports. Co-located with the provider per
+// React idiom for context-bound hooks. Accept the warning.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const ctx = useContext(ToastCtx);
   if (!ctx) throw new Error('useToast must be used inside <ToastProvider>');
