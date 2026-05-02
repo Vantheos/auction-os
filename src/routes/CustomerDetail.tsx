@@ -29,8 +29,8 @@ export function CustomerDetail() {
       await create.mutateAsync({ jobNumber });
       setJobNumber('');
       setOpen(false);
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to create job');
     }
   }
 

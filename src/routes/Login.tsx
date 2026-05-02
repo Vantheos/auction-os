@@ -27,8 +27,8 @@ export function Login() {
       } else {
         nav('/', { replace: true });
       }
-    } catch (err: any) {
-      setError(err.message ?? 'Login failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setBusy(false);
     }

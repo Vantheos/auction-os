@@ -34,7 +34,7 @@ function tryExec(cmd: string, opts: { stripGithubToken?: boolean } = {}): { ok: 
     ? Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'GITHUB_TOKEN' && k !== 'GH_TOKEN'))
     : process.env;
   try { return { ok: true, out: execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], env }).toString().trim() }; }
-  catch (e: any) { return { ok: false, out: e.message ?? '' }; }
+  catch (e: unknown) { return { ok: false, out: e instanceof Error ? e.message : String(e) }; }
 }
 
 async function checkSupabase(label: string, url: string, serviceKey: string, dbUrl: string) {
@@ -63,10 +63,10 @@ async function checkSupabase(label: string, url: string, serviceKey: string, dbU
         restOk = true;
       }
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     // Thrown = network/DNS/transport failure. That's a real reachability problem.
     restOk = false;
-    restReason = e?.message ?? String(e);
+    restReason = e instanceof Error ? e.message : String(e);
   }
   check(`${label}: Supabase REST reachable`, restOk, restReason);
 
@@ -78,7 +78,7 @@ async function checkSupabase(label: string, url: string, serviceKey: string, dbU
     await sql`SELECT 1`;
     await sql.end();
     dbOk = true;
-  } catch (e: any) { dbErr = e.message ?? String(e); }
+  } catch (e: unknown) { dbErr = e instanceof Error ? e.message : String(e); }
   check(`${label}: Postgres direct connection`, dbOk, dbErr);
 }
 
