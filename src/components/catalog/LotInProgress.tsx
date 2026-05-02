@@ -71,6 +71,11 @@ export function LotInProgress({ onEndSession }: Props) {
   // reachable without scrolling on most lots. AI fills these on the
   // back-channel; warehouse only expands to override AI output.
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
+  // Free-form mirror for the quantity input so the user can backspace
+  // through the value without the controlled input snapping back to 1
+  // on every keystroke. Validation/clamp happens on blur. Synced from
+  // fields.quantity when that changes externally (hydration, advance, etc.).
+  const [quantityInput, setQuantityInput] = useState<string>(String(fields.quantity));
   const autosaveTimer = useRef<number | null>(null);
   const printRetried = useRef(false);
 
@@ -78,6 +83,14 @@ export function LotInProgress({ onEndSession }: Props) {
   // not lotNumber (since the URL only carries the id). Fall back to the
   // lot data from useLot until/unless setLot has been called explicitly.
   const displayLotNumber = lotNumber ?? lotQ.data?.lotNumber ?? null;
+
+  // Keep the quantity input mirror in sync when fields.quantity changes
+  // from a non-input source (hydration, advance to new lot). User-initiated
+  // edits flow input → state via onChange/onBlur, not through this effect.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuantityInput(String(fields.quantity));
+  }, [fields.quantity]);
 
   // Hydrate fields from server lot (authoritative) or IDB mirror (fallback).
   //
@@ -265,9 +278,17 @@ export function LotInProgress({ onEndSession }: Props) {
                   type="number"
                   min={1}
                   inputMode="numeric"
-                  value={fields.quantity}
-                  onChange={(e) => patch({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                  onBlur={flushAutosave}
+                  value={quantityInput}
+                  onChange={(e) => setQuantityInput(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(quantityInput, 10);
+                    const finalValue = Number.isFinite(n) && n >= 1 ? n : 1;
+                    setQuantityInput(String(finalValue));
+                    if (finalValue !== fields.quantity) {
+                      patch({ quantity: finalValue });
+                    }
+                    flushAutosave();
+                  }}
                   className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
                 />
               </Field>
