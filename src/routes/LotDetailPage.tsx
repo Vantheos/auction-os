@@ -8,7 +8,10 @@ export function LotDetailPage() {
   const lotQ = useLot(id);
   const role = useRole();
   const isAdmin = role === 'admin';
-  const canEdit = role === 'admin' || role === 'office';
+  // All authenticated roles can edit non-state fields. Server enforces the
+  // role/frozen-state policy; warehouse PATCH is allowed for non-state fields
+  // (required by cataloging autosave) and rejected for state changes.
+  const canEdit = !!role;
 
   return (
     <div className="min-h-screen bg-wash">

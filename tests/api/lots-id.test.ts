@@ -1,5 +1,6 @@
 // tests/api/lots-id.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { callHandler, type CallResult } from '../helpers/call-handler';
@@ -61,10 +62,19 @@ describe('PATCH /api/lots/[id]', () => {
     expect(res.body.price).toBe('45.00');
   });
 
-  it('warehouse cannot edit fields', async () => {
+  it('warehouse can edit non-state fields', async () => {
     const { lotId } = await seed();
-    const res = await call(lotId, 'PATCH', { title: 'X' }, 'warehouse', WAREHOUSE);
+    const res = await call(lotId, 'PATCH', { title: 'Cataloged title', quantity: 3 }, 'warehouse', WAREHOUSE);
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe('Cataloged title');
+    expect(res.body.quantity).toBe(3);
+  });
+
+  it('warehouse cannot change lot state via PATCH', async () => {
+    const { lotId } = await seed();
+    const res = await call(lotId, 'PATCH', { state: 'sold' }, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
   it('legal state transition: assigned → sold', async () => {
@@ -125,6 +135,31 @@ describe('DELETE /api/lots/[id]', () => {
     const { lotId } = await seed();
     const res = await call(lotId, 'DELETE', null, 'office', OFFICE);
     expect(res.status).toBe(403);
+  });
+
+  it('warehouse can delete their own assigned lot (cataloging discard path)', async () => {
+    const { lotId } = await seed();
+    // seed() sets intakeOperatorId: WAREHOUSE and state: 'assigned'
+    const res = await call(lotId, 'DELETE', null, 'warehouse', WAREHOUSE);
+    expect(res.status).toBe(200);
+  });
+
+  it('warehouse cannot delete a lot they did not catalog', async () => {
+    const { lotId } = await seed();
+    // Reassign intake operator to admin so warehouse no longer matches
+    await testDb.update(lot).set({ intakeOperatorId: ADMIN }).where(eq(lot.id, lotId));
+    const res = await call(lotId, 'DELETE', null, 'warehouse', WAREHOUSE);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('warehouse cannot delete a lot once it has left assigned state', async () => {
+    const { lotId } = await seed();
+    // Admin transitions the lot to sold — past warehouse's allowed window
+    await call(lotId, 'PATCH', { state: 'sold' }, 'admin', ADMIN);
+    const res = await call(lotId, 'DELETE', null, 'warehouse', WAREHOUSE);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
   it('404 on delete of unknown id', async () => {

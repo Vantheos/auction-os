@@ -54,7 +54,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     if (req.method === 'PATCH') {
-      const { userId } = await requireAuth(req, 'admin', 'office');
+      const { userId, role } = await requireAuth(req, 'admin', 'office', 'warehouse');
       let body: unknown;
       try { body = await readJson(req); }
       catch (e) {
@@ -67,6 +67,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // Fetch current state for validation
       const current = await fetchLot(getDb(), id);
       if (!current) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+
+      // Warehouse can edit fields (per UI design spec — required by the
+      // cataloging autosave path) but cannot change lot state. State changes
+      // remain admin/office only.
+      const isStateChange = !!parsed.data.state && parsed.data.state !== current.state;
+      if (isStateChange && role === 'warehouse') {
+        return jsonError(res, 403, 'FORBIDDEN', 'Warehouse cannot change lot state');
+      }
 
       // Validate state transition if state is being changed
       if (parsed.data.state && parsed.data.state !== current.state) {
@@ -112,7 +120,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     if (req.method === 'DELETE') {
-      const { userId } = await requireAuth(req, 'admin');
+      const { userId, role } = await requireAuth(req, 'admin', 'warehouse');
+
+      // Warehouse delete policy: only the lot the user actively cataloged AND
+      // hasn't yet advanced past. Server proxy: intakeOperatorId match AND
+      // state='assigned' (the post-creation state cataloging always lands in,
+      // which only admin/office can transition out of). Once admin/office
+      // moves the lot to unassigned/sold/etc., warehouse loses the ability to
+      // delete it. The UI never exposes Delete to warehouse outside the
+      // cataloging Discard flow, which targets the active session lot.
+      if (role === 'warehouse') {
+        const current = await fetchLot(getDb(), id);
+        if (!current) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+        if (current.intakeOperatorId !== userId) {
+          return jsonError(res, 403, 'FORBIDDEN', 'Cannot delete a lot you did not catalog');
+        }
+        if (current.state !== 'assigned') {
+          return jsonError(res, 403, 'FORBIDDEN', 'Cannot delete a lot once cataloging is complete');
+        }
+      }
 
       // Capture storage paths BEFORE deleting (cascade drops lot_photo rows).
       const photoPaths = (await getDb().select({ p: lotPhoto.storagePath })

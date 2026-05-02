@@ -49,6 +49,11 @@ export function Inventory() {
   const openLotId = params.get('openLot');
   const role = useRole();
   const isAdmin = role === 'admin';
+  // Warehouse has no bulk operations available server-side (bulk delete is
+  // admin-only; bulk move/state/export are admin/office only). Gate the
+  // selection affordances entirely so warehouse doesn't see checkboxes or
+  // a bulk action bar that would never produce a usable action.
+  const canBulkAct = role === 'admin' || role === 'office';
   const { toast } = useToast();
 
   const lotsQ = useInfiniteLots(filters);
@@ -178,6 +183,7 @@ export function Inventory() {
           onSelect={handleSelect}
           onSelectAll={handleSelectAll}
           onOpen={setOpenLot}
+          canSelect={canBulkAct}
         />
       </div>
       <div className="md:hidden">
@@ -191,18 +197,21 @@ export function Inventory() {
          lots.length > 0 ? 'End of results' : ''}
       </div>
 
-      {/* Bulk action bar — desktop only per spec §8.7 */}
-      <div className="hidden md:block">
-        <BulkActionBar
-          count={selected.size}
-          isAdmin={isAdmin}
-          onClear={() => setSelected(new Set())}
-          onMove={() => setBulkDialog('move')}
-          onChangeState={() => setBulkDialog('change-state')}
-          onDelete={() => setBulkDialog('delete')}
-          onExport={() => setBulkDialog('export')}
-        />
-      </div>
+      {/* Bulk action bar — desktop only per spec §8.7. Hidden entirely for
+          warehouse since they have no bulk operations available. */}
+      {canBulkAct && (
+        <div className="hidden md:block">
+          <BulkActionBar
+            count={selected.size}
+            isAdmin={isAdmin}
+            onClear={() => setSelected(new Set())}
+            onMove={() => setBulkDialog('move')}
+            onChangeState={() => setBulkDialog('change-state')}
+            onDelete={() => setBulkDialog('delete')}
+            onExport={() => setBulkDialog('export')}
+          />
+        </div>
+      )}
 
       {/* Mobile filter sheet (parent-owned open state; portaled) */}
       <InventoryFiltersMobileSheet

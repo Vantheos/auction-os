@@ -53,10 +53,11 @@ describe('POST /api/lots/[id]/move', () => {
     expect(res.status).toBe(200);
   });
 
-  it('warehouse cannot move (403)', async () => {
+  it('warehouse can move (cataloging assignment + reassignment)', async () => {
     const { lotId, dstJobId } = await seed();
     const res = await call(lotId, { destinationJobId: dstJobId }, 'warehouse', WAREHOUSE);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBe(dstJobId);
   });
 
   it('rejects move when lot is sold (only assigned can be moved per spec §4.2)', async () => {

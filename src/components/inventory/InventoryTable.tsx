@@ -11,14 +11,18 @@ type Props = {
   onSelect: (id: string, selected: boolean) => void;
   onSelectAll: (selected: boolean) => void;
   onOpen: (id: string) => void;
+  // When false, the selection column (header + per-row checkboxes) is hidden
+  // entirely — used to gate bulk affordances off for warehouse, which has no
+  // bulk operations available server-side.
+  canSelect?: boolean;
 };
 
-export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen }: Props) {
+export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen, canSelect = true }: Props) {
   const allOnPageSelected = lots.length > 0 && lots.every((l) => selected.has(l.id));
   const someSelected = selected.size > 0;
 
   const handleRowClick = (id: string) => {
-    if (someSelected) onSelect(id, !selected.has(id));
+    if (canSelect && someSelected) onSelect(id, !selected.has(id));
     else onOpen(id);
   };
 
@@ -27,9 +31,11 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen }
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10">
-              <Checkbox checked={allOnPageSelected} onCheckedChange={(c) => onSelectAll(!!c)} aria-label="Select all on page" />
-            </TableHead>
+            {canSelect && (
+              <TableHead className="w-10">
+                <Checkbox checked={allOnPageSelected} onCheckedChange={(c) => onSelectAll(!!c)} aria-label="Select all on page" />
+              </TableHead>
+            )}
             <TableHead className="w-14">Photo</TableHead>
             <TableHead>Lot</TableHead>
             <TableHead>Title</TableHead>
@@ -40,7 +46,7 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen }
         <TableBody>
           {lots.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-textDim py-8">No lots match the current filters</TableCell>
+              <TableCell colSpan={canSelect ? 6 : 5} className="text-center text-textDim py-8">No lots match the current filters</TableCell>
             </TableRow>
           )}
           {lots.map((l) => (
@@ -49,9 +55,11 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen }
                 if ((e.target as HTMLElement).closest('[data-stop-row-click]')) return;
                 handleRowClick(l.id);
               }}>
-              <TableCell data-stop-row-click>
-                <Checkbox checked={selected.has(l.id)} onCheckedChange={(c) => onSelect(l.id, !!c)} aria-label={`Select lot ${l.lotNumber}`} />
-              </TableCell>
+              {canSelect && (
+                <TableCell data-stop-row-click>
+                  <Checkbox checked={selected.has(l.id)} onCheckedChange={(c) => onSelect(l.id, !!c)} aria-label={`Select lot ${l.lotNumber}`} />
+                </TableCell>
+              )}
               <TableCell>
                 <div className="size-10 rounded bg-surfaceAlt border border-border overflow-hidden">
                   {l.coverSignedUrl ? (

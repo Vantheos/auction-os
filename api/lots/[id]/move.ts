@@ -41,7 +41,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   try {
     if (req.method !== 'POST') return methodNotAllowed(res);
 
-    const { userId } = await requireAuth(req, 'admin', 'office');
+    // Warehouse can move/assign lots — they assign during cataloging and may
+    // need to reassign mid-session. Per UI design spec.
+    const { userId } = await requireAuth(req, 'admin', 'office', 'warehouse');
 
     const id = getId(req);
     if (!id) return jsonError(res, 400, 'INVALID_REQUEST', 'Missing lot id');
