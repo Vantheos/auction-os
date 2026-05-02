@@ -46,12 +46,9 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      {/* Mobile cataloging — primary surface for warehouse, accessible to all roles */}
-      <Route path="/catalog" element={
-        <ProtectedRoute>
-          <Suspense fallback={<Loading />}><Catalog /></Suspense>
-        </ProtectedRoute>
-      } />
+      {/* Cataloging session screens stand alone (no rail nav) — focused workflow.
+          The /catalog picker itself sits inside AdminShell below so admin/office
+          users can navigate back to other pages. */}
       <Route path="/catalog/session" element={
         <ProtectedRoute>
           <Suspense fallback={<Loading />}><CatalogSession /></Suspense>
@@ -74,6 +71,7 @@ export function App() {
           admin/office; Settings admin-only. */}
       <Route element={<ProtectedRoute><AdminShell /></ProtectedRoute>}>
         <Route path="/inventory" element={<Suspense fallback={<Loading />}><Inventory /></Suspense>} />
+        <Route path="/catalog" element={<Suspense fallback={<Loading />}><Catalog /></Suspense>} />
         <Route path="/customers" element={
           <ProtectedRoute allow={['admin', 'office']}><Customers /></ProtectedRoute>
         } />

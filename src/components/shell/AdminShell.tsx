@@ -20,8 +20,8 @@ export function AdminShell() {
   const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   return (
-    <div className="min-h-screen flex bg-wash">
-      <aside className="w-56 bg-surface border-r border-border p-4 flex flex-col">
+    <div className="h-screen flex bg-wash">
+      <aside className="w-40 bg-surface border-r border-border p-4 flex flex-col overflow-y-auto">
         <div className="font-semibold text-lg mb-6">Auction OS</div>
         <nav className="space-y-1 flex-1">
           {visibleNav.map((item) => (
@@ -46,7 +46,7 @@ export function AdminShell() {
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => signOut()}>Sign out</Button>
         </div>
       </aside>
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-6 overflow-y-auto">
         <Outlet />
       </main>
     </div>
