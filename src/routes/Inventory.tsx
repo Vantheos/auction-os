@@ -208,10 +208,18 @@ export function Inventory() {
         lots={selectedLots}
         busy={bulk.isPending}
         onConfirm={async (to) => {
-          const r = await bulk.mutateAsync({ action: 'change-state', lotIds: [...selected], params: { to } });
-          summarizeBulk(r.results);
-          setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
-          setBulkDialog(null);
+          try {
+            const r = await bulk.mutateAsync({ action: 'change-state', lotIds: [...selected], params: { to } });
+            summarizeBulk(r.results);
+            setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+            setBulkDialog(null);
+          } catch (err) {
+            toast({
+              title: 'Bulk change-status failed',
+              description: err instanceof Error ? err.message : 'Unknown error',
+              variant: 'danger',
+            });
+          }
         }}
       />
       <BulkMoveDialog
@@ -220,10 +228,18 @@ export function Inventory() {
         count={selected.size}
         busy={bulk.isPending}
         onConfirm={async (destinationJobId) => {
-          const r = await bulk.mutateAsync({ action: 'move', lotIds: [...selected], params: { destinationJobId } });
-          summarizeBulk(r.results);
-          setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
-          setBulkDialog(null);
+          try {
+            const r = await bulk.mutateAsync({ action: 'move', lotIds: [...selected], params: { destinationJobId } });
+            summarizeBulk(r.results);
+            setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+            setBulkDialog(null);
+          } catch (err) {
+            toast({
+              title: 'Bulk move failed',
+              description: err instanceof Error ? err.message : 'Unknown error',
+              variant: 'danger',
+            });
+          }
         }}
       />
       <BulkDeleteDialog
@@ -232,10 +248,18 @@ export function Inventory() {
         count={selected.size}
         busy={bulk.isPending}
         onConfirm={async () => {
-          const r = await bulk.mutateAsync({ action: 'delete', lotIds: [...selected] });
-          summarizeBulk(r.results);
-          setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
-          setBulkDialog(null);
+          try {
+            const r = await bulk.mutateAsync({ action: 'delete', lotIds: [...selected] });
+            summarizeBulk(r.results);
+            setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+            setBulkDialog(null);
+          } catch (err) {
+            toast({
+              title: 'Bulk delete failed',
+              description: err instanceof Error ? err.message : 'Unknown error',
+              variant: 'danger',
+            });
+          }
         }}
       />
       <ExportCsvDialog

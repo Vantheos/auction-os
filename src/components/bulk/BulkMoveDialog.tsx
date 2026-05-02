@@ -25,7 +25,7 @@ export function BulkMoveDialog({ open, onClose, count, onConfirm, busy }: Props)
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move {count} lots to another auction</DialogTitle>
+          <DialogTitle>Move {count} lots to another Job</DialogTitle>
           <DialogDescription>Each lot gets a fresh lot number in the destination job.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

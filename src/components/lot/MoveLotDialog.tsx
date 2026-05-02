@@ -28,7 +28,7 @@ export function MoveLotDialog({ open, onClose, onConfirm, busy }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move lot to another auction</DialogTitle>
+          <DialogTitle>Move lot to another Job</DialogTitle>
           <DialogDescription>Select destination customer and job. A new lot number will be assigned.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

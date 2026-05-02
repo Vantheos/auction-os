@@ -2,7 +2,10 @@ export type LotState = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-s
 
 const TRANSITIONS: Record<LotState, LotState[]> = {
   assigned:       ['sold', 'unassigned', 'not-sellable'],
-  unassigned:     ['assigned', 'not-sellable'],
+  // unassigned → assigned is reachable only via the move endpoint (which sets a
+  // destination job). The change-state path can't fulfill it without violating
+  // the state_tuple_consistent CHECK constraint, so it's not listed here.
+  unassigned:     ['not-sellable'],
   sold:           ['picked-up', 'unassigned'],
   'picked-up':    [],
   'not-sellable': ['unassigned'],

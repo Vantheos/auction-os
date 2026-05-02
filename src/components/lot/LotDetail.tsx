@@ -54,12 +54,6 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
   };
 
   const handlePickState = (to: LotState, requiresConfirm: boolean) => {
-    // Unassigned → Assigned needs a destination customer/job; route to the Move
-    // dialog instead of a state-only PATCH that leaves the lot stateless.
-    if (lot.state === 'unassigned' && to === 'assigned') {
-      setMoveOpen(true);
-      return;
-    }
     if (requiresConfirm) {
       setConfirm({ to });
     } else {
@@ -131,7 +125,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           {printLabel.isPending ? 'Printing…' : 'Reprint label'}
         </Button>
         {!isFrozen && (lot.state === 'assigned' || lot.state === 'unassigned') && (
-          <Button variant="outline" onClick={() => setMoveOpen(true)}>Move to another auction</Button>
+          <Button variant="outline" onClick={() => setMoveOpen(true)}>Assign to Job</Button>
         )}
         <ChangeStateMenu current={lot.state} role={role} onPick={handlePickState} disabled={changeState.isPending} />
         {canDelete && (

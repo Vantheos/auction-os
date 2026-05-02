@@ -5,8 +5,8 @@ describe('legalTransitions', () => {
   it('assigned → sold, unassigned, not-sellable', () => {
     expect(legalTransitions('assigned').sort()).toEqual(['not-sellable', 'sold', 'unassigned']);
   });
-  it('unassigned → assigned, not-sellable', () => {
-    expect(legalTransitions('unassigned').sort()).toEqual(['assigned', 'not-sellable']);
+  it('unassigned → not-sellable only (assigned is reachable only via move)', () => {
+    expect(legalTransitions('unassigned').sort()).toEqual(['not-sellable']);
   });
   it('sold → picked-up, unassigned (D-001)', () => {
     expect(legalTransitions('sold').sort()).toEqual(['picked-up', 'unassigned']);
