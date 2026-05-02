@@ -1,0 +1,177 @@
+// src/components/catalog/PhotoStrip.tsx
+// Thumbnail strip for the lot-in-progress screen. Renders captured photos
+// (server rows + queue entries with local blob URLs for not-yet-uploaded
+// captures), plus a "+" tile to add more (max 12 per spec §6.1).
+//
+// Tap a thumbnail → opens the full-screen Photo Manager.
+
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useUploadQueue } from '@/hooks/useUploadQueue';
+import { useLotPhotos } from '@/hooks/useLots';
+
+const MAX_PHOTOS = 12;
+
+type CombinedPhoto = {
+  id: string;
+  displayOrder: number;
+  status: 'pending' | 'uploaded' | 'failed';
+  src: string | null;       // signed URL from server, or local blob URL
+};
+
+export function PhotoStrip({ lotId, onCapture, capturing }: {
+  lotId: string | null;
+  onCapture: () => void;
+  capturing?: boolean;
+}) {
+  const navigate = useNavigate();
+  const photosQ = useLotPhotos(lotId ?? undefined);
+  const { perLotPending } = useUploadQueue();
+
+  // Build combined photo list: server-known photos + queue entries that
+  // don't yet have a server status of 'uploaded'. The queue entry's local
+  // blob URL is rendered immediately for snappy UX even before upload.
+  const queueEntries = lotId ? perLotPending(lotId) : [];
+  const blobUrls = useBlobUrls(queueEntries.map((e) => e.blob));
+
+  const combined: CombinedPhoto[] = useMemo(() => {
+    const out: CombinedPhoto[] = [];
+    const queueIds = new Set(queueEntries.map((e) => e.photoId));
+    // Server photos first; if also in queue (still uploading), prefer server's status.
+    for (const p of photosQ.data ?? []) {
+      const inQueue = queueIds.has(p.id);
+      out.push({
+        id: p.id,
+        displayOrder: p.displayOrder,
+        status: p.status,
+        src: p.signedUrl ?? (inQueue ? blobUrlFor(queueEntries, blobUrls, p.id) : null),
+      });
+    }
+    // Queue-only entries (server hasn't surfaced them yet from a refetch)
+    const serverIds = new Set((photosQ.data ?? []).map((p) => p.id));
+    for (const entry of queueEntries) {
+      if (!serverIds.has(entry.photoId)) {
+        out.push({
+          id: entry.photoId,
+          displayOrder: 999,  // append to end; will reconcile on next photo refetch
+          status: entry.retries < 0 ? 'failed' : 'pending',
+          src: blobUrlFor(queueEntries, blobUrls, entry.photoId),
+        });
+      }
+    }
+    return out.sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [photosQ.data, queueEntries, blobUrls]);
+
+  const canAdd = combined.length < MAX_PHOTOS && !capturing;
+  const isFirstCapture = combined.length === 0;
+  const handleTap = (photoId: string) => {
+    if (lotId) navigate(`/catalog/session/photos?customer=${'placeholder'}&focus=${photoId}`);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Capture CTA — gradient when no photos, compact when adding more */}
+      {isFirstCapture ? (
+        <button
+          type="button"
+          onClick={onCapture}
+          disabled={!canAdd && !isFirstCapture}
+          className="w-full h-24 rounded-lg bg-gradient-to-br from-brand to-brand/80 text-white font-semibold text-base flex items-center justify-center gap-3 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <CameraIcon size={28} />
+          Capture first photo
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onCapture}
+          disabled={!canAdd}
+          className="w-full h-11 rounded-md bg-brand text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <CameraIcon size={16} />
+          {capturing ? 'Capturing…' : 'Add Photo'}
+        </button>
+      )}
+
+      {/* Thumbnail row */}
+      {combined.length > 0 && (
+        <div className="flex gap-1.5">
+          {combined.map((p, idx) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handleTap(p.id)}
+              className={`flex-1 aspect-square rounded-md overflow-hidden relative border ${
+                idx === 0 ? 'border-2 border-brand' : 'border-border'
+              }`}
+            >
+              {p.src ? (
+                <img src={p.src} alt={`Photo ${idx + 1}`} className="size-full object-cover" />
+              ) : (
+                <div className="size-full bg-surfaceAlt flex items-center justify-center text-textFaint text-xs">
+                  #{idx + 1}
+                </div>
+              )}
+              {idx === 0 && (
+                <span className="absolute bottom-0.5 left-0.5 text-[8px] font-bold tracking-wider uppercase bg-brand text-white px-1 py-0.5 rounded">
+                  Cover
+                </span>
+              )}
+              {p.status === 'pending' && (
+                <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-warning animate-pulse" />
+              )}
+              {p.status === 'failed' && (
+                <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-state-not-sellable" />
+              )}
+            </button>
+          ))}
+          {/* "+" tile when we can still add more */}
+          {canAdd && (
+            <button
+              type="button"
+              onClick={onCapture}
+              className="flex-1 aspect-square rounded-md border-2 border-dashed border-borderStrong bg-transparent flex items-center justify-center text-textFaint hover:bg-surfaceAlt"
+            >
+              +
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="text-[11px] text-textDim flex items-center justify-between">
+        <span>{combined.length} / {MAX_PHOTOS} photos</span>
+        {combined.length >= 1 && combined.length < MAX_PHOTOS && (
+          <span>min 1, max {MAX_PHOTOS}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function blobUrlFor(entries: { photoId: string; blob: Blob }[], urls: string[], photoId: string): string | null {
+  const idx = entries.findIndex((e) => e.photoId === photoId);
+  return idx >= 0 ? urls[idx] ?? null : null;
+}
+
+// Manage object URLs derived from blobs; revoke on cleanup so we don't leak memory.
+function useBlobUrls(blobs: Blob[]): string[] {
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const next = blobs.map((b) => URL.createObjectURL(b));
+    setUrls(next);
+    return () => {
+      for (const u of next) URL.revokeObjectURL(u);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blobs.length]);  // recompute when count changes; new blob entries are always appended
+  return urls;
+}
+
+function CameraIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 5h2l1-1.5h4L11 5h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+      <circle cx="8" cy="9" r="2.5" />
+    </svg>
+  );
+}

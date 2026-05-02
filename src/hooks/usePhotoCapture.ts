@@ -17,10 +17,10 @@ import { useCallback, useRef } from 'react';
 
 export function usePhotoCapture(onCapture: (blob: Blob) => void): {
   openCamera: () => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
+  inputRef: React.RefObject<HTMLInputElement>;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 } {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const openCamera = useCallback(() => {
     inputRef.current?.click();

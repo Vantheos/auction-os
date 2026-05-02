@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 
 export function Login() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,15 @@ export function Login() {
     setBusy(true); setError(null);
     try {
       await signIn(email, password);
-      nav('/inventory');
+      // Send to /redirect/home if a `redirect=` is present, else to / which
+      // resolves to the role-appropriate home (warehouse → /catalog,
+      // others → /inventory).
+      const requested = params.get('redirect');
+      if (requested) {
+        nav(`/?redirect=${encodeURIComponent(requested)}`, { replace: true });
+      } else {
+        nav('/', { replace: true });
+      }
     } catch (err: any) {
       setError(err.message ?? 'Login failed');
     } finally {

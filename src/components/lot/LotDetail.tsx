@@ -8,6 +8,7 @@ import { MoveLotDialog } from './MoveLotDialog';
 import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot } from '@/hooks/useLotMutations';
 import { useLabelPrint } from '@/hooks/useLabelPrint';
 import { useLotPhotos } from '@/hooks/useLots';
+import { useRole } from '@/lib/auth';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -27,6 +28,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
   const [deleteText, setDeleteText] = useState('');
 
   const photos = useLotPhotos(lot.id);
+  const role = useRole();
   const updateLot = useUpdateLot();
   const changeState = useChangeLotState();
   const moveLot = useMoveLot();
@@ -91,7 +93,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         {!isFrozen && (lot.state === 'assigned' || lot.state === 'unassigned') && (
           <Button variant="outline" onClick={() => setMoveOpen(true)}>Move to another auction</Button>
         )}
-        <ChangeStateMenu current={lot.state} onPick={handlePickState} disabled={changeState.isPending} />
+        <ChangeStateMenu current={lot.state} role={role} onPick={handlePickState} disabled={changeState.isPending} />
         {canDelete && (
           <Button variant="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>
         )}
