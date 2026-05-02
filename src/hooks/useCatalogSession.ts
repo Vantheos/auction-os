@@ -27,24 +27,44 @@ export type CatalogSession = {
 };
 
 export function useCatalogSession(): CatalogSession {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const customerId = params.get('customer');
   const jobId = params.get('job');
+  const lotIdFromUrl = params.get('lot');
 
-  const [lotId, setLotId] = useState<string | null>(null);
+  // Initialize lotId from URL so a page reload (Safari/Chrome pull-to-refresh,
+  // accidental nav, tab close+reopen, deep link) restores the in-progress lot
+  // exactly where the user left off. The form re-hydrates from the server
+  // lot data + IDB form mirror; photos refetch via useLotPhotos.
+  // lotNumber stays null on restore — LotInProgress derives it from useLot
+  // until/unless setLot is called explicitly.
+  const [lotId, setLotIdState] = useState<string | null>(lotIdFromUrl);
   const [lotNumber, setLotNumber] = useState<number | null>(null);
 
+  // Persist/clear the `lot` URL param. `replace: true` so we don't pollute
+  // back-button history with one entry per advance.
+  const writeLotToUrl = useCallback((nextLotId: string | null) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextLotId) next.set('lot', nextLotId);
+      else next.delete('lot');
+      return next;
+    }, { replace: true });
+  }, [setParams]);
+
   const setLot = useCallback((id: string, n: number) => {
-    setLotId(id);
+    setLotIdState(id);
     setLotNumber(n);
-  }, []);
+    writeLotToUrl(id);
+  }, [writeLotToUrl]);
 
   const advance = useCallback(() => {
-    setLotId(null);
+    setLotIdState(null);
     setLotNumber(null);
-  }, []);
+    writeLotToUrl(null);
+  }, [writeLotToUrl]);
 
   const discardCurrent = useCallback(async () => {
     if (!lotId) return;
@@ -55,9 +75,10 @@ export function useCatalogSession(): CatalogSession {
     }
     await clearFormMirror(lotId);
     queryClient.invalidateQueries({ queryKey: ['lots-infinite'] });
-    setLotId(null);
+    setLotIdState(null);
     setLotNumber(null);
-  }, [lotId, queryClient]);
+    writeLotToUrl(null);
+  }, [lotId, queryClient, writeLotToUrl]);
 
   const endSession = useCallback(async (keep: boolean) => {
     if (!keep) await discardCurrent();

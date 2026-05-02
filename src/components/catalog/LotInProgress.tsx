@@ -74,6 +74,11 @@ export function LotInProgress({ onEndSession }: Props) {
   const autosaveTimer = useRef<number | null>(null);
   const printRetried = useRef(false);
 
+  // After a page reload, useCatalogSession restores lotId from the URL but
+  // not lotNumber (since the URL only carries the id). Fall back to the
+  // lot data from useLot until/unless setLot has been called explicitly.
+  const displayLotNumber = lotNumber ?? lotQ.data?.lotNumber ?? null;
+
   // Hydrate fields from server lot (authoritative) or IDB mirror (fallback).
   //
   // react-hooks/set-state-in-effect: this is genuine external sync — the
@@ -179,7 +184,7 @@ export function LotInProgress({ onEndSession }: Props) {
             printLabel.mutate(lotId, {
               onError: () => {
                 toast({
-                  title: `Label print failed${lotNumber ? ` — Lot ${lotNumber} saved` : ''}`,
+                  title: `Label print failed${displayLotNumber ? ` — Lot ${displayLotNumber} saved` : ''}`,
                   description: 'Reprint from Inventory.',
                   variant: 'warning',
                 });
@@ -189,7 +194,7 @@ export function LotInProgress({ onEndSession }: Props) {
         }
       },
     });
-  }, [lotId, lotNumber, printLabel, toast]);
+  }, [lotId, displayLotNumber, printLabel, toast]);
 
   const handleNext = useCallback(() => {
     if (!lotId) return;
@@ -234,7 +239,7 @@ export function LotInProgress({ onEndSession }: Props) {
         <div className="text-right flex-shrink-0">
           <div className="text-[10px] uppercase tracking-wide text-textDim font-semibold leading-none">Lot</div>
           <div className="text-3xl font-bold leading-none text-brand font-mono tabular-nums mt-1">
-            {lotNumber ?? '—'}
+            {displayLotNumber ?? '—'}
           </div>
         </div>
       </div>
