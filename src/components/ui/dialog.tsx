@@ -52,8 +52,10 @@ const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentProps<typeof DialogPrimitive.Content> & {
     showCloseButton?: boolean
+    /** Render full-screen below the `md` breakpoint; centered modal at md+. */
+    fullScreenOnMobile?: boolean
   }
->(function DialogContent({ className, children, showCloseButton = true, ...props }, ref) {
+>(function DialogContent({ className, children, showCloseButton = true, fullScreenOnMobile = false, ...props }, ref) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -62,6 +64,7 @@ const DialogContent = React.forwardRef<
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          fullScreenOnMobile && "max-md:top-0 max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:translate-x-0 max-md:translate-y-0 max-md:max-w-none max-md:w-full max-md:h-screen max-md:max-h-screen max-md:rounded-none max-md:overflow-y-auto",
           className
         )}
         {...props}

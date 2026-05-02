@@ -1,11 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useLots, useLot } from '@/hooks/useLots';
+import { useInfiniteLots, flattenLots } from '@/hooks/useInfiniteLots';
+import { useLot } from '@/hooks/useLots';
 import { useBulkLotAction } from '@/hooks/useBulkLotAction';
 import { useRole } from '@/lib/auth';
 import { useToast } from '@/components/ui/toast';
 import { InventoryFilters, type Filters } from '@/components/inventory/InventoryFilters';
 import { InventoryTable } from '@/components/inventory/InventoryTable';
+import { InventoryMobile } from '@/components/inventory/InventoryMobile';
+import { InventoryFiltersMobileSheet } from '@/components/inventory/InventoryFiltersMobileSheet';
 import { BulkActionBar } from '@/components/inventory/BulkActionBar';
 import { LotDetail } from '@/components/lot/LotDetail';
 import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
@@ -13,6 +16,7 @@ import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
 import { ExportCsvDialog } from '@/components/bulk/ExportCsvDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import type { LotState } from '@shared/types';
 
@@ -35,6 +39,10 @@ function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams
   return next;
 }
 
+function activeFilterCount(f: Filters): number {
+  return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length;
+}
+
 export function Inventory() {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => parseFiltersFromUrl(params), [params]);
@@ -43,16 +51,33 @@ export function Inventory() {
   const isAdmin = role === 'admin';
   const { toast } = useToast();
 
-  const lotsQ = useLots(filters);
+  const lotsQ = useInfiniteLots(filters);
+  const { lots, total } = useMemo(() => flattenLots(lotsQ.data?.pages), [lotsQ.data]);
   const openLotQ = useLot(openLotId ?? undefined);
   const bulk = useBulkLotAction();
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'export' | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  // IntersectionObserver-driven infinite scroll. Sentinel at the bottom of
+  // the list triggers fetchNextPage when it enters the viewport.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && lotsQ.hasNextPage && !lotsQ.isFetchingNextPage) {
+        void lotsQ.fetchNextPage();
+      }
+    }, { threshold: 0.1 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [lotsQ]);
 
   const selectedLots = useMemo(
-    () => (lotsQ.data?.lots ?? []).filter((l) => selected.has(l.id)),
-    [lotsQ.data, selected]
+    () => lots.filter((l) => selected.has(l.id)),
+    [lots, selected]
   );
 
   const setOpenLot = (id: string | null) => {
@@ -75,7 +100,7 @@ export function Inventory() {
   };
 
   const handleSelectAll = (sel: boolean) => {
-    setSelected(sel ? new Set((lotsQ.data?.lots ?? []).map((l) => l.id)) : new Set());
+    setSelected(sel ? new Set(lots.map((l) => l.id)) : new Set());
   };
 
   const summarizeBulk = (results: { ok: boolean; error?: { message: string } }[]) => {
@@ -86,37 +111,86 @@ export function Inventory() {
     else toast({ title: `${ok} of ${results.length} lots updated`, description: `${fail} failed.`, variant: 'warning' });
   };
 
+  const filterCount = activeFilterCount(filters);
+
   return (
     <div className="space-y-4">
+      {/* Header — same on both viewports */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-text">Inventory</h1>
-        <div className="text-sm text-textDim">{lotsQ.data ? `${lotsQ.data.total} total` : 'Loading…'}</div>
+        <div className="text-sm text-textDim">
+          {lotsQ.isLoading ? 'Loading…' : `${total} total`}
+        </div>
       </div>
 
-      <InventoryFilters filters={filters} onChange={handleFilterChange} />
+      {/* Filters — desktop sidebar at md+, mobile filter button below */}
+      <div className="hidden md:block">
+        <InventoryFilters filters={filters} onChange={handleFilterChange} />
+      </div>
+      <div className="md:hidden flex items-center gap-2">
+        <Button
+          variant={filterCount > 0 ? 'secondary' : 'outline'}
+          onClick={() => setFilterSheetOpen(true)}
+          className="flex-shrink-0"
+        >
+          Filter{filterCount > 0 ? <span className="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-brand text-white text-[10px] font-bold">{filterCount}</span> : null}
+        </Button>
+        {filterCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => handleFilterChange({ state: [] })}>
+            Clear
+          </Button>
+        )}
+      </div>
 
-      {lotsQ.error && <div className="text-sm text-danger">Failed to load lots: {(lotsQ.error as Error).message}</div>}
+      {lotsQ.error && (
+        <div className="text-sm text-danger">Failed to load lots: {(lotsQ.error as Error).message}</div>
+      )}
 
-      <InventoryTable
-        lots={lotsQ.data?.lots ?? []}
-        selected={selected}
-        onSelect={handleSelect}
-        onSelectAll={handleSelectAll}
-        onOpen={setOpenLot}
+      {/* Lot list — table at md+, single-column rows below */}
+      <div className="hidden md:block">
+        <InventoryTable
+          lots={lots}
+          selected={selected}
+          onSelect={handleSelect}
+          onSelectAll={handleSelectAll}
+          onOpen={setOpenLot}
+        />
+      </div>
+      <div className="md:hidden">
+        <InventoryMobile lots={lots} onOpen={setOpenLot} />
+      </div>
+
+      {/* Infinite-scroll sentinel + status */}
+      <div ref={sentinelRef} className="h-8 flex items-center justify-center text-xs text-textFaint">
+        {lotsQ.isFetchingNextPage ? 'Loading more…' :
+         lotsQ.hasNextPage ? '' :
+         lots.length > 0 ? 'End of results' : ''}
+      </div>
+
+      {/* Bulk action bar — desktop only per spec §8.7 */}
+      <div className="hidden md:block">
+        <BulkActionBar
+          count={selected.size}
+          isAdmin={isAdmin}
+          onClear={() => setSelected(new Set())}
+          onMove={() => setBulkDialog('move')}
+          onChangeState={() => setBulkDialog('change-state')}
+          onDelete={() => setBulkDialog('delete')}
+          onExport={() => setBulkDialog('export')}
+        />
+      </div>
+
+      {/* Mobile filter sheet (parent-owned open state; portaled) */}
+      <InventoryFiltersMobileSheet
+        open={filterSheetOpen}
+        onOpenChange={setFilterSheetOpen}
+        filters={filters}
+        onApply={handleFilterChange}
       />
 
-      <BulkActionBar
-        count={selected.size}
-        isAdmin={isAdmin}
-        onClear={() => setSelected(new Set())}
-        onMove={() => setBulkDialog('move')}
-        onChangeState={() => setBulkDialog('change-state')}
-        onDelete={() => setBulkDialog('delete')}
-        onExport={() => setBulkDialog('export')}
-      />
-
+      {/* Lot detail modal — full-screen on mobile per spec §5.3 */}
       <Dialog open={!!openLotId} onOpenChange={(o) => !o && setOpenLot(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" fullScreenOnMobile>
           <DialogHeader><DialogTitle className="sr-only">Lot detail</DialogTitle></DialogHeader>
           {openLotQ.data ? (
             <LotDetail lot={openLotQ.data} onClose={() => setOpenLot(null)} canEdit canDelete={isAdmin} />

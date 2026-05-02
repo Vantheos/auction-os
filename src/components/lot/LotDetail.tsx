@@ -67,7 +67,18 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           <div className="text-xs text-textDim mb-2">Photos ({photos.data.length})</div>
           <div className="grid grid-cols-4 gap-2">
             {photos.data.map((p) => (
-              <div key={p.id} className={`aspect-square rounded-md border border-border bg-surfaceAlt overflow-hidden ${lot.state === 'not-sellable' ? 'opacity-60' : ''}`} />
+              <div
+                key={p.id}
+                className={`aspect-square rounded-md border border-border bg-surfaceAlt overflow-hidden ${lot.state === 'not-sellable' ? 'opacity-60' : ''}`}
+              >
+                {p.signedUrl ? (
+                  <img src={p.signedUrl} alt="" className="size-full object-cover" />
+                ) : p.status === 'pending' ? (
+                  <div className="size-full flex items-center justify-center text-[10px] text-textFaint">Uploading…</div>
+                ) : p.status === 'failed' ? (
+                  <div className="size-full flex items-center justify-center text-[10px] text-state-not-sellable">Failed</div>
+                ) : null}
+              </div>
             ))}
           </div>
         </div>

@@ -52,7 +52,13 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen }
               <TableCell data-stop-row-click>
                 <Checkbox checked={selected.has(l.id)} onCheckedChange={(c) => onSelect(l.id, !!c)} aria-label={`Select lot ${l.lotNumber}`} />
               </TableCell>
-              <TableCell><div className="size-10 rounded bg-surfaceAlt border border-border" /></TableCell>
+              <TableCell>
+                <div className="size-10 rounded bg-surfaceAlt border border-border overflow-hidden">
+                  {l.coverSignedUrl ? (
+                    <img src={l.coverSignedUrl} alt="" className="size-full object-cover" />
+                  ) : null}
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="text-sm font-medium text-text">{l.customerName ?? '—'}</div>
                 <div className="text-xs text-textDim font-mono">{l.jobNumber ?? '—'} · #{l.lotNumber ?? '—'}</div>

@@ -4,7 +4,7 @@
 // comes back per page; we use it to derive hasNextPage. Selection state
 // in Inventory keeps working unchanged because lot.id is stable.
 
-import { useInfiniteQuery, type UseInfiniteQueryOptions } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { LotDTO, LotsListResponse, LotState } from '@shared/types';
 
@@ -26,22 +26,16 @@ function toQueryString(f: InfiniteLotFilters, offset: number): string {
   return `?${p.toString()}`;
 }
 
-type InfiniteLotsOptions = Omit<
-  UseInfiniteQueryOptions<LotsListResponse, Error>,
-  'queryKey' | 'queryFn' | 'getNextPageParam' | 'initialPageParam'
->;
-
-export function useInfiniteLots(filters: InfiniteLotFilters, options?: InfiniteLotsOptions) {
+export function useInfiniteLots(filters: InfiniteLotFilters) {
   return useInfiniteQuery({
     queryKey: ['lots-infinite', filters] as const,
-    queryFn: ({ pageParam = 0 }) =>
-      api<LotsListResponse>(`/lots${toQueryString(filters, pageParam as number)}`),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage: LotsListResponse, allPages: LotsListResponse[]) => {
+    queryFn: ({ pageParam }) =>
+      api<LotsListResponse>(`/lots${toQueryString(filters, pageParam)}`),
+    initialPageParam: 0 as number,
+    getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((n, p) => n + p.lots.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },
-    ...options,
   });
 }
 
