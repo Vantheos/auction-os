@@ -28,7 +28,7 @@ const MOCK_LOT: LotDTO = {
   quantity: 1, title: '$45- 1x Antique Brass Vase', description: 'Patina, no chips. ~8" tall.',
   price: '45.00', condition: 'used', ref1: null, ref2: null,
   specialNotesCategory: 'TOOL ONLY', specialNotesText: null, untested: false,
-  state: 'assigned', lastAiRunStatus: 'success', lastAiRunError: null,
+  state: 'assigned', source: 'cataloging', lastAiRunStatus: 'success', lastAiRunError: null,
   intakeOperatorId: 'u', intakeTimestamp: new Date().toISOString(),
   createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 };

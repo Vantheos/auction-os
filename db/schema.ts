@@ -10,6 +10,12 @@ export const specialNotesCategoryEnum = pgEnum('special_notes_category', ['None'
 export const conditionEnum = pgEnum('condition', ['used']); // single value in v1; vocab expanded post-v1
 export const aiScheduleFrequencyEnum = pgEnum('ai_schedule_frequency', ['hourly', 'daily']);
 export const auditChangeTypeEnum = pgEnum('audit_change_type', ['insert', 'update', 'delete']);
+// Phase 3: tags how a lot got into the system. `cataloging` (default) goes
+// through the mobile capture flow and must have ≥1 photo (enforced by
+// deferrable trigger in 0008). `imported` is reserved for future bulk
+// import paths (Amazon returns spreadsheets, etc.) which create photo-less
+// lots and allow photos to be added later.
+export const lotSourceEnum = pgEnum('lot_source', ['cataloging', 'imported']);
 
 // ── app_user (mirrors auth.users) ────────────────────────────────────────
 export const appUser = pgTable('app_user', {
@@ -57,6 +63,7 @@ export const lot = pgTable('lot', {
   specialNotesText: text('special_notes_text'),
   untested: boolean('untested').notNull().default(false),
   state: lotStateEnum('state').notNull().default('assigned'),
+  source: lotSourceEnum('source').notNull().default('cataloging'),
   lastAiRunStatus: aiRunStatusEnum('last_ai_run_status'),
   lastAiRunError: text('last_ai_run_error'),
   intakeOperatorId: uuid('intake_operator_id').notNull().references(() => appUser.id),

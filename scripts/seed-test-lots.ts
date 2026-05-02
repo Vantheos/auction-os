@@ -16,6 +16,13 @@ if (!url) {
 const client = postgres(url, { prepare: false, max: 1 });
 const db = drizzle(client, { schema });
 
+// Note on migration 0008: this script creates photo-less lots, which the
+// lot-has-photo trigger normally rejects on Dev. Run seed-test-photos
+// IMMEDIATELY after this seed script — by then the lots will have photos
+// and the constraint is satisfied. If running this against a fresh Dev
+// DB and the trigger fires, manually run seed-test-photos first or
+// temporarily disable the triggers.
+
 async function main() {
   // Find or create a test customer
   let [customer] = await db.select().from(schema.customer).where(eq(schema.customer.name, 'Test Estate'));

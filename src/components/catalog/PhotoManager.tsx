@@ -12,7 +12,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useLotPhotos } from '@/hooks/useLots';
 import { usePhotoCapture } from '@/hooks/usePhotoCapture';
-import { useCapturePhoto } from '@/hooks/useCatalogSession';
+import { useCapturePhoto, useCatalogSession } from '@/hooks/useCatalogSession';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 type Props = {
   lotId: string;
@@ -22,10 +24,12 @@ type Props = {
 
 export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
   const queryClient = useQueryClient();
+  const session = useCatalogSession();
   const photosQ = useLotPhotos(lotId);
   const photos = useMemo(() => (photosQ.data ?? []).slice().sort((a, b) => a.displayOrder - b.displayOrder), [photosQ.data]);
 
   const [focusIdx, setFocusIdx] = useState(0);
+  const [confirmCascade, setConfirmCascade] = useState(false);
   useEffect(() => {
     if (initialFocusId && photos.length > 0) {
       const idx = photos.findIndex((p) => p.id === initialFocusId);
@@ -49,6 +53,8 @@ export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
   const { openCamera, inputRef, onChange: onCameraChange } = usePhotoCapture(async (blob) => {
     await capturePhoto.mutateAsync(blob);
   });
+
+  const isCascading = session.lotId === lotId;
 
   if (photos.length === 0) {
     return (
@@ -78,9 +84,35 @@ export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
   };
 
   const del = async () => {
+    // Cataloging-source lots must always have ≥1 photo per the deferrable
+    // trigger in migration 0008. Deleting the last photo would fail the
+    // constraint, so we surface a confirm dialog and cascade to lot delete.
+    if (photos.length === 1) {
+      setConfirmCascade(true);
+      return;
+    }
     const idx = focusIdx;
     await remove.mutateAsync(focused.id);
     setFocusIdx(Math.max(0, idx - 1));
+  };
+
+  const confirmDeleteLot = async () => {
+    if (isCascading) {
+      // The lot being deleted IS the in-progress session lot. Use the
+      // session's discard path so the session state resets atomically
+      // (clears form mirror, advances to fresh lot, etc.) and closes
+      // the photo manager.
+      await session.discardCurrent();
+      onClose();
+    } else {
+      // Fallback: delete the lot directly. (PhotoManager is currently
+      // only reachable from the active cataloging session, but this is
+      // safe if that ever changes.)
+      await api(`/lots/${lotId}`, { method: 'DELETE' });
+      queryClient.invalidateQueries({ queryKey: ['lots-infinite'] });
+      onClose();
+    }
+    setConfirmCascade(false);
   };
 
   return (
@@ -163,6 +195,24 @@ export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
         <ActionButton label="Move →" onClick={() => swap(focusIdx, focusIdx + 1)} disabled={isLast || reorder.isPending} />
         <ActionButton label="Delete" onClick={del} disabled={remove.isPending} variant="danger" />
       </div>
+
+      {/* Last-photo cascade confirm. The DB trigger would reject the photo
+          delete on a cataloging-source lot if it would leave zero photos;
+          surfacing this dialog is the user-facing equivalent. */}
+      <Dialog open={confirmCascade} onOpenChange={(o) => !o && setConfirmCascade(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete the last photo?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-textDim">
+            A lot must always have at least one photo. Deleting this photo will also delete the entire lot. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmCascade(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteLot}>Delete photo & lot</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

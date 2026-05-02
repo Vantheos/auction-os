@@ -12,6 +12,7 @@ export type UpdateCustomerRequest = { name?: string };
 export type ApiError = { error: { code: string; message: string } };
 
 export type LotState = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-sellable';
+export type LotSource = 'cataloging' | 'imported';
 
 export type LotDTO = {
   id: string;
@@ -31,6 +32,7 @@ export type LotDTO = {
   specialNotesText: string | null;
   untested: boolean;
   state: LotState;
+  source: LotSource;
   lastAiRunStatus: 'success' | 'partial' | 'failure' | null;
   lastAiRunError: string | null;
   intakeOperatorId: string;
