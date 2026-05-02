@@ -19,7 +19,7 @@ export function BulkActionBar({ count, isAdmin, onClear, onMove, onChangeState, 
         <span className="text-sm font-medium text-text">{count} selected</span>
         <Button size="sm" variant="ghost" onClick={onClear}>Clear</Button>
         <div className="flex-1" />
-        <Button size="sm" variant="outline" onClick={onMove}>Move</Button>
+        <Button size="sm" variant="outline" onClick={onMove}>Assign to Job</Button>
         <Button size="sm" variant="outline" onClick={onChangeState}>Change status</Button>
         <Button size="sm" variant="outline" onClick={onExport}>Export CSV</Button>
         {isAdmin && <Button size="sm" variant="destructive" onClick={onDelete}>Delete</Button>}

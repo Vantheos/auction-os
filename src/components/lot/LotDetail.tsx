@@ -141,11 +141,11 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         onConfirm={async (destinationJobId, reprint) => {
           try {
             await moveLot.mutateAsync({ id: lot.id, destinationJobId });
-            toast({ title: 'Lot moved', variant: 'success' });
+            toast({ title: 'Lot assigned', variant: 'success' });
             if (reprint) printLabel.mutate(lot.id);
             setMoveOpen(false);
           } catch (err) {
-            errorToast('Could not move lot')(err);
+            errorToast('Could not assign lot')(err);
           }
         }}
         busy={moveLot.isPending}

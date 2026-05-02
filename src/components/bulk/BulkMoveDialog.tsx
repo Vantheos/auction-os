@@ -25,7 +25,7 @@ export function BulkMoveDialog({ open, onClose, count, onConfirm, busy }: Props)
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move {count} lots to another Job</DialogTitle>
+          <DialogTitle>Assign {count} lots to Job</DialogTitle>
           <DialogDescription>Each lot gets a fresh lot number in the destination job.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -62,13 +62,13 @@ export function BulkMoveDialog({ open, onClose, count, onConfirm, busy }: Props)
           })()}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={reprint} onChange={(e) => setReprint(e.target.checked)} className="size-4" />
-            Reprint labels after move
+            Reprint labels after assignment
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={() => jobId && onConfirm(jobId, reprint)} disabled={!jobId || busy}>
-            {busy ? 'Moving…' : `Move ${count} lots`}
+            {busy ? 'Assigning…' : `Assign ${count} lots`}
           </Button>
         </DialogFooter>
       </DialogContent>

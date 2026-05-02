@@ -235,7 +235,7 @@ export function Inventory() {
             setBulkDialog(null);
           } catch (err) {
             toast({
-              title: 'Bulk move failed',
+              title: 'Bulk assign failed',
               description: err instanceof Error ? err.message : 'Unknown error',
               variant: 'danger',
             });

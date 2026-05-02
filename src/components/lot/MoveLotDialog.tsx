@@ -28,7 +28,7 @@ export function MoveLotDialog({ open, onClose, onConfirm, busy }: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move lot to another Job</DialogTitle>
+          <DialogTitle>Assign lot to Job</DialogTitle>
           <DialogDescription>Select destination customer and job. A new lot number will be assigned.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -65,13 +65,13 @@ export function MoveLotDialog({ open, onClose, onConfirm, busy }: Props) {
           })()}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={reprint} onChange={(e) => setReprint(e.target.checked)} className="size-4" />
-            Reprint label after move
+            Reprint label after assignment
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={() => canSubmit && onConfirm(jobId, reprint)} disabled={!canSubmit || busy}>
-            {busy ? 'Moving…' : 'Move lot'}
+            {busy ? 'Assigning…' : 'Assign lot'}
           </Button>
         </DialogFooter>
       </DialogContent>
