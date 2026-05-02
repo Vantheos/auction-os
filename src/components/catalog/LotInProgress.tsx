@@ -189,7 +189,7 @@ export function LotInProgress({ onEndSession }: Props) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-wash relative">
+    <div className="min-h-[100dvh] flex flex-col bg-wash relative">
       {/* Hidden file input owned by the camera hook */}
       <input
         ref={inputRef}

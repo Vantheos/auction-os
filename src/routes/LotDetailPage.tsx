@@ -14,7 +14,7 @@ export function LotDetailPage() {
   const canEdit = !!role;
 
   return (
-    <div className="min-h-screen bg-wash">
+    <div className="min-h-[100dvh] bg-wash">
       <div className="max-w-2xl mx-auto p-4 sm:p-6">
         {lotQ.isLoading && <div className="text-sm text-textDim p-8 text-center">Loading…</div>}
         {lotQ.error && <div className="text-sm text-danger p-4">{(lotQ.error as Error).message}</div>}

@@ -41,7 +41,7 @@ export function PhotoManager({ lotId, initialFocusId, onClose, onLotDeleted }: P
 
   if (photos.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
         <div className="text-lg">No photos yet</div>
         <button
           type="button"
@@ -133,7 +133,7 @@ function PhotoManagerInner({ lotId, photos, initialFocusId, onClose, onLotDelete
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-text text-white">
+    <div className="min-h-[100dvh] flex flex-col bg-text text-white">
       <input
         ref={inputRef}
         type="file"

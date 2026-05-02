@@ -31,7 +31,7 @@ export function AdminShell() {
   };
 
   return (
-    <div className="h-screen flex bg-wash">
+    <div className="h-[100dvh] flex bg-wash">
       <aside className="w-40 bg-surface border-r border-border p-4 flex flex-col overflow-y-auto">
         <div className="font-semibold text-lg mb-6">Auction OS</div>
         <nav className="space-y-1 flex-1">

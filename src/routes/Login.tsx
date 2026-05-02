@@ -35,7 +35,7 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-wash p-4">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-wash p-4">
       <form onSubmit={onSubmit} className="bg-surfaceSolid p-8 rounded-lg shadow-md w-full max-w-md space-y-4 border border-border">
         <h1 className="text-xl font-semibold">Auction OS — Sign in</h1>
         <div className="space-y-2">
