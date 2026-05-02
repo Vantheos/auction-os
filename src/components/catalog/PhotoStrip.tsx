@@ -5,7 +5,7 @@
 //
 // Tap a thumbnail → opens the full-screen Photo Manager.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUploadQueue } from '@/hooks/useUploadQueue';
 import { useLotPhotos } from '@/hooks/useLots';
@@ -26,13 +26,18 @@ export function PhotoStrip({ lotId, onCapture, capturing }: {
 }) {
   const navigate = useNavigate();
   const photosQ = useLotPhotos(lotId ?? undefined);
-  const { perLotPending } = useUploadQueue();
+  const { pending } = useUploadQueue();
 
   // Build combined photo list: server-known photos + queue entries that
   // don't yet have a server status of 'uploaded'. The queue entry's local
   // blob URL is rendered immediately for snappy UX even before upload.
-  const queueEntries = lotId ? perLotPending(lotId) : [];
-  const blobUrls = useBlobUrls(queueEntries.map((e) => e.blob));
+  // Memoize so downstream useMemo doesn't recompute on every render.
+  const queueEntries = useMemo(
+    () => (lotId ? pending.filter((e) => e.lotId === lotId) : []),
+    [lotId, pending]
+  );
+  const queueBlobs = useMemo(() => queueEntries.map((e) => e.blob), [queueEntries]);
+  const blobUrls = useBlobUrls(queueBlobs);
 
   const combined: CombinedPhoto[] = useMemo(() => {
     const out: CombinedPhoto[] = [];
@@ -153,17 +158,23 @@ function blobUrlFor(entries: { photoId: string; blob: Blob }[], urls: string[], 
   return idx >= 0 ? urls[idx] ?? null : null;
 }
 
-// Manage object URLs derived from blobs; revoke on cleanup so we don't leak memory.
+// Manage object URLs derived from blobs; revoke on cleanup so we don't leak
+// memory. Uses useMemo to derive synchronously (no setState-in-effect) and
+// useEffect for the revocation cleanup. The length-only dep is intentional:
+// upload-queue entries are append-only on capture and removed on success;
+// at any given length the blob list is stable. A blob being replaced at the
+// same index doesn't happen in our pipeline.
 function useBlobUrls(blobs: Blob[]): string[] {
-  const [urls, setUrls] = useState<string[]>([]);
-  useEffect(() => {
-    const next = blobs.map((b) => URL.createObjectURL(b));
-    setUrls(next);
-    return () => {
-      for (const u of next) URL.revokeObjectURL(u);
-    };
+  const urls = useMemo(
+    () => blobs.map((b) => URL.createObjectURL(b)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blobs.length]);  // recompute when count changes; new blob entries are always appended
+    [blobs.length]
+  );
+  useEffect(() => {
+    return () => {
+      for (const u of urls) URL.revokeObjectURL(u);
+    };
+  }, [urls]);
   return urls;
 }
 

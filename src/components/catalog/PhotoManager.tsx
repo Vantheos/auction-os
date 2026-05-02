@@ -7,7 +7,7 @@
 // Delete writes via DELETE /api/lots/[id]/photos/[photoId] which also
 // re-shuffles display_order so the cover follows whoever is in slot 1.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useLotPhotos } from '@/hooks/useLots';
@@ -15,6 +15,7 @@ import { usePhotoCapture } from '@/hooks/usePhotoCapture';
 import { useCapturePhoto, useCatalogSession } from '@/hooks/useCatalogSession';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import type { LotPhotoDTO } from '@shared/types';
 
 type Props = {
   lotId: string;
@@ -22,20 +23,51 @@ type Props = {
   onClose: () => void;
 };
 
+// Outer wrapper handles loading + empty states. Inner mounts only when
+// photos exist, with focusIdx seeded from initialFocusId via useState
+// initializer (no setState-in-effect to align focus).
 export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
+  const photosQ = useLotPhotos(lotId);
+  const photos = useMemo(
+    () => (photosQ.data ?? []).slice().sort((a, b) => a.displayOrder - b.displayOrder),
+    [photosQ.data]
+  );
+
+  if (photos.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
+        <div className="text-lg">No photos yet</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 rounded-md border border-white/20 hover:bg-white/5"
+        >
+          Back to lot
+        </button>
+      </div>
+    );
+  }
+
+  return <PhotoManagerInner lotId={lotId} photos={photos} initialFocusId={initialFocusId} onClose={onClose} />;
+}
+
+function PhotoManagerInner({ lotId, photos, initialFocusId, onClose }: {
+  lotId: string;
+  photos: LotPhotoDTO[];
+  initialFocusId?: string | null;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const session = useCatalogSession();
-  const photosQ = useLotPhotos(lotId);
-  const photos = useMemo(() => (photosQ.data ?? []).slice().sort((a, b) => a.displayOrder - b.displayOrder), [photosQ.data]);
 
-  const [focusIdx, setFocusIdx] = useState(0);
+  // Seed focus from initialFocusId on first mount; subsequent prop changes
+  // are intentionally ignored (the user is navigating thumbnails by then).
+  const [focusIdx, setFocusIdx] = useState(() => {
+    if (!initialFocusId) return 0;
+    const idx = photos.findIndex((p) => p.id === initialFocusId);
+    return idx >= 0 ? idx : 0;
+  });
   const [confirmCascade, setConfirmCascade] = useState(false);
-  useEffect(() => {
-    if (initialFocusId && photos.length > 0) {
-      const idx = photos.findIndex((p) => p.id === initialFocusId);
-      if (idx >= 0) setFocusIdx(idx);
-    }
-  }, [initialFocusId, photos]);
 
   const reorder = useMutation({
     mutationFn: async (order: string[]) =>
@@ -55,21 +87,6 @@ export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
   });
 
   const isCascading = session.lotId === lotId;
-
-  if (photos.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
-        <div className="text-lg">No photos yet</div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 rounded-md border border-white/20 hover:bg-white/5"
-        >
-          Back to lot
-        </button>
-      </div>
-    );
-  }
 
   const focused = photos[Math.min(focusIdx, photos.length - 1)];
   const isFirst = focusIdx === 0;

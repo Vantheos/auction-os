@@ -42,6 +42,10 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
       untested: lot.untested,
     },
   });
+  // react-hooks/incompatible-library: react-hook-form's `watch` is opaque to
+  // the React Compiler analyzer. We're not running the compiler in this
+  // project, so the warning is informational only. Standard RHF usage.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const category = watch('specialNotesCategory');
 
   return (

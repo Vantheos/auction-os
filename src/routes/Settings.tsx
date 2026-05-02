@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { SystemSettingsDTO } from '@shared/types';
 
 type ConnStatus = 'unknown' | 'pending' | 'connected' | 'unreachable';
 
@@ -16,16 +17,21 @@ async function testHelper(url: string): Promise<ConnStatus> {
   }
 }
 
+// Wait-for-data wrapper. The form receives data via prop and seeds its
+// state via useState initializer (no setState-in-effect to hydrate).
 export function Settings() {
   const settingsQ = useSystemSettings();
+  if (settingsQ.isLoading) return <p className="text-textDim">Loading…</p>;
+  if (settingsQ.error) return <p className="text-danger">Failed to load settings: {(settingsQ.error as Error).message}</p>;
+  if (!settingsQ.data) return null;
+  return <SettingsForm initial={settingsQ.data} />;
+}
+
+function SettingsForm({ initial }: { initial: SystemSettingsDTO }) {
   const update = useUpdateSystemSettings();
   const { toast } = useToast();
-  const [helperUrl, setHelperUrl] = useState('');
+  const [helperUrl, setHelperUrl] = useState(initial.labelPrinterHelperUrl ?? '');
   const [conn, setConn] = useState<ConnStatus>('unknown');
-
-  useEffect(() => {
-    if (settingsQ.data) setHelperUrl(settingsQ.data.labelPrinterHelperUrl ?? '');
-  }, [settingsQ.data]);
 
   const onSave = async () => {
     await update.mutateAsync({ labelPrinterHelperUrl: helperUrl || null });

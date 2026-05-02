@@ -21,32 +21,26 @@ export function useFormMirror(lotId: string | null): {
   saveFields: (fields: Record<string, unknown>) => void;
   clear: () => Promise<void>;
 } {
-  const [mirror, setMirror] = useState<FormMirrorEntry | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Only state we keep is the result of the async IDB load — keyed by the
+  // lotId we loaded for. The "null lotId" case is derived during render so
+  // we never call setState in an effect just to reset.
+  const [loaded, setLoaded] = useState<{ lotId: string; mirror: FormMirrorEntry | null } | null>(null);
   const pending = useRef<{ lotId: string; fields: Record<string, unknown> } | null>(null);
   const timer = useRef<number | null>(null);
 
-  // Load on lotId change
+  // Async-load the mirror when lotId becomes non-null. The setState in here
+  // is a legitimate "external sync arrived" callback (not a state-reset on
+  // prop change), so the rule allows it.
   useEffect(() => {
-    if (!lotId) {
-      setMirror(null);
-      setLoaded(true);
-      return;
-    }
+    if (!lotId) return;
     let cancelled = false;
-    setLoaded(false);
     loadFormMirror(lotId).then((entry) => {
-      if (!cancelled) {
-        setMirror(entry ?? null);
-        setLoaded(true);
-      }
+      if (!cancelled) setLoaded({ lotId, mirror: entry ?? null });
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [lotId]);
 
-  // Flush any pending write on unmount
+  // Flush any pending IDB write when the consumer unmounts.
   useEffect(() => {
     return () => {
       if (timer.current !== null) {
@@ -85,8 +79,15 @@ export function useFormMirror(lotId: string | null): {
     }
     pending.current = null;
     await clearFormMirror(lotId);
-    setMirror(null);
+    setLoaded({ lotId, mirror: null });
   }, [lotId]);
 
-  return { mirror, loaded, saveFields, clear };
+  // Derive what consumers see:
+  //   - Null lotId: no mirror, "loaded" trivially (nothing to load).
+  //   - Mirror was loaded for the current lotId: return it.
+  //   - lotId changed but the new mirror hasn't arrived yet: null + not-loaded.
+  const mirror = lotId === null ? null : (loaded?.lotId === lotId ? loaded.mirror : null);
+  const isLoaded = lotId === null || loaded?.lotId === lotId;
+
+  return { mirror, loaded: isLoaded, saveFields, clear };
 }

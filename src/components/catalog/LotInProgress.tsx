@@ -57,7 +57,15 @@ export function LotInProgress({ onEndSession }: Props) {
   const autosaveTimer = useRef<number | null>(null);
   const printRetried = useRef(false);
 
-  // Hydrate fields from server lot (authoritative) or IDB mirror (fallback)
+  // Hydrate fields from server lot (authoritative) or IDB mirror (fallback).
+  //
+  // react-hooks/set-state-in-effect: this is genuine external sync — the
+  // form needs LOCAL state for editing, but two ASYNC sources can
+  // legitimately update it (server lot fetch + IDB mirror load). The
+  // wrapper-pattern alternative (split into outer-that-waits + inner-with-
+  // useState-initializer + key={lotId}) would work but adds significant
+  // indirection for a pattern that's correct as written.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!lotId) {
       setFields(EMPTY_FIELDS);
@@ -83,6 +91,7 @@ export function LotInProgress({ onEndSession }: Props) {
       setHydrated(true);
     }
   }, [lotId, lotQ.data, mirror, mirrorLoaded]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Patch helper — applies a partial change, mirrors to IDB immediately,
   // and schedules a debounced server PATCH.

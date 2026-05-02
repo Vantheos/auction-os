@@ -5,7 +5,7 @@
 //
 // Renders into Radix portal; the parent component owns the open state.
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter, SheetClose } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -26,34 +26,41 @@ type Props = {
   onApply: (next: Filters) => void;
 };
 
+// Outer shell controls the Sheet open state. The body is split into a
+// sibling component that only mounts while open, so its useState seeds
+// from `filters` fresh on each open without setState-in-effect.
 export function InventoryFiltersMobileSheet({ open, onOpenChange, filters, onApply }: Props) {
-  const [draft, setDraft] = useState<Filters>(filters);
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent>
+        {open && <SheetBodyInner initial={filters} onApply={onApply} onClose={() => onOpenChange(false)} />}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SheetBodyInner({ initial, onApply, onClose }: { initial: Filters; onApply: (next: Filters) => void; onClose: () => void }) {
+  const [draft, setDraft] = useState<Filters>(initial);
   const customers = useCustomers();
   const jobs = useJobs(draft.customerId);
-
-  // Reset draft to live filters on open
-  useEffect(() => {
-    if (open) setDraft(filters);
-  }, [open, filters]);
 
   const toggleState = (s: LotState) =>
     setDraft((d) => ({ ...d, state: d.state.includes(s) ? d.state.filter((x) => x !== s) : [...d.state, s] }));
 
   const apply = () => {
     onApply(draft);
-    onOpenChange(false);
+    onClose();
   };
 
   const clearAll = () => {
     const empty: Filters = { state: [] };
     setDraft(empty);
     onApply(empty);
-    onOpenChange(false);
+    onClose();
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+    <>
         <SheetHeader>
           <SheetTitle>Filters</SheetTitle>
           <SheetClose className="text-textDim hover:text-text text-lg leading-none">×</SheetClose>
@@ -113,8 +120,7 @@ export function InventoryFiltersMobileSheet({ open, onOpenChange, filters, onApp
           <Button variant="outline" onClick={clearAll} className="flex-1 h-11">Clear all</Button>
           <Button onClick={apply} className="flex-[2] h-11">Apply filters</Button>
         </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </>
   );
 }
 
