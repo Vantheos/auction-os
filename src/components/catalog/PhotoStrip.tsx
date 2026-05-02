@@ -6,7 +6,6 @@
 // Tap a thumbnail → opens the full-screen Photo Manager.
 
 import { useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useUploadQueue } from '@/hooks/useUploadQueue';
 import { useLotPhotos } from '@/hooks/useLots';
 
@@ -23,13 +22,11 @@ export function PhotoStrip({ lotId, onCapture, capturing, onTapThumb }: {
   lotId: string | null;
   onCapture: () => void;
   capturing?: boolean;
-  // When provided, tapping a thumbnail invokes this callback instead of
-  // navigating to the cataloging photo-manager route. Used by LotDetail
-  // (inventory modal + /lot/:id page) to open PhotoManager as a portal
-  // overlay rather than a route change.
-  onTapThumb?: (photoId: string) => void;
+  // Required. Parent owns the photo-manager invocation: cataloging session
+  // and lot detail both render PhotoManager inline via local state. There
+  // is no longer a route-based fallback — every caller passes a callback.
+  onTapThumb: (photoId: string) => void;
 }) {
-  const navigate = useNavigate();
   const photosQ = useLotPhotos(lotId ?? undefined);
   const { pending } = useUploadQueue();
 
@@ -75,11 +72,7 @@ export function PhotoStrip({ lotId, onCapture, capturing, onTapThumb }: {
   const canAdd = combined.length < MAX_PHOTOS && !capturing;
   const isFirstCapture = combined.length === 0;
   const handleTap = (photoId: string) => {
-    if (onTapThumb) {
-      onTapThumb(photoId);
-      return;
-    }
-    if (lotId) navigate(`/catalog/session/photos?customer=${'placeholder'}&focus=${photoId}`);
+    onTapThumb(photoId);
   };
 
   return (

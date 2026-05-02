@@ -12,7 +12,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useLotPhotos } from '@/hooks/useLots';
 import { usePhotoCapture } from '@/hooks/usePhotoCapture';
-import { useCapturePhoto, useCatalogSession } from '@/hooks/useCatalogSession';
+import { useCapturePhoto } from '@/hooks/useCatalogSession';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { LotPhotoDTO } from '@shared/types';
@@ -21,12 +21,18 @@ type Props = {
   lotId: string;
   initialFocusId?: string | null;
   onClose: () => void;
+  // Optional callback fired when the user confirms last-photo cascade delete.
+  // When provided, the parent owns the deletion + any post-delete cleanup
+  // (e.g., cataloging session uses this to delete the lot, clear the form
+  // mirror, and reset session state in one atomic step). When omitted, the
+  // default fallback runs: direct DELETE + invalidate ['lots-infinite'].
+  onLotDeleted?: () => Promise<void> | void;
 };
 
 // Outer wrapper handles loading + empty states. Inner mounts only when
 // photos exist, with focusIdx seeded from initialFocusId via useState
 // initializer (no setState-in-effect to align focus).
-export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
+export function PhotoManager({ lotId, initialFocusId, onClose, onLotDeleted }: Props) {
   const photosQ = useLotPhotos(lotId);
   const photos = useMemo(
     () => (photosQ.data ?? []).slice().sort((a, b) => a.displayOrder - b.displayOrder),
@@ -48,17 +54,17 @@ export function PhotoManager({ lotId, initialFocusId, onClose }: Props) {
     );
   }
 
-  return <PhotoManagerInner lotId={lotId} photos={photos} initialFocusId={initialFocusId} onClose={onClose} />;
+  return <PhotoManagerInner lotId={lotId} photos={photos} initialFocusId={initialFocusId} onClose={onClose} onLotDeleted={onLotDeleted} />;
 }
 
-function PhotoManagerInner({ lotId, photos, initialFocusId, onClose }: {
+function PhotoManagerInner({ lotId, photos, initialFocusId, onClose, onLotDeleted }: {
   lotId: string;
   photos: LotPhotoDTO[];
   initialFocusId?: string | null;
   onClose: () => void;
+  onLotDeleted?: () => Promise<void> | void;
 }) {
   const queryClient = useQueryClient();
-  const session = useCatalogSession();
 
   // Seed focus from initialFocusId on first mount; subsequent prop changes
   // are intentionally ignored (the user is navigating thumbnails by then).
@@ -86,8 +92,6 @@ function PhotoManagerInner({ lotId, photos, initialFocusId, onClose }: {
     await capturePhoto.mutateAsync(blob);
   });
 
-  const isCascading = session.lotId === lotId;
-
   const focused = photos[Math.min(focusIdx, photos.length - 1)];
   const isFirst = focusIdx === 0;
   const isLast = focusIdx === photos.length - 1;
@@ -114,21 +118,17 @@ function PhotoManagerInner({ lotId, photos, initialFocusId, onClose }: {
   };
 
   const confirmDeleteLot = async () => {
-    if (isCascading) {
-      // The lot being deleted IS the in-progress session lot. Use the
-      // session's discard path so the session state resets atomically
-      // (clears form mirror, advances to fresh lot, etc.) and closes
-      // the photo manager.
-      await session.discardCurrent();
-      onClose();
+    if (onLotDeleted) {
+      // Parent owns the deletion + post-delete cleanup. Cataloging passes
+      // session.discardCurrent here so the lot is removed AND the session
+      // state resets (form mirror cleared, lotId reset) atomically.
+      await onLotDeleted();
     } else {
-      // Fallback: delete the lot directly. (PhotoManager is currently
-      // only reachable from the active cataloging session, but this is
-      // safe if that ever changes.)
+      // Default: delete the lot directly + invalidate the inventory list.
       await api(`/lots/${lotId}`, { method: 'DELETE' });
       queryClient.invalidateQueries({ queryKey: ['lots-infinite'] });
-      onClose();
     }
+    onClose();
     setConfirmCascade(false);
   };
 

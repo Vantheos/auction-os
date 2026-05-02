@@ -17,6 +17,7 @@ import { useCapturePhoto } from '@/hooks/useCatalogSession';
 import { useLot } from '@/hooks/useLots';
 import { useLabelPrint } from '@/hooks/useLabelPrint';
 import { PhotoStrip } from './PhotoStrip';
+import { PhotoManager } from './PhotoManager';
 import { PendingUploadsIndicator } from './PendingUploadsIndicator';
 
 type FormFields = {
@@ -44,7 +45,7 @@ type Props = {
 };
 
 export function LotInProgress({ onEndSession }: Props) {
-  const { jobId, lotId, lotNumber, advance, captureFirst, isCapturingFirst } = useCatalogSession();
+  const { jobId, lotId, lotNumber, advance, captureFirst, isCapturingFirst, discardCurrent } = useCatalogSession();
   const lotQ = useLot(lotId ?? undefined);
   const { mirror, loaded: mirrorLoaded, saveFields: saveMirror, clear: clearMirror } = useFormMirror(lotId);
   const updateFields = useUpdateLotFields(lotId);
@@ -54,6 +55,7 @@ export function LotInProgress({ onEndSession }: Props) {
 
   const [fields, setFields] = useState<FormFields>(EMPTY_FIELDS);
   const [hydrated, setHydrated] = useState(false);
+  const [managerFocus, setManagerFocus] = useState<string | null>(null);
   const autosaveTimer = useRef<number | null>(null);
   const printRetried = useRef(false);
 
@@ -222,7 +224,7 @@ export function LotInProgress({ onEndSession }: Props) {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        <PhotoStrip lotId={lotId} onCapture={openCamera} capturing={isCapturingFirst} />
+        <PhotoStrip lotId={lotId} onCapture={openCamera} capturing={isCapturingFirst} onTapThumb={setManagerFocus} />
 
         {hydrated && (
           <>
@@ -369,6 +371,22 @@ export function LotInProgress({ onEndSession }: Props) {
           Next →
         </Button>
       </div>
+
+      {/* PhotoManager — full-viewport inline overlay (no portal, no route).
+          Tapping a thumbnail in PhotoStrip sets managerFocus, mounting this.
+          onLotDeleted = discardCurrent so last-photo cascade deletes the
+          server lot AND resets the session state (form mirror cleared, lotId
+          reset) atomically, then PhotoManager unmounts via onClose. */}
+      {managerFocus !== null && lotId && (
+        <div className="fixed inset-0 z-[100]">
+          <PhotoManager
+            lotId={lotId}
+            initialFocusId={managerFocus}
+            onClose={() => setManagerFocus(null)}
+            onLotDeleted={discardCurrent}
+          />
+        </div>
+      )}
     </div>
   );
 }

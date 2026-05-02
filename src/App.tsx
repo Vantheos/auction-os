@@ -16,7 +16,6 @@ const LotDetailPage = lazy(() => import('./routes/LotDetailPage').then((m) => ({
 const Settings = lazy(() => import('./routes/Settings').then((m) => ({ default: m.Settings })));
 const Catalog = lazy(() => import('./routes/Catalog').then((m) => ({ default: m.Catalog })));
 const CatalogSession = lazy(() => import('./routes/CatalogSession').then((m) => ({ default: m.CatalogSession })));
-const CatalogPhotos = lazy(() => import('./routes/CatalogPhotos').then((m) => ({ default: m.CatalogPhotos })));
 
 const Loading = () => <div className="p-8 text-sm text-textDim">Loading…</div>;
 
@@ -46,17 +45,13 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      {/* Cataloging session screens stand alone (no rail nav) — focused workflow.
+      {/* Cataloging session screen stands alone (no rail nav) — focused workflow.
           The /catalog picker itself sits inside AdminShell below so admin/office
-          users can navigate back to other pages. */}
+          users can navigate back to other pages. PhotoManager is rendered
+          inline within LotInProgress (no separate route). */}
       <Route path="/catalog/session" element={
         <ProtectedRoute>
           <Suspense fallback={<Loading />}><CatalogSession /></Suspense>
-        </ProtectedRoute>
-      } />
-      <Route path="/catalog/session/photos" element={
-        <ProtectedRoute>
-          <Suspense fallback={<Loading />}><CatalogPhotos /></Suspense>
         </ProtectedRoute>
       } />
 
