@@ -254,25 +254,22 @@ export function LotInProgress({ onEndSession }: Props) {
 
         {hydrated && (
           <>
-            {/* Row 1 — Quantity stepper + Untested (per design spec). */}
+            {/* Row 1 — Quantity (free-form input) + Untested toggle. The
+                +/- stepper was dropped in favor of a plain numeric input —
+                same UX as the inventory edit modal, fewer rendering quirks
+                across mobile devices, and quantity changes are rare during
+                cataloging (most lots are 1). */}
             <div className="grid grid-cols-2 gap-2">
               <Field label="Quantity">
-                <div className="flex items-center h-10 border border-borderStrong rounded-md bg-surfaceSolid overflow-hidden">
-                  <button type="button"
-                    onClick={() => patch({ quantity: Math.max(1, fields.quantity - 1) })}
-                    className="w-9 h-full bg-surfaceAlt border-r border-border text-text">−</button>
-                  <input
-                    type="number"
-                    min={1}
-                    value={fields.quantity}
-                    onChange={(e) => patch({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                    onBlur={flushAutosave}
-                    className="flex-1 h-full text-center font-semibold tabular-nums bg-transparent outline-none"
-                  />
-                  <button type="button"
-                    onClick={() => patch({ quantity: fields.quantity + 1 })}
-                    className="w-9 h-full bg-surfaceAlt border-l border-border text-text">+</button>
-                </div>
+                <input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={fields.quantity}
+                  onChange={(e) => patch({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                  onBlur={flushAutosave}
+                  className="w-full h-10 px-3 rounded-md border border-borderStrong bg-surfaceSolid text-sm"
+                />
               </Field>
               <Field label="Untested">
                 <button

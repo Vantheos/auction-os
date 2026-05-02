@@ -88,16 +88,17 @@
     @apply font-sans;
   }
   /* Prevent iOS Safari focus auto-zoom: native form controls with computed
-     font-size < 16px trigger Safari's zoom-to-input on focus. The shared
-     <Input> primitive is already configured at 16px on mobile, but many
-     surfaces use raw <input>/<select>/<textarea> with text-sm. Force 16px
-     on mobile so the auto-zoom never triggers. md+ breakpoint preserves
-     the 14px (text-sm) density we want on desktop. */
+     font-size < 16px trigger Safari's zoom-to-input on focus AND the zoom
+     does not restore on blur unless the source font-size already met the
+     16px threshold. Tailwind's `.text-sm` (14px) class beats this element
+     selector by specificity, so we use !important to win against class-
+     based overrides. md+ breakpoint preserves the 14px (text-sm) density
+     we want on desktop. Affects native form controls only. */
   @media (max-width: 767px) {
     input,
     select,
     textarea {
-      font-size: 16px;
+      font-size: 16px !important;
     }
   }
 }
