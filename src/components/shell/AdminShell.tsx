@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut, useSession, useRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
@@ -16,8 +16,19 @@ const NAV: { to: string; label: string; enabled: boolean; roles?: AllowedRoles }
 export function AdminShell() {
   const { session } = useSession();
   const role = useRole();
+  const navigate = useNavigate();
 
   const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
+
+  // Navigate to a clean /login BEFORE signOut so the URL doesn't carry the
+  // stale path through the session boundary. Without this, ProtectedRoute
+  // sees the session vanish at /<current path> and bounces to
+  // /login?redirect=/<current path> — which would then override the next
+  // user's role-home on sign-in.
+  const handleSignOut = () => {
+    navigate('/login', { replace: true });
+    void signOut();
+  };
 
   return (
     <div className="h-screen flex bg-wash">
@@ -43,7 +54,7 @@ export function AdminShell() {
         <div className="border-t border-border pt-4 mt-4 space-y-2">
           <div className="text-xs text-textDim truncate">{session?.user.email}</div>
           <div className="text-xs text-textFaint">{role}</div>
-          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => signOut()}>Sign out</Button>
+          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={handleSignOut}>Sign out</Button>
         </div>
       </aside>
       <main className="flex-1 p-6 overflow-y-auto">
