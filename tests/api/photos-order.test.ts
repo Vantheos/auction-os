@@ -22,7 +22,7 @@ async function seed() {
   const [c] = await testDb.insert(customer).values({ name: 'X' }).returning();
   const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'X-001' }).returning();
   const [l] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   const photos = await testDb.insert(lotPhoto).values([
     { lotId: l.id, storagePath: `lots/${l.id}/a.jpg`, displayOrder: 1, status: 'uploaded', capturedBy: ADMIN },

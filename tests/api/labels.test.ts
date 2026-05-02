@@ -13,7 +13,7 @@ async function seed() {
   const [c] = await testDb.insert(customer).values({ name: 'Smith Estate' }).returning();
   const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: '2026-04-Smith-001' }).returning();
   const [l] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 13, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 13, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   return l.id;
 }

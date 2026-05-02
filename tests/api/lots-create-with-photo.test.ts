@@ -62,13 +62,19 @@ describe('POST /api/lots with firstPhoto', () => {
     expect(photos[0].capturedBy).toBe(ADMIN);
   });
 
-  it('omits firstPhoto from response when not requested', async () => {
+  it('rejects POST without firstPhoto (cataloging-source lots require ≥1 photo)', async () => {
+    // Per migration 0008: lot inserts with source='cataloging' (the default
+    // for POST /api/lots) trigger the deferrable check at commit, which
+    // rejects when zero lot_photo rows exist. The API doesn't surface this
+    // as a friendly 422 — it's a 500 because the trigger raises a generic
+    // Postgres exception. The cataloging client always sends firstPhoto,
+    // so this rejection only fires for misuse / direct-API abuse.
     const { jobId } = await seed();
     const res = await call({ jobId }, 'admin', ADMIN);
-    expect(res.status).toBe(201);
-    expect(res.body.firstPhoto ?? null).toBeNull();
-    const photos = await testDb.select().from(lotPhoto).where(eq(lotPhoto.lotId, res.body.id));
-    expect(photos).toHaveLength(0);
+    expect(res.status).toBe(500);
+    // Ensure no lot row remained (transaction rolled back)
+    const lots = await testDb.select().from(lotPhoto).where(eq(lotPhoto.lotId, jobId));
+    expect(lots).toHaveLength(0);
   });
 
   it('rolls back lot row if the firstPhoto insert would fail', async () => {
@@ -88,7 +94,7 @@ describe('POST /api/lots advisory-lock concurrency', () => {
   it('5 concurrent creates against the same job get sequential lot_numbers', async () => {
     const { jobId } = await seed();
     const results = await Promise.all(
-      Array.from({ length: 5 }).map(() => call({ jobId }, 'admin', ADMIN))
+      Array.from({ length: 5 }).map(() => call({ jobId, firstPhoto: { displayOrder: 1 } }, 'admin', ADMIN))
     );
     const statuses = results.map((r) => r.status);
     const lotNumbers = results.map((r) => r.body.lotNumber).sort((a, b) => a - b);
@@ -99,7 +105,7 @@ describe('POST /api/lots advisory-lock concurrency', () => {
   it('does not return 409 LOT_NUMBER_CONFLICT under normal concurrency', async () => {
     const { jobId } = await seed();
     const results = await Promise.all(
-      Array.from({ length: 3 }).map(() => call({ jobId }, 'admin', ADMIN))
+      Array.from({ length: 3 }).map(() => call({ jobId, firstPhoto: { displayOrder: 1 } }, 'admin', ADMIN))
     );
     expect(results.find((r) => r.status === 409)).toBeUndefined();
   });

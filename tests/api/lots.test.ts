@@ -23,11 +23,18 @@ async function seed() {
 
 async function call(method: string, body: unknown, role: 'admin' | 'office' | 'warehouse', userId: string, query = ''): Promise<CallResult<any>> {
   const token = await mintTestJwt({ userId, role });
+  // POST /api/lots now requires firstPhoto per the lot-has-photo trigger
+  // (migration 0008). Auto-attach unless the caller already provided one
+  // (or explicitly passed an empty {} to test rejection paths).
+  const finalBody =
+    method === 'POST' && body && typeof body === 'object' && 'jobId' in (body as object) && !('firstPhoto' in (body as object))
+      ? { ...(body as object), firstPhoto: { displayOrder: 1 } }
+      : body;
   return callHandler(handler, {
     method,
     url: `/api/lots${query}`,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: body ?? undefined,
+    body: finalBody ?? undefined,
   });
 }
 

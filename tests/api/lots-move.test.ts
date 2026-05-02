@@ -22,7 +22,7 @@ async function seed() {
   const [j1] = await testDb.insert(job).values({ customerId: c1.id, jobNumber: 'A-001' }).returning();
   const [j2] = await testDb.insert(job).values({ customerId: c2.id, jobNumber: 'B-001' }).returning();
   const [l] = await testDb.insert(lot).values({
-    jobId: j1.id, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j1.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   return { lotId: l.id, srcJobId: j1.id, dstJobId: j2.id };
 }
@@ -94,12 +94,12 @@ describe('POST /api/lots/[id]/move', () => {
     const { srcJobId, dstJobId } = await seed();
     // Pre-seed dst job with an existing lot at number 10 + assign extras
     await testDb.insert(lot).values([
-      { jobId: dstJobId, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN },
-      { jobId: dstJobId, lotNumber: 11, state: 'assigned', intakeOperatorId: ADMIN },
+      { jobId: dstJobId, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+      { jobId: dstJobId, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
     ]);
     // Add another lot to the source job and move it
     const [src2] = await testDb.insert(lot).values({
-      jobId: srcJobId, lotNumber: 11, state: 'assigned', intakeOperatorId: ADMIN,
+      jobId: srcJobId, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
     }).returning();
     const res = await call(src2.id, { destinationJobId: dstJobId }, 'admin', ADMIN);
     expect(res.status).toBe(200);

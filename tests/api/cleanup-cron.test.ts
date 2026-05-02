@@ -18,19 +18,21 @@ async function seedOrphans() {
   const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'X-001' }).returning();
 
   // Old orphan: assigned, no photos, created > 30 min ago — should be reaped
+  // Tagged 'imported' to bypass the cataloging-source create gate; the
+  // sweep doesn't care about source, only photo presence + age + state.
   const [oldOrphan] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   await testDb.execute(sql`UPDATE lot SET created_at = NOW() - INTERVAL '1 hour' WHERE id = ${oldOrphan.id}`);
 
   // Recent orphan: assigned, no photos, created < 30 min ago — should NOT be reaped
   const [recentOrphan] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 11, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
 
   // Real lot: assigned, has photos, old — should NOT be reaped
   const [realLot] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 12, state: 'assigned', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 12, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   await testDb.execute(sql`UPDATE lot SET created_at = NOW() - INTERVAL '2 hours' WHERE id = ${realLot.id}`);
   await testDb.insert(lotPhoto).values({
@@ -39,7 +41,7 @@ async function seedOrphans() {
 
   // Sold lot, old, zero photos — should NOT be reaped (state filter)
   const [soldLot] = await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 13, state: 'sold', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 13, state: 'sold', source: 'imported', intakeOperatorId: ADMIN,
   }).returning();
   await testDb.execute(sql`UPDATE lot SET created_at = NOW() - INTERVAL '2 hours' WHERE id = ${soldLot.id}`);
 
@@ -92,7 +94,7 @@ describe('POST /api/cron/cleanup-orphan-lots', () => {
     const [c] = await testDb.insert(customer).values({ name: 'X' }).returning();
     const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'X-001' }).returning();
     const [l] = await testDb.insert(lot).values({
-      jobId: j.id, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN,
+      jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
     }).returning();
     await testDb.insert(lotPhoto).values({
       lotId: l.id, storagePath: `lots/${l.id}/p.jpg`, displayOrder: 1, status: 'uploaded', capturedBy: ADMIN,

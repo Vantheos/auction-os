@@ -12,7 +12,7 @@ async function seed() {
   const [c] = await testDb.insert(customer).values({ name: 'Smith Estate' }).returning();
   const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'X-001' }).returning();
   await testDb.insert(lot).values({
-    jobId: j.id, lotNumber: 10, state: 'assigned', title: 'Vase', price: '45.00', intakeOperatorId: ADMIN,
+    jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', title: 'Vase', price: '45.00', intakeOperatorId: ADMIN,
   });
 }
 
@@ -45,7 +45,7 @@ describe('POST /api/lots/export', () => {
     const [c] = await testDb.insert(customer).values({ name: 'Acme, Inc.' }).returning();
     const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J' }).returning();
     await testDb.insert(lot).values({
-      jobId: j.id, lotNumber: 10, state: 'assigned', title: 'Has "quotes"', intakeOperatorId: ADMIN,
+      jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', title: 'Has "quotes"', intakeOperatorId: ADMIN,
     });
     const res = await call();
     expect(res.text).toContain('"Acme, Inc."');
@@ -58,8 +58,8 @@ describe('POST /api/lots/export', () => {
     const [j1] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J1' }).returning();
     const [j2] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J2' }).returning();
     await testDb.insert(lot).values([
-      { jobId: j1.id, lotNumber: 10, state: 'assigned', title: 'A', intakeOperatorId: ADMIN },
-      { jobId: j2.id, lotNumber: 10, state: 'assigned', title: 'B', intakeOperatorId: ADMIN },
+      { jobId: j1.id, lotNumber: 10, state: 'assigned', source: 'imported', title: 'A', intakeOperatorId: ADMIN },
+      { jobId: j2.id, lotNumber: 10, state: 'assigned', source: 'imported', title: 'B', intakeOperatorId: ADMIN },
     ]);
     const res = await call(`?jobId=${j1.id}`);
     const lines = res.text.trim().split('\n');
@@ -73,8 +73,8 @@ describe('POST /api/lots/export', () => {
     const [c] = await testDb.insert(customer).values({ name: 'C' }).returning();
     const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J' }).returning();
     await testDb.insert(lot).values([
-      { jobId: j.id, lotNumber: 10, state: 'assigned', title: 'A', intakeOperatorId: ADMIN },
-      { jobId: j.id, lotNumber: 11, state: 'sold', title: 'B', intakeOperatorId: ADMIN },
+      { jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', title: 'A', intakeOperatorId: ADMIN },
+      { jobId: j.id, lotNumber: 11, state: 'sold',     source: 'imported', title: 'B', intakeOperatorId: ADMIN },
     ]);
     const res = await call('?state=sold');
     const lines = res.text.trim().split('\n');

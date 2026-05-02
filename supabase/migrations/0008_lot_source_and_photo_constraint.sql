@@ -37,19 +37,7 @@ DECLARE
   v_lot_id uuid;
   v_source lot_source;
   v_photo_count int;
-  v_skip text;
 BEGIN
-  -- Test/seed escape hatch. Tests and seed scripts that need to insert
-  -- photo-less lots (without modeling the cataloging atomic flow) can set
-  -- `app.skip_lot_photo_check = 'true'` on their database session — the
-  -- trigger then returns without enforcing. Production code MUST NOT set
-  -- this. Naming is intentionally explicit so misuse is obvious in any
-  -- search or log.
-  v_skip := current_setting('app.skip_lot_photo_check', true);
-  IF v_skip = 'true' THEN
-    RETURN NULL;
-  END IF;
-
   -- Identify the affected lot. lot_photo triggers fire on DELETE only.
   IF TG_TABLE_NAME = 'lot' THEN
     v_lot_id := NEW.id;
@@ -64,10 +52,15 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  -- Imported lots are exempt — bulk-import paths can create photo-less lots
-  -- and add photos later as warehouse staff capture them.
-  IF v_source <> 'cataloging' THEN
-    RETURN NULL;
+  -- Source-based exemption applies ONLY at lot creation / source-update time.
+  -- The "imported" tag exists so bulk-import flows (e.g., Amazon returns
+  -- spreadsheets) can create photo-less lots that operators later attach
+  -- photos to. But once a lot has at least one photo — regardless of how
+  -- it was created — the rule "≥1 photo at all times" applies on photo
+  -- delete. So the source check is skipped when this trigger fires from
+  -- lot_photo DELETE; the photo-count check below applies universally then.
+  IF TG_TABLE_NAME = 'lot' AND v_source <> 'cataloging' THEN
+    RETURN NULL;  -- imported lots can be created/updated with zero photos
   END IF;
 
   SELECT COUNT(*) INTO v_photo_count
@@ -75,7 +68,7 @@ BEGIN
 
   IF v_photo_count = 0 THEN
     RAISE EXCEPTION
-      'Lot % (source=cataloging) must have at least one photo. To remove the last photo, delete the lot.',
+      'Lot % must have at least one photo. To remove the last photo, delete the lot.',
       v_lot_id;
   END IF;
 

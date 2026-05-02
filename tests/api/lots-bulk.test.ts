@@ -18,9 +18,9 @@ async function seed3Lots() {
   const [c] = await testDb.insert(customer).values({ name: 'C' }).returning();
   const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J' }).returning();
   const lots = await testDb.insert(lot).values([
-    { jobId: j.id, lotNumber: 10, state: 'assigned', intakeOperatorId: ADMIN },
-    { jobId: j.id, lotNumber: 11, state: 'assigned', intakeOperatorId: ADMIN },
-    { jobId: j.id, lotNumber: 12, state: 'sold', intakeOperatorId: ADMIN },
+    { jobId: j.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+    { jobId: j.id, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+    { jobId: j.id, lotNumber: 12, state: 'sold',     source: 'imported', intakeOperatorId: ADMIN },
   ]).returning();
   return { lotIds: lots.map(l => l.id), jobId: j.id, customerId: c.id };
 }

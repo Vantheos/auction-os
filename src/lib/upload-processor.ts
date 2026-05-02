@@ -25,9 +25,9 @@ const BACKOFF_MS = [1_000, 4_000, 16_000];
 
 type Listener = () => void;
 
-let inFlight = new Set<string>();
-let scheduled = new Set<string>();
-let listeners = new Set<Listener>();
+const inFlight = new Set<string>();
+const scheduled = new Set<string>();
+const listeners = new Set<Listener>();
 let started = false;
 let snapshot: UploadQueueEntry[] = [];
 
