@@ -24,7 +24,15 @@ function getAdmin(): SupabaseClient {
   return _admin;
 }
 
-export type Transform = { width?: number; quality?: number };
+export type Transform = {
+  width?: number;
+  height?: number;
+  quality?: number;
+  // Supabase's storage transform defaults to 'cover' when not specified, which
+  // can crop horizontally even when only `width` is given (verified empirically
+  // 2026-05-02). Pass 'contain' explicitly when full-image preservation matters.
+  resize?: 'cover' | 'contain' | 'fill';
+};
 
 /**
  * Issue a signed upload URL the browser can PUT to. The DB `lot_photo` row

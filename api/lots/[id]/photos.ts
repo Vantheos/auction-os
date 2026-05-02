@@ -43,7 +43,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const uploaded = rows.filter((r) => r.status === 'uploaded');
       const signed = await bulkSignReadUrls(
         uploaded.map((r) => r.storagePath),
-        { width: 1568, quality: 80 }
+        { width: 1568, quality: 80, resize: 'contain' }
       );
       const photos = rows.map((r) => ({
         ...r,
