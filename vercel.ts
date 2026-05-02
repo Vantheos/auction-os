@@ -22,6 +22,26 @@ export const config: VercelConfig = {
   rewrites: [
     { source: '/((?!api/).*)', destination: '/index.html' },
   ],
+  // Cache-Control headers — written explicitly so iOS Safari (and other
+  // browsers) reliably pick up new builds without manual cache clearing.
+  // Vite emits content-hashed filenames for assets, so they're safe to
+  // cache forever. The HTML shell (everything else served via the SPA
+  // fallback rewrite) must always revalidate so it picks up the latest
+  // hashed asset references after a deploy.
+  headers: [
+    {
+      source: '/assets/(.*)',
+      headers: [
+        { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+      ],
+    },
+    {
+      source: '/((?!api/|assets/).*)',
+      headers: [
+        { key: 'Cache-Control', value: 'no-cache, must-revalidate' },
+      ],
+    },
+  ],
   // Phase 3: sweep abandoned in-progress lots every 15 minutes.
   // Vercel auto-injects an Authorization: Bearer ${CRON_SECRET} header
   // when invoking; the handler verifies via requireCronAuth.
