@@ -1,6 +1,5 @@
 // src/components/lot/LotDetail.tsx
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { StatePill } from '@/components/ui/pill';
 import { LotEditForm, type LotFormValues } from './LotEditForm';
@@ -216,19 +215,20 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         </DialogContent>
       </Dialog>
 
-      {/* PhotoManager — portal-mounted full-viewport overlay so it sits
-          above any Dialog context (LotDetail can render inside the Inventory
-          modal). PhotoManager itself handles the cataloging-vs-not branch
-          internally via its session.lotId === lotId fallback. */}
-      {managerFocus !== null && createPortal(
+      {/* PhotoManager — full-viewport overlay rendered INSIDE LotDetail's
+          tree (no portal) so clicks stay descendants of the Inventory Dialog's
+          DialogContent. If portaled to body, Radix's outside-click detector
+          would see every PhotoManager click as "outside" and close the parent
+          Dialog. fixed inset-0 + z-[100] handles the visual stacking; the DOM
+          hierarchy handles the event handling. */}
+      {managerFocus !== null && (
         <div className="fixed inset-0 z-[100]">
           <PhotoManager
             lotId={lot.id}
             initialFocusId={managerFocus}
             onClose={() => setManagerFocus(null)}
           />
-        </div>,
-        document.body,
+        </div>
       )}
 
       <Dialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
