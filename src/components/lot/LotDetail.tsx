@@ -19,13 +19,19 @@ import {
 } from '@/components/ui/dialog';
 import type { LotDTO, LotState } from '@shared/types';
 
-type Props = { lot: LotDTO; onClose?: () => void; canEdit?: boolean; canDelete?: boolean; };
+type Props = {
+  lot: LotDTO;
+  onClose?: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+};
 
 // Sold lots are frozen for field edits — they preserve what was shown to bidders
 // on the auction platform. To edit a sold lot, transition it to unassigned first.
 const FROZEN_STATES: LotState[] = ['sold', 'picked-up', 'not-sellable'];
 
-export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: Props) {
+export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onDirtyChange }: Props) {
   const isFrozen = FROZEN_STATES.includes(lot.state);
   const [moveOpen, setMoveOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ to: LotState } | null>(null);
@@ -67,6 +73,9 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
       toast({ title: 'Lot updated', variant: 'success' });
     } catch (err) {
       errorToast('Could not update lot')(err);
+      // Rethrow so LotEditForm's handleValid does NOT call reset(values) —
+      // form stays dirty so the unsaved-changes warning still fires on close.
+      throw err;
     }
   };
 
@@ -157,7 +166,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           <dt className="text-textDim">Untested</dt><dd className="text-text">{lot.untested ? 'Yes' : 'No'}</dd>
         </dl>
       ) : (
-        canEdit && <LotEditForm lot={lot} onSubmit={handleSave} busy={updateLot.isPending} />
+        canEdit && <LotEditForm lot={lot} onSubmit={handleSave} busy={updateLot.isPending} onDirtyChange={onDirtyChange} />
       )}
 
       <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
@@ -246,6 +255,10 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
                 onSuccess: () => {
                   toast({ title: 'Lot deleted', variant: 'success' });
                   setConfirmDelete(false);
+                  // Reset dirty state before closing — the lot is gone, no
+                  // point prompting "discard unsaved changes?" via the parent's
+                  // guarded close.
+                  onDirtyChange?.(false);
                   onClose?.();
                 },
                 onError: errorToast('Could not delete lot'),

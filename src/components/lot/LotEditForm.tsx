@@ -1,4 +1,5 @@
 // src/components/lot/LotEditForm.tsx
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,10 +26,13 @@ type Props = {
   lot: LotDTO;
   onSubmit: (values: LotFormValues) => Promise<void> | void;
   busy?: boolean;
+  // Notify parent when dirty state changes. Used by Inventory to gate the
+  // close action with an "unsaved changes" confirm dialog.
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
-export function LotEditForm({ lot, onSubmit, busy }: Props) {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<LotFormValues>({
+export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
+  const { register, handleSubmit, watch, reset, formState: { isDirty, errors } } = useForm<LotFormValues>({
     resolver: zodResolver(Schema),
     defaultValues: {
       title: lot.title ?? '',
@@ -42,6 +46,21 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
       untested: lot.untested,
     },
   });
+
+  // Surface dirty state to the parent. RHF's isDirty toggles on first edit and
+  // back to false after reset(values) post-save (handled below). The parent is
+  // responsible for resetting its own dirty tracking when the modal closes.
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  const handleValid = async (values: LotFormValues) => {
+    await onSubmit(values);
+    // Mark these values as the new baseline so isDirty returns to false.
+    // If onSubmit threw, the catch in the parent handler already toasted;
+    // we don't reach here in that case (handleSubmit awaits this fn).
+    reset(values);
+  };
   // react-hooks/incompatible-library: react-hook-form's `watch` is opaque to
   // the React Compiler analyzer. We're not running the compiler in this
   // project, so the warning is informational only. Standard RHF usage.
@@ -49,7 +68,7 @@ export function LotEditForm({ lot, onSubmit, busy }: Props) {
   const category = watch('specialNotesCategory');
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+    <form onSubmit={handleSubmit(handleValid)} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label htmlFor="quantity">Quantity</Label>

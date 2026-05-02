@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useInfiniteLots, flattenLots } from '@/hooks/useInfiniteLots';
 import { useLot } from '@/hooks/useLots';
@@ -15,7 +15,7 @@ import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
 import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
 import { ExportCsvDialog } from '@/components/bulk/ExportCsvDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import type { LotState } from '@shared/types';
@@ -59,6 +59,12 @@ export function Inventory() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'export' | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [lotEditDirty, setLotEditDirty] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // No explicit reset on close — LotEditForm fires onDirtyChange(false) on
+  // mount of a freshly-opened lot, which clears any stale flag from a prior
+  // session. Until then, lotEditDirty is only consulted by guardedCloseLot,
+  // which is exactly when we want the flag to be accurate.
 
   // IntersectionObserver-driven infinite scroll. Sentinel at the bottom of
   // the list triggers fetchNextPage when it enters the viewport.
@@ -80,10 +86,28 @@ export function Inventory() {
     [lots, selected]
   );
 
-  const setOpenLot = (id: string | null) => {
+  const setOpenLot = useCallback((id: string | null) => {
     const next = new URLSearchParams(params);
     if (id) next.set('openLot', id); else next.delete('openLot');
     setParams(next, { replace: false });
+  }, [params, setParams]);
+
+  // Guard close attempts: if the LotEditForm has unsaved changes, show a
+  // confirm dialog instead of dropping straight to setOpenLot(null). All
+  // close paths (Dialog X, Escape, outside click, LotDetail's Close button)
+  // funnel through this.
+  const guardedCloseLot = useCallback(() => {
+    if (lotEditDirty) {
+      setConfirmDiscard(true);
+    } else {
+      setOpenLot(null);
+    }
+  }, [lotEditDirty, setOpenLot]);
+
+  const discardAndCloseLot = () => {
+    setLotEditDirty(false);
+    setConfirmDiscard(false);
+    setOpenLot(null);
   };
 
   const handleFilterChange = (next: Filters) => {
@@ -188,17 +212,43 @@ export function Inventory() {
         onApply={handleFilterChange}
       />
 
-      {/* Lot detail modal — full-screen on mobile per spec §5.3 */}
-      <Dialog open={!!openLotId} onOpenChange={(o) => !o && setOpenLot(null)}>
+      {/* Lot detail modal — full-screen on mobile per spec §5.3.
+          All close paths funnel through guardedCloseLot so unsaved edits
+          surface a confirm dialog before discarding. */}
+      <Dialog open={!!openLotId} onOpenChange={(o) => { if (!o) guardedCloseLot(); }}>
         <DialogContent className="max-w-2xl" fullScreenOnMobile>
           <DialogHeader><DialogTitle className="sr-only">Lot detail</DialogTitle></DialogHeader>
           {openLotQ.data ? (
-            <LotDetail lot={openLotQ.data} onClose={() => setOpenLot(null)} canEdit canDelete={isAdmin} />
+            <LotDetail
+              lot={openLotQ.data}
+              onClose={guardedCloseLot}
+              canEdit
+              canDelete={isAdmin}
+              onDirtyChange={setLotEditDirty}
+            />
           ) : openLotQ.isLoading ? (
             <div className="text-sm text-textDim p-8 text-center">Loading…</div>
           ) : (
             <div className="text-sm text-danger p-4">Lot not found</div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved-changes confirm — fires only when guardedCloseLot sees
+          lotEditDirty=true. Two paths: keep editing (cancel close), or
+          discard changes (close + drop edits). */}
+      <Dialog open={confirmDiscard} onOpenChange={(o) => !o && setConfirmDiscard(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard unsaved changes?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-textDim">
+            This lot has unsaved changes. Closing now will lose them.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDiscard(false)}>Keep editing</Button>
+            <Button variant="destructive" onClick={discardAndCloseLot}>Discard changes</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
