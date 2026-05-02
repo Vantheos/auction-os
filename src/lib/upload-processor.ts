@@ -17,6 +17,7 @@ import {
   type UploadQueueEntry,
 } from './idb';
 import { api } from './api';
+import { queryClient } from './query';
 
 const MAX_CONCURRENT = 3;
 const PAUSE_THRESHOLD = 20;
@@ -79,9 +80,17 @@ async function processOne(entry: UploadQueueEntry): Promise<void> {
     const result = await attemptUpload(entry);
     if (result === 'success') {
       await flipStatus(entry.photoId, entry.lotId, 'uploaded');
+      // Refetch the photos query before dequeuing so the new signedUrl is in
+      // cache before the blob URL is removed. Without this, PhotoStrip flashes
+      // blank for ~30s (until staleTime expires + an ambient render triggers
+      // refetch). invalidateQueries awaits the refetch.
+      await queryClient.invalidateQueries({ queryKey: ['lot-photos', entry.lotId] });
       await dequeueUpload(entry.photoId);
     } else if (result === 'permanent') {
       await flipStatus(entry.photoId, entry.lotId, 'failed');
+      // Surface the failed status immediately rather than waiting for
+      // staleTime to expire.
+      await queryClient.invalidateQueries({ queryKey: ['lot-photos', entry.lotId] });
       await markUploadFailed(entry.photoId);
     } else {
       // Transient failure — retry with backoff
