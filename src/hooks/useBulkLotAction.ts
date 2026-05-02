@@ -18,7 +18,7 @@ export function useBulkLotAction() {
     mutationFn: (action: BulkAction) =>
       api<{ results: BulkResult[] }>('/lots/bulk', { method: 'POST', body: JSON.stringify(action) }),
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['lots'] });
+      qc.invalidateQueries({ queryKey: ['lots-infinite'] });
       qc.invalidateQueries({ queryKey: ['lot'] });
     },
   });

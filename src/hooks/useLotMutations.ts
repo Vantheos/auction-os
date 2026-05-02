@@ -34,7 +34,7 @@ export function useUpdateLot() {
     },
     onSettled: (_data, _err, { id }) => {
       qc.invalidateQueries({ queryKey: ['lot', id] });
-      qc.invalidateQueries({ queryKey: ['lots'] });
+      qc.invalidateQueries({ queryKey: ['lots-infinite'] });
     },
   });
 }
@@ -54,7 +54,7 @@ export function useChangeLotState() {
     },
     onSettled: (_data, _err, { id }) => {
       qc.invalidateQueries({ queryKey: ['lot', id] });
-      qc.invalidateQueries({ queryKey: ['lots'] });
+      qc.invalidateQueries({ queryKey: ['lots-infinite'] });
     },
   });
 }
@@ -66,7 +66,7 @@ export function useMoveLot() {
       api<LotDTO>(`/lots/${id}/move`, { method: 'POST', body: JSON.stringify({ destinationJobId }) }),
     onSettled: (_data, _err, { id }) => {
       qc.invalidateQueries({ queryKey: ['lot', id] });
-      qc.invalidateQueries({ queryKey: ['lots'] });
+      qc.invalidateQueries({ queryKey: ['lots-infinite'] });
     },
   });
 }
@@ -75,6 +75,6 @@ export function useDeleteLot() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api<{ ok: true }>(`/lots/${id}`, { method: 'DELETE' }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['lots'] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['lots-infinite'] }),
   });
 }

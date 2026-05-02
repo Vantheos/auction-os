@@ -9,6 +9,7 @@ import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot } from '@/hoo
 import { useLabelPrint } from '@/hooks/useLabelPrint';
 import { useLotPhotos } from '@/hooks/useLots';
 import { useRole } from '@/lib/auth';
+import { useToast } from '@/components/ui/toast';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -29,19 +30,47 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
 
   const photos = useLotPhotos(lot.id);
   const role = useRole();
+  const { toast } = useToast();
   const updateLot = useUpdateLot();
   const changeState = useChangeLotState();
   const moveLot = useMoveLot();
   const deleteLot = useDeleteLot();
   const printLabel = useLabelPrint();
 
+  const errorToast = (title: string) => (err: unknown) =>
+    toast({
+      title,
+      description: err instanceof Error ? err.message : 'Unknown error',
+      variant: 'danger',
+    });
+
   const handleSave = async (values: LotFormValues): Promise<void> => {
-    await updateLot.mutateAsync({ id: lot.id, input: values });
+    try {
+      await updateLot.mutateAsync({ id: lot.id, input: values });
+      toast({ title: 'Lot updated', variant: 'success' });
+    } catch (err) {
+      errorToast('Could not update lot')(err);
+    }
   };
 
   const handlePickState = (to: LotState, requiresConfirm: boolean) => {
-    if (requiresConfirm) setConfirm({ to });
-    else changeState.mutate({ id: lot.id, to });
+    // Unassigned → Assigned needs a destination customer/job; route to the Move
+    // dialog instead of a state-only PATCH that leaves the lot stateless.
+    if (lot.state === 'unassigned' && to === 'assigned') {
+      setMoveOpen(true);
+      return;
+    }
+    if (requiresConfirm) {
+      setConfirm({ to });
+    } else {
+      changeState.mutate(
+        { id: lot.id, to },
+        {
+          onSuccess: () => toast({ title: `State changed to ${to}`, variant: 'success' }),
+          onError: errorToast('Could not change state'),
+        },
+      );
+    }
   };
 
   return (
@@ -116,9 +145,14 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
         open={moveOpen}
         onClose={() => setMoveOpen(false)}
         onConfirm={async (destinationJobId, reprint) => {
-          await moveLot.mutateAsync({ id: lot.id, destinationJobId });
-          if (reprint) printLabel.mutate(lot.id);
-          setMoveOpen(false);
+          try {
+            await moveLot.mutateAsync({ id: lot.id, destinationJobId });
+            toast({ title: 'Lot moved', variant: 'success' });
+            if (reprint) printLabel.mutate(lot.id);
+            setMoveOpen(false);
+          } catch (err) {
+            errorToast('Could not move lot')(err);
+          }
         }}
         busy={moveLot.isPending}
       />
@@ -132,7 +166,15 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
             <Button onClick={() => {
-              if (confirm) changeState.mutate({ id: lot.id, to: confirm.to });
+              if (!confirm) return;
+              const target = confirm.to;
+              changeState.mutate(
+                { id: lot.id, to: target },
+                {
+                  onSuccess: () => toast({ title: `State changed to ${target}`, variant: 'success' }),
+                  onError: errorToast('Could not change state'),
+                },
+              );
               setConfirm(null);
             }}>Confirm</Button>
           </DialogFooter>
@@ -150,7 +192,14 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false }: P
           <DialogFooter>
             <Button variant="outline" onClick={() => { setConfirmDelete(false); setDeleteText(''); }}>Cancel</Button>
             <Button variant="destructive" disabled={deleteText !== 'DELETE'} onClick={() => {
-              deleteLot.mutate(lot.id, { onSuccess: () => { setConfirmDelete(false); onClose?.(); } });
+              deleteLot.mutate(lot.id, {
+                onSuccess: () => {
+                  toast({ title: 'Lot deleted', variant: 'success' });
+                  setConfirmDelete(false);
+                  onClose?.();
+                },
+                onError: errorToast('Could not delete lot'),
+              });
             }}>Delete</Button>
           </DialogFooter>
         </DialogContent>
