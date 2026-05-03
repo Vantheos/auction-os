@@ -7,7 +7,7 @@ import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { customer, job, lot, lotPhoto } from '../../db/schema.js';
-import { LotStateError, validateTransition, type LotState } from '../_lib/lot-state.js';
+import { LotStateError, stateTransitionFields, validateTransition, type LotState } from '../_lib/lot-state.js';
 import { removeObjects } from '../_lib/storage.js';
 
 const PatchSchema = z.object({
@@ -103,11 +103,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       // State transitions affect (job_id, lot_number) per state_tuple_consistent constraint
       if (parsed.data.state) {
-        update.state = parsed.data.state;
-        if (parsed.data.state === 'unassigned' || parsed.data.state === 'not-sellable') {
-          update.jobId = null;
-          update.lotNumber = null;
-        }
+        Object.assign(update, stateTransitionFields(parsed.data.state));
       }
 
       const updated = await asActor(userId, async (tx) => {

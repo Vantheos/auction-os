@@ -39,3 +39,18 @@ export function sharedLegalTransitions(states: LotState[]): LotState[] {
   const [first, ...rest] = sets;
   return [...first].filter((t) => rest.every((s) => s.has(t)));
 }
+
+// Returns the lot fields that must be set when transitioning TO a given
+// state. Per the state_tuple_consistent CHECK in migration 0006: lots in
+// 'unassigned' and 'not-sellable' must have NULL jobId and lotNumber;
+// other states preserve them. Pure — callers merge into their own update
+// object so the single-lot PATCH and bulk change-state both still write
+// one statement per lot.
+export function stateTransitionFields(
+  to: LotState,
+): { state: LotState; jobId?: null; lotNumber?: null } {
+  if (to === 'unassigned' || to === 'not-sellable') {
+    return { state: to, jobId: null, lotNumber: null };
+  }
+  return { state: to };
+}

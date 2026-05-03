@@ -7,7 +7,7 @@ import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, type Transaction } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { lot } from '../../db/schema.js';
-import { LotStateError, validateTransition, type LotState } from '../_lib/lot-state.js';
+import { LotStateError, stateTransitionFields, validateTransition, type LotState } from '../_lib/lot-state.js';
 import { pgCodeOf, PG_UNIQUE_VIOLATION, PG_FK_VIOLATION } from '../_lib/pg-errors.js';
 
 const VALID_STATES: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
@@ -58,11 +58,7 @@ async function applyChangeState(tx: Transaction, lotIds: string[], to: LotState)
       throw e;
     }
     // Clear job/lot_number for states that require them null (schema CHECK enforces this)
-    const update: Record<string, unknown> = { state: to, updatedAt: new Date() };
-    if (to === 'unassigned' || to === 'not-sellable') {
-      update.jobId = null;
-      update.lotNumber = null;
-    }
+    const update = { ...stateTransitionFields(to), updatedAt: new Date() };
     await tx.update(lot).set(update).where(eq(lot.id, id));
     results.push({ id, ok: true });
   }
