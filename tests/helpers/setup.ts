@@ -1,4 +1,5 @@
 // tests/helpers/setup.ts
+import '@testing-library/jest-dom/vitest';
 import { config } from 'dotenv';
 import { setJwksForTesting } from '../../api/_lib/auth';
 import { getTestKeys } from './test-jwt';
