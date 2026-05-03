@@ -8,7 +8,8 @@ export const photoStatusEnum = pgEnum('photo_status', ['pending', 'uploaded', 'f
 export const aiRunStatusEnum = pgEnum('ai_run_status', ['success', 'partial', 'failure']);
 export const specialNotesCategoryEnum = pgEnum('special_notes_category', ['None', 'TOOL ONLY', 'READ', 'CLOTHING']);
 export const conditionEnum = pgEnum('condition', ['used']); // single value in v1; vocab expanded post-v1
-export const aiScheduleFrequencyEnum = pgEnum('ai_schedule_frequency', ['hourly', 'daily']);
+// Phase 4 Area 3: replaced by `ai_schedule_interval_hours` integer column
+// (see migration 0010). Enum kept removed from the schema.
 export const auditChangeTypeEnum = pgEnum('audit_change_type', ['insert', 'update', 'delete']);
 // Phase 3: tags how a lot got into the system. `cataloging` (default) goes
 // through the mobile capture flow and must have ≥1 photo (enforced by
@@ -96,7 +97,7 @@ export const lotPhoto = pgTable('lot_photo', {
 export const systemSettings = pgTable('system_settings', {
   id: integer('id').primaryKey().notNull().default(1),
   aiScheduleEnabled: boolean('ai_schedule_enabled').notNull().default(true),
-  aiScheduleFrequency: aiScheduleFrequencyEnum('ai_schedule_frequency').notNull().default('daily'),
+  aiScheduleIntervalHours: integer('ai_schedule_interval_hours').notNull().default(24),
   aiScheduleTimeOfDay: time('ai_schedule_time_of_day').notNull().default('23:00:00'),
   aiLastRunAt: timestamp('ai_last_run_at', { withTimezone: true }),
   labelPrinterHelperUrl: text('label_printer_helper_url'),

@@ -124,9 +124,19 @@ export type CreateLotResponse = LotDTO & {
 export type SystemSettingsDTO = {
   id: 1;
   aiScheduleEnabled: boolean;
-  aiScheduleFrequency: 'hourly' | 'daily';
+  // Hours between scheduled AI runs. UI exposes 4 / 8 / 12 / 24; server
+  // accepts any positive int so future intervals don't need a migration.
+  // Phase 4 Area 3 replaced the (hourly, daily) enum with this column.
+  aiScheduleIntervalHours: number;
   aiScheduleTimeOfDay: string;
   aiLastRunAt: string | null;
   labelPrinterHelperUrl: string | null;
   updatedAt: string;
 };
+
+export type UpdateSystemSettingsRequest = Partial<{
+  aiScheduleEnabled: boolean;
+  aiScheduleIntervalHours: number;
+  aiScheduleTimeOfDay: string;
+  labelPrinterHelperUrl: string | null;
+}>;

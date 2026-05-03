@@ -10,6 +10,14 @@ import { systemSettings } from '../db/schema.js';
 
 const PatchSchema = z.object({
   labelPrinterHelperUrl: z.string().url().nullable().optional(),
+  aiScheduleEnabled: z.boolean().optional(),
+  // Positive integer hours; UI restricts to 4 / 8 / 12 / 24, server accepts
+  // any positive value so future intervals don't need a migration. Floor of
+  // 1 hour because anything tighter is "real-time" territory (Phase 6 spec).
+  aiScheduleIntervalHours: z.number().int().min(1).optional(),
+  // Postgres TIME format. Native <input type="time"> emits HH:MM; the seconds
+  // suffix is optional and mostly cosmetic.
+  aiScheduleTimeOfDay: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
 }).strict();
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

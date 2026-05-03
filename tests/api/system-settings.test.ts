@@ -63,12 +63,35 @@ describe('PATCH /api/system-settings', () => {
   });
 
   it('rejects unknown field (strict schema)', async () => {
-    const res = await call('PATCH', { aiScheduleEnabled: false });
+    const res = await call('PATCH', { somethingUnsupported: 'value' });
     expect(res.status).toBe(400);
   });
 
   it('rejects non-URL string', async () => {
     const res = await call('PATCH', { labelPrinterHelperUrl: 'not-a-url' });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts AI schedule fields (Phase 4 Area 3)', async () => {
+    const res = await call('PATCH', {
+      aiScheduleEnabled: false,
+      aiScheduleIntervalHours: 8,
+      aiScheduleTimeOfDay: '09:00',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.aiScheduleEnabled).toBe(false);
+    expect(res.body.aiScheduleIntervalHours).toBe(8);
+    // Postgres TIME serializes as HH:MM:SS regardless of input format
+    expect(res.body.aiScheduleTimeOfDay).toMatch(/^09:00(:00)?$/);
+  });
+
+  it('rejects malformed aiScheduleTimeOfDay', async () => {
+    const res = await call('PATCH', { aiScheduleTimeOfDay: 'not-a-time' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects non-positive aiScheduleIntervalHours', async () => {
+    const res = await call('PATCH', { aiScheduleIntervalHours: 0 });
     expect(res.status).toBe(400);
   });
 });
