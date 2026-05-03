@@ -1,105 +1,112 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-01 PM ET. **Phase 2 (Lot lifecycle + label printing) signed off** after manual click-through on the preview surfaced 11 distinct issues, all resolved. 105/105 vitest suite green; typecheck clean; build clean with vendor chunk splitting. Branch `phase-2-lot-lifecycle` at `a517f9d`, 67 commits ahead of `phase-1-foundation`. Merging to `main` is deferred to v1 cutover per branch strategy.
+> Last updated 2026-05-02 evening. **Phase 3 (Mobile cataloging + photo pipeline + login routing + role gating + cleanup-orphan-lots cron) signed off** after thorough sign-off testing across Sections A through F. 144/144 vitest suite green; lint 0/0; build clean. Branch `phase-3-mobile-cataloging` at `f83043f`, 38 commits ahead of `phase-2-lot-lifecycle`. **Next:** Phase 3.5 — client test infrastructure (spec at `docs/superpowers/specs/2026-05-02-phase-3-5-design.md`).
 
-## Phase 2 status: ✅ signed off
+## Phase 3 status: ✅ signed off
+
+| Item | Status |
+|---|---|
+| Code (plan tasks A–G) | ✅ done |
+| Vitest suite | ✅ 144 tests passing (was 105 after Phase 2; +39 in Phase 3 incl. sign-off additions and warehouse-permission tests) |
+| Migrations applied to Dev + Test | ✅ done — `0007_lot_photos_storage_policies.sql`, `0008_lot_source_and_photo_constraint.sql` |
+| Vercel preview deploy | ✅ Ready — latest at sign-off `auction-dwenm678o-vantheos-4047s-projects.vercel.app` (run `vercel ls auction-os` for current) |
+| Cataloging session URL persistence | ✅ shipped — pull-to-refresh / browser back / tab close+reopen all preserve in-progress lot |
+| Vercel cache headers (HTML no-cache, hashed assets immutable) | ✅ shipped — testers no longer need manual cache clear per deploy |
+| iOS Safari/Chrome quirks | ✅ all handled — dvh, safe-area-inset-bottom, auto-zoom restoration, scroll containment |
+| Warehouse permissions | ✅ aligned with v1 design spec — can edit fields, can move/assign, can delete own active cataloging lot, cannot change state via PATCH, no inventory bulk affordances |
+| Manual sign-off click-through Sections A–F | ✅ all in-scope items verified |
+| Test data seeded to Dev | ✅ 6 test lots in `Test Estate / 2026-04-Test-001` + 1 unassigned Mystery Item |
+| **Carry-forwards** (explicitly agreed deferrals — NOT blockers) | 🟡 see below |
+
+**Phase 3 commits ahead of `phase-2-lot-lifecycle`** (`git rev-list --count phase-2-lot-lifecycle..HEAD`): 38 commits.
+
+## Phase 3 sign-off bug fix batch
+
+User-driven manual click-through against the preview surfaced a long list of issues across React Query cache invalidation, form state handling, role permissions, mobile rendering, and design-spec divergence. All resolved on `phase-3-mobile-cataloging`.
+
+| # | Issue | Resolution | Commit(s) |
+|---|---|---|---|
+| 1 | Mutation cache invalidation broken (`['lots']` vs `['lots-infinite']`) — list never refetched after edit/delete; toasts missing for single-lot mutations; T-A6/A8/A10 | Replaced `['lots']` with `['lots-infinite']` in all mutation hooks; deleted dead `useLots` list hook; wired success+error toasts in LotDetail | `4a6bb8b` |
+| 2 | Removed impossible `unassigned → assigned` transition from state machine (was 500ing on bulk + single via PATCH due to schema CHECK); Move endpoint now serves both | State machine cleanup in both `api/_lib/lot-state.ts` and `src/hooks/useLotState.ts`; Move button visible for both states; bulk handlers gain try/catch | `303a998` |
+| 3 | "Move to another auction" → "Assign to Job" rename; bulk action bar Move → "Assign to Job"; dialog titles + reprint checkbox copy | One push of consistent renames | `a1a08ef` |
+| 4 | Sidebar trim (-30%, w-56 → w-40); DevTools open broke vertical scroll (min-h-screen + body height:100% trapped overflow); /catalog had no rail nav (was standalone); /catalog/session picker used radio lists not dropdowns | AdminShell `min-h-screen` → `h-screen`; /catalog moved into AdminShell route group; CustomerJobPicker rewritten with native `<select>` | `a6917a6` |
+| 5 | T-A4 — no way to add photos to existing lots from the desktop modal | Reused `PhotoStrip` + `PhotoManager` in `LotDetail` (frozen lots show static grid); inline render not portal so Radix Dialog click detection works | `db5c3ac`, `3fd3ede` |
+| 6 | PhotoManager invocation diverged: route-based for cataloging, callback-based for LotDetail | Unified to inline-callback pattern; deleted `/catalog/session/photos` route + `CatalogPhotos.tsx`; PhotoManager decoupled from `useCatalogSession` via optional `onLotDeleted` callback | `9981373` |
+| 7 | T-C1 — sign-out from /inventory left URL with `?redirect=/inventory`; warehouse logged in honored that and landed on /inventory not /catalog | AdminShell sign-out button navigates to clean `/login` BEFORE calling signOut() | `7c576c2` |
+| 8 | Lot detail modal not scrollable on desktop; tall content extended off-screen | Added `max-h-[90vh] overflow-y-auto` to shared DialogContent primitive | `7c576c2` |
+| 9 | Photo upload took 30-45s to render thumbnail (blank flicker between blob URL and signedUrl) | upload-processor invalidates `['lot-photos', lotId]` after `flipStatus` PATCH BEFORE `dequeueUpload` (awaited) | `e2a72a3` |
+| 10 | Supabase image transform was horizontally cropping despite docs saying width-only preserves aspect ratio | Added explicit `resize: 'contain'` to `bulkSignReadUrls` call for the photos GET endpoint | `ace87cf` |
+| 11 | Closing lot detail modal silently discarded unsaved field edits | Added unsaved-changes warning dialog gating Dialog X / Escape / outside-click / Close button via guarded close | `9edf58d` |
+| 12 | Warehouse couldn't edit fields, move, or delete (server returned 403); spec said warehouse SHOULD edit fields per UI design | Server PATCH allows warehouse for non-state edits, rejects state changes; Move allows warehouse; DELETE allows warehouse for own intake AND state='assigned' lots; UI gates inventory bulk affordances entirely off for warehouse; LotDetailPage canEdit lifted | `5276d00` |
+| 13 | T-D6 — mobile fullscreen modal action buttons unreachable on iPhone; Tailwind `.text-sm` class beat global font-size rule, iOS auto-zoom didn't restore on blur | Mobile UI audit: `vh` → `dvh` everywhere applicable, `safe-area-inset-bottom` padding on overlays, `!important` on global font-size rule. Mobile UI checklist saved as `feedback_mobile_ui_checklist.md` | `13a2e78` |
+| 14 | "Additional Info" collapse missing from LotInProgress (per option-c-flow spec §363); customer/job not in cataloging session header | Restored chevron-expandable section hiding Title/Description/Price/Ref1/Ref2; header now shows customer name + job number; PendingUploadsIndicator moved below photo strip | `0c89d49` |
+| 15 | Save Changes had no visible toast on mobile/desktop because Toaster was at z-50 same as Dialog (Dialog covered Toaster) | Toaster bumped to z-[60] | `30dbe63` |
+| 16 | Vercel cache headers — iOS Safari was caching HTML aggressively, testers saw stale builds without manual cache clear | `vercel.ts` adds explicit Cache-Control: HTML no-cache/must-revalidate; assets immutable max-age=31536000 | `90a46b6` |
+| 17 | Pull-to-refresh wiped cataloging session display (lotId in component state lost on remount); user thought data was lost and might end session in panic | Persist lotId in URL via setSearchParams; restored on mount; advance/discard/setLot keep URL in sync | `85ef610` |
+| 18 | LotEditForm "Invalid" save toast — empty `price=""` passed client schema (.or(z.literal(''))) but rejected server-side regex; also LotEditForm still showed "old" form layout without Additional Info collapse | LotEditForm restructured to match cataloging design (Quantity+Untested row, full-width Special Notes, Additional Info collapse with optional fields); handleValid normalizes empty strings to null before onSubmit | `425c491` |
+| 19 | Quantity stepper had invisible "+" button on user's device | Replaced with plain `<input type="number" inputMode="numeric">` matching LotEditForm style | `1fa589a` |
+| 20 | Quantity input couldn't be backspaced (controlled `Math.max(1, ... \|\| 1)` snapped back to 1 every keystroke); typing replaced got concatenated | Local string mirror state for free editing; clamp+commit only on blur; useEffect syncs from non-input sources | `f83043f` |
+
+**Spec amendments captured during Phase 3 sign-off:**
+- `unassigned → assigned` transition removed from PATCH state machine — Move endpoint is the only path (state_tuple_consistent CHECK constraint can't be satisfied via state-only PATCH). v1 spec §3 + Phase 3 design §4 + role.ts comments updated.
+- Warehouse permission matrix expanded per UI design spec line 332 ("Office or Warehouse can edit AI output"): warehouse can edit non-state fields, move, and delete own active cataloging lot. Server tests rewritten accordingly.
+- "auction" → "Job" terminology adopted in user-facing UI (buttons, dialog titles); internal naming (file names, hook names, API routes, action discriminators) unchanged.
+- Dialog scrollability and mobile-fullscreen behavior locked into the shared `DialogContent` primitive.
+- iOS Safari/Chrome compatibility: `100dvh` over `100vh`, `env(safe-area-inset-bottom)` on full-screen overlays, `!important` on the mobile font-size rule. Documented as mobile UI checklist memory rule.
+
+## Phase 3 carry-forwards (DEFERRED — explicitly agreed)
+
+| ID | Item | Status |
+|---|---|---|
+| T-G1 | Physical Zebra ZD450 round-trip test | Defer until hardware on hand; **mandatory before Prod cutover** |
+| T-G2 | Audit-log SQL spot-check | Defer to Prod cutover (Dev/Test/Prod each have their own DB; Dev check wouldn't replace Prod check). Run via Supabase Dashboard → SQL Editor |
+| T-G3 | AI subsystem (title/description/reference price generation) | Phase 4 |
+| T-G4 | /users admin UI | Later phase (v1.5 candidate) |
+| T-G5 | Audit reporting view | Later phase |
+| T-G6 | First-run / empty states polish | Pre-Prod cutover polish PR |
+
+## Next: Phase 3.5 — Client test infrastructure
+
+**Spec:** `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — drafted with **expanded scope** as of 2026-05-02 evening.
+**Status:** Drafted, NOT started. Branch `phase-3-5-test-infra` to be created off `phase-3-mobile-cataloging` when starting.
+**Effort:** ~2.5 days.
+
+5 workstreams:
+- **A.** Test infrastructure setup (vitest env switch, `@testing-library/react` + `happy-dom`, `mockApi` helper, `render-with-providers` helper). 0.5 day.
+- **B.** Canonical reference patterns (query invalidation, optimistic update + rollback, error toast wiring, role-gated render). 0.5 day.
+- **C.** Backfill regression tests for 9 bugs from the Phase 3 sign-off batch (expanded from original 4). ~1 day.
+- **D.** Going-forward rule (new mutation hook → hook test required). 0.25 day.
+- **E.** Server-side helper extraction (shared state-transition logic between single PATCH and bulk change-state). 0.25 day.
+
+Playwright e2e deliberately deferred to Phase 4 (rationale in spec §4).
+
+## Phase 2 status: ✅ signed off (2026-05-01)
 
 | Item | Status |
 |---|---|
 | Code (39 plan tasks, A–H) | ✅ done |
-| Vitest suite | ✅ 105 tests passing (was 35 after Phase 1; +70 in Phase 2 incl. sign-off additions) |
-| Migration `0006_system_settings_label_printer.sql` applied to Dev + Test | ✅ done |
+| Vitest suite | ✅ 105 tests passing |
+| Migration `0006_system_settings_label_printer.sql` | ✅ applied to Dev + Test |
 | Vercel Pro upgrade (Hobby's 12-function cap exceeded at 15) | ✅ user upgraded mid-flight |
-| Vendor chunk splitting (Inventory/Settings/LotDetail lazy) | ✅ main chunk ~178 KB (was ~514 KB pre-split) |
-| Vercel preview deploy | ✅ Ready — latest via `vercel ls auction-os` |
-| `npm run probe:preview` | ✅ all 4 probes green (health 200; system-settings/lots/labels 401 unauth) |
-| Test data seeded to Dev | ✅ `npm run seed:test-lots` populated 6 lots in `Test Estate / 2026-04-Test-001` |
-| **Manual sign-off click-through** | ✅ user verified all in-scope items; 11 issues found + all resolved (see below) |
-| **Physical-printer round-trip test** | 🟡 deferred (intentional gap; fires when Zebra ZD450 + Browser Print helper are on hand) |
-| **Audit-log spot-check (steps 30–31 of original checklist)** | 🟡 deferred — `psql` not installed locally; can be done via Supabase Studio SQL Editor when desired, low risk given Phase 1 verified actor capture works |
-| **Phase 3 design + plan** | ❌ not started — kicks off when ready |
+| Vendor chunk splitting | ✅ main chunk ~178 KB |
+| Manual sign-off click-through | ✅ 11 issues found + all resolved |
+| Physical-printer round-trip test | 🟡 deferred → carried forward to T-G1 |
+| Audit-log spot-check | 🟡 deferred → carried forward to T-G2 |
 
-**Phase 2 commits ahead of `phase-1-foundation`** (`git log phase-1-foundation..HEAD --oneline | wc -l`): 67 commits — 39 plan tasks, fix-up commits captured during code review (NaN guards, SAVEPOINT pattern, joined-DTO retrofit, `pg-errors` helper extraction), spec/plan annotations to keep docs in sync with shipped code, Phase H wrap-up, and the 12-commit sign-off fix batch documented below.
+## Phase 1 status: ✅ signed off (2026-04-30)
 
-## Sign-off bug fix batch (post-implementation, pre-cutover)
-
-User-driven manual click-through against the preview surfaced 11 issues across UI, ref forwarding (React 18 + shadcn nova preset compatibility), and a spec amendment to D-001. All resolved on `phase-2-lot-lifecycle`:
-
-| # | Issue | Resolution | Commit(s) |
-|---|---|---|---|
-| 1 | Login redirected to `/customers` not `/inventory` | One-line nav fix | `573a08f` |
-| 4 | Title field appeared empty on modal open (placeholder identical to seeded title) + `<Input>` not forwardRef-compatible with RHF | Generic placeholder + `forwardRef` on Input | `573a08f`, `808e6b0` |
-| 6 | Quantity field empty + Save Changes disabled with no changes | `valueAsNumber: true` on register; dropped `!isDirty` gate | `573a08f` |
-| 13 | Export CSV silent failure | try/catch + DOM-attach anchor + static import of supabase | `573a08f`, `a3ef7fe`, `f7c4b19` |
-| 5 | "Reprint label not responsive" | Working as designed — fetch fires, fails with `ERR_CONNECTION_REFUSED` because no Browser Print helper installed locally; toast confirmed firing. Deferred to physical-printer test. | (no code) |
-| 7 | Change status menu didn't open | `forwardRef` on Button/DropdownMenu primitives (React 18 needs explicit ref-forwarding; nova preset assumes React 19) | `0a87235` |
-| 11 | Move dialog jobs empty for selected customer | Closed jobs filtered out (correct); added empty-state message; also filtered closed jobs from inventory filter dropdown | `0f1a456` |
-| 12 | Delete button missing for admin | `useRole` was reading from stale `session.user.app_metadata`; fixed to decode JWT directly (the Custom Access Token Hook injects role into the JWT, not into the persistent user record) | `d5b3cd4` |
-| Side A | Move was assigned-only — couldn't move unassigned lots | Allowed move from `assigned` OR `unassigned`; auto-transitions to `assigned` on successful move | `0f1a456` |
-| 8 | Spec amendment: sold lots should be frozen | D-001 amended — sold is now frozen for field edits (preserves what bidders saw on the auction platform). Edits via sold → unassigned → edit → re-assign. Spec/plan markdown all updated to reflect. | `6ba14af`, `23c103c` |
-| Side B | shadcn nova preset assumes React 19 — broad ref-forwarding gap | One-shot `forwardRef` sweep across Button, Checkbox, Label, Dialog primitives, DropdownMenu primitives | `0a87235` |
-
-**Diagnostic helpers added during sign-off** (kept in repo per user direction; clean up at v1 cutover): `scripts/list-lots.ts`, `scripts/list-jobs.ts`, `scripts/check-auth-state.ts`, `scripts/check-jwt-hook.ts`. None wired into npm scripts — invoked via `npx tsx`.
-
-**Spec amendments captured during sign-off (in addition to in-flight ones from Phase 2 implementation):**
-- D-001 reversed: sold lots frozen instead of editable (`docs/superpowers/specs/2026-04-29-v1-design.md` D-001 row + §7.1 + §7.5 + §8.6; `docs/superpowers/specs/2026-04-30-phase-2-design.md` §2.2 comment + §4.1 note + §4.2 + §4.5; plan Task 25 design-system labels)
-- Move endpoint accepts `unassigned` source — Phase 2 spec §1.1 + §4.2 + §4.5 + v1 spec §7.4 + §8.6 all updated to reflect
-- Closed jobs hidden from "normal activity" dropdowns (move dialogs + inventory filter); reporting/admin view will surface closed jobs separately (later phase)
-
-## Phase 1 status: ✅ signed off
-
-| Item | Status |
-|---|---|
-| Code (22 plan tasks 0–21) | ✅ done |
-| Vitest API suite | ✅ 21 tests passing (refactored to native handler shape) |
-| Migrations applied to Dev + Test Supabase | ✅ done (5 migrations) |
-| JWT custom-claim hook | ✅ activated on Dev + Test |
-| Vercel preview deploy | ✅ Ready |
-| Vercel production deploy | ✅ Ready (still inert — Prod Supabase has no schema yet) |
-| **Manual click-through on preview** | ✅ all 6 steps passed |
-| **Audit-log actor capture** | ✅ wired via `asActor(userId, fn)` GUC pattern |
-| **Design system bridged** | ✅ shadcn vars wired to Mica Slate tokens; button variants reviewed and approved |
-| **Phase 2 design spec** | ✅ written: `docs/superpowers/specs/2026-04-30-phase-2-design.md` |
-| **Phase 2 implementation plan** | ✅ written: `docs/superpowers/plans/2026-04-30-phase-2.md` (39 tasks, 8 phases) |
-| **Phase 2 execution** | ❌ not yet started |
-
-## Deploy URLs
-
-- **Preview:** `https://auction-od5nvclsh-vantheos-4047s-projects.vercel.app` (latest at sign-off; newer URLs may exist if more pushes happened — `vercel ls auction-os` for current)
-  - Backed by **Dev Supabase** (`auction-os-dev`)
-  - Has the seeded admin (`admin@auction-os.local` / `admin1234!`)
-  - All 5 migrations applied + JWT hook activated
-- **Production:** latest `main` deploy — backed by **Prod Supabase** (`auction-os-prod`), no schema, no users, no hook activated. Intentionally inert until v1 cutover.
-
-## Design system (post-Phase-1, pre-Phase-2)
-
-The Mica Slate tokens from the design pass lived in `tailwind.config.ts` but were never wired to the shadcn primitives — shadcn reads from CSS variables (`--primary`, `--secondary`, etc.) which were stuck on shadcn's stock greyscale defaults. Result: every Phase 1 button rendered as charcoal-on-wash with no brand presence.
-
-Fix (commits `cc08184`, `a07921a`, `96e117a`, `1d149e2`):
-- `globals.css` — bridged `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--card`, `--popover` to Mica Slate values
-- `tailwind.config.ts` — added matching `colors.primary` / `colors.secondary` / etc. as `var(--*)` so utility classes like `bg-primary` actually resolve. Renamed Mica `accent` (`#1E40AF`) → `brand` to free up `accent` for shadcn's hover-bg meaning. Updated 2 callsites (`text-accent` → `text-brand`).
-- `button.tsx` — refined per inline review: `outline` uses `borderStrong` (visible 14% border), `secondary` uses `info-bg` pale-blue tint with brand text (visually distinct from outline), `destructive` is now solid red bg + white text (was 10% subtle bg — wrong weight for "Delete customer" confirmations), `ghost` left as intentional no-chrome / hover-bg-only.
-- `/design-system` route — auth-gated reference page (no nav link, URL-only access) at `src/routes/DesignSystem.tsx` rendering all variants, sizes, inputs, dialog, table, status badges, typography, plus "buttons in real usage context" examples. Use it as the canonical visual reference when adding new screens.
-- `vercel.ts` — added SPA fallback rewrite (`/((?!api/).*) → /index.html`) so direct URL navigation to client-side routes (`/customers`, `/design-system`, etc.) works on hard refresh. Without this, direct nav 404'd.
-
-This is design system bridging only — no new design decisions, just propagating what the design pass already specified. Next time you see something visually weak, this is the layer to touch.
-
-## What we fixed today (post-handoff)
-
-Two latent Phase 1 bugs that didn't surface until the live preview was actually exercised through a real Supabase session — internal checks (typecheck, vitest) and the static `/api/health` probe couldn't catch either:
-
-1. **Extensionless ESM relative imports** (commit [7b651db]) — `tsc` left `import { x } from '../foo'` verbatim, but Node's strict ESM loader (`"type": "module"`) requires `.js` extensions. Lambda crashed with `ERR_MODULE_NOT_FOUND` on every request. Vitest/Vite hide this because their bundlers synthesize extensions. Fix: appended `.js` to all relative imports in `api/` and `db/`. Added `npm run probe:preview <url>` (uses `vercel curl`) to probe `/api/health` on a deployed preview before declaring it good.
-2. **`tsc -b --noEmit` propagated noEmit to a composite-referenced project (TS6310)** (commit [2e4cc34]) — pre-existing bug; dropped the `--noEmit` flag from the `typecheck` script (root tsconfig already has `noEmit: true` at config level).
-3. **Hono on Vercel hung every POST/PATCH/DELETE for 60s → FUNCTION_INVOCATION_TIMEOUT (504)** (commit [4d8fb14], the big one) — Vercel's Node Lambda runtime delivers POST bodies via the raw `IncomingMessage` stream; it does NOT pre-parse onto `req.body` and does NOT set `req.rawBody`. Both `@hono/node-server/vercel` and Vercel's built-in `createWebHandler` ultimately call `Readable.toWeb(req)`, which never resolves the body read in this runtime. A naked `for await (const chunk of req)` reads the body in 1ms (proven via `api/echo` diagnostic). **Fix: dropped Hono entirely**, rewrote all 7 routes as native `(req: IncomingMessage, res: ServerResponse) => Promise<void>` handlers using Vercel's documented contract. New helpers in `api/_lib/`: `auth.ts` (`requireAuth`, `AuthError`), `body.ts` (`readJson` with 1MiB cap), `responses.ts` (`jsonOk`/`jsonError`/`methodNotAllowed`), `db.ts` extended with `asActor()`. Also closes the audit-trail gap: mutations transactionally `set_config('request.jwt.claim.sub', ...)` so the existing `audit_log_trigger` (which reads `auth.uid()`) records the real actor instead of NULL. Tests refactored to use a `callHandler(handler, opts)` mock-req/res helper. Hono and `@hono/node-server` removed from deps. See `~/.claude/projects/d--Dev-auction-os/memory/feedback_avoid_hono_on_vercel.md` for the lesson and rationale.
+22 plan tasks, 21 vitest API tests, 5 migrations applied, JWT custom-claim hook activated. Two latent bugs caught + fixed during preview testing (extensionless ESM imports, Hono on Vercel hung POST bodies — see `feedback_avoid_hono_on_vercel.md`).
 
 ## Branch state
 
 | | Local | GitHub |
 |---|---|---|
-| `main` | `7bbeee0` (36 commits) | same |
+| `main` | `7bbeee0` (36 commits — same as Phase 1 sign-off point) | same |
 | `phase-1-foundation` | `70cc776` (43 commits) | same |
+| `phase-2-lot-lifecycle` | `a517f9d` (signed off; 67 commits ahead of phase-1) | same |
+| `phase-3-mobile-cataloging` | `f83043f` (signed off; 38 commits ahead of phase-2) | same |
 
-`main` is unchanged from the original Phase 1 deploy point. Phase 1 sign-off was on `phase-1-foundation` (preview); merging to `main` is deliberately deferred to v1 cutover per the branch strategy.
+`main` unchanged from original Phase 1 deploy point. Per branch strategy memory rule, we never push to `main` until v1 cutover.
 
 **Repo-local git config in force** (do NOT change):
 - `user.name = Vantheos`
@@ -110,176 +117,124 @@ Two latent Phase 1 bugs that didn't surface until the live preview was actually 
 - Project: `vantheos-4047s-projects/auction-os`
 - GitHub integration: connected to `Vantheos/auction-os`
 - Production branch: `main`
-- Preview: any unassigned branch (currently `phase-1-foundation`)
-- Env vars: 18 across production/preview/development scopes (pushed via `npm run env:setup`; if dropped during dashboard work, see "Blank screen on preview" recovery below)
+- Preview: any unassigned branch (currently `phase-3-mobile-cataloging`)
+- Env vars: 18 across production/preview/development scopes
+- **Cache headers** (added 2026-05-02): HTML no-cache/must-revalidate; `/assets/(.*)` immutable max-age=31536000
 
 ## What still must happen before Prod is real (deferred to v1 cutover)
 
-1. Apply 5 migrations to Prod Supabase: `npx supabase db push --db-url "$PROD_DATABASE_URL"`
-2. Activate JWT Claims Hook in Prod's Supabase dashboard: Authentication → Hooks → Customize Access Token (JWT) Claims hook → enable, Postgres function `custom_access_token_hook`
-3. Run `npm run seed:admin` against Prod (with `.env` pointed at Prod) to provision the initial admin
-4. **Change the seeded admin's default password** (`admin1234!`) before any non-test use — set `SEED_ADMIN_PASSWORD` env var before running, or rotate after via Supabase dashboard
-
-## Plan deviations applied during Phase 1 (worth amending the plan with someday)
-
-1. **Task 1** — `@vercel/config@^1.0.0` → `^0.2.1`; `drizzle-orm@^0.36.0` → `^0.45.0` (CVE fix); README step 3 `supabase start` → `npm run supabase:start`; `.gitignore` skip
-2. **Task 0** — `env-setup.ts` uses `vercel api /v10/projects/.../env` REST POST instead of `vercel env add` (CLI v52 non-interactive bug); Stage 0b deferred GitHub repo creation done during Task 0; Windows PATH normalization + GITHUB_TOKEN/GH_TOKEN strip; Supabase **Shared Pooler** required for DATABASE_URLs (Direct connection is IPv6-only)
-3. **Task 2** — shadcn CLI v4 deprecated `--style new-york --base-color slate`; used `--preset nova` (`radix-nova` style, `neutral` baseColor); `form` not in nova registry → hand-written `src/components/ui/form.tsx`; shadcn 4 deps include `radix-ui` umbrella, `tw-animate-css`; `outlineColor.ring` token added to tailwind config
-4. **Task 3** — Drizzle 0.45 deprecated object form for `pgTable` callback; used array form `(t) => [...]`
-5. **Tasks 4–7** — Supabase PAT revoked at end of Stage 0b → migrations applied via `supabase db push --db-url <url>` (bypassing `supabase link`)
-6. **Task 5** (post-Phase-1 critical fix) — `0005_jwt_hook_security_definer.sql` adds `SECURITY DEFINER` + pinned `search_path = public` to `custom_access_token_hook`. Without this, the hook ran as `supabase_auth_admin` and got blocked by RLS on `app_user`. Result before fix: `app_metadata.role` was always null. Verified end-to-end after fix: JWT carries `role = "admin"` correctly.
-7. **Task 12** — postgres error code lives in `err.cause?.code` (Drizzle wraps it); used `err.code ?? err.cause?.code` for unique-constraint 409 detection
-8. **Task 14-19** — `tsconfig.json` needed `"types": ["vite/client"]` for `import.meta.env` typecheck
-9. **Post-handoff (today)** — see "What we fixed today" above. The Hono refactor is the largest deviation from the original plan and should be reflected in any retrospective: the Phase 1 plan called out `hono` in the tech stack, but it does not work on Vercel's Node Lambda runtime for body-bearing requests. Native handlers are the production pattern for this repo.
-10. **Local Playwright e2e is blocked** by `vercel dev` body-parsing quirk (POST body doesn't roundtrip cleanly through @vercel/node dev-server). Production runtime works fine. Vercel preview deploy is the canonical e2e verification.
-11. **Vercel CLI → Git webhook discovery** — `vercel deploy` from CLI defaults to `--target=production` regardless of branch and ignores `--target=preview`. Use Git push only.
-12. **Vercel project creation method matters** — CLI-created projects can have a stale account-context binding. The user's auction-os project was deleted and recreated via the dashboard during Phase 1; that fixed the platform binding.
-13. **Commit author email matters** — global git config used `AndreMan <amattera@outlook.com>` which mapped to legacy GitHub account `AAndreManN` (not a Vercel team member). All commits were rewritten via `git filter-branch` to author `Vantheos <ops@vantheos.com>` and force-pushed. Repo-local git config now overrides global.
+1. Apply 8 migrations to Prod Supabase: `npx supabase db push --db-url "$PROD_DATABASE_URL"`
+2. Activate JWT Claims Hook in Prod's Supabase dashboard
+3. Run `npm run seed:admin` against Prod (with `.env` pointed at Prod)
+4. **Change the seeded admin's default password** before non-test use
+5. Run T-G2 audit-log spot-check via Supabase Dashboard SQL Editor on Prod
+6. Run T-G1 physical Zebra round-trip test (requires hardware on hand)
+7. Apply T-G6 first-run / empty-states polish
 
 ## Working tree note
 
-`.gitignore` previously showed as modified — `vercel link` appended a duplicate `.vercel` line. Status today is clean (no notable working-tree drift).
+Clean (`git status` reports nothing tracked drifting). Sign-off batch fully committed.
 
 ## Known recovery procedures
 
-### Blank screen on Vercel preview (or any) deploy
+### Blank screen on Vercel preview deploy
+**Cause:** Vercel project missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. `src/lib/supabase.ts` throws at module-load.
+**Fix:** `vercel env ls` → if missing, `npm run env:setup` → push empty commit to retrigger build.
 
-**Symptom:** Preview URL loads but shows a completely blank page. View source shows the SPA shell HTML but React never mounts.
+### Probing a fresh deploy
+`npm run probe:preview <url>` — uses `vercel curl` to GET `/api/health` and assert 200, plus auth-protected endpoints respond 401. Run this after every push.
 
-**Cause:** Vercel project is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars. `src/lib/supabase.ts` throws at module-load when those are undefined, which prevents React from mounting → blank screen. This happens whenever the Vercel project gets recreated or env vars get cleared and `npm run env:setup` isn't re-run afterward.
+### iPhone Safari / Chrome cache
+Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees a stale build:
+- Pull-to-refresh on the preview URL
+- Open in Private tab
+- Settings → Safari → Advanced → Website Data → swipe-delete the auction site
 
-**Fix:**
-1. `vercel env ls` — confirm the 18 expected vars are present across `production`, `preview`, `development` scopes. If missing or empty, that's the cause.
-2. `npm run env:setup` — re-pushes all 18 vars from `.env.setup` to the Vercel project.
-3. Trigger a rebuild: `git commit --allow-empty -m "ci: rebuild after env vars pushed"` then `git push origin <branch>`.
-4. The new preview URL (visible in `vercel ls auction-os`) becomes the working one. Old preview URLs from before the env-var fix stay broken — those are not recoverable without a new build.
+## Resume prompt (paste verbatim into a new context window)
 
-If `vercel env ls` itself errors with "Your Project was either deleted, transferred to a new Team, or you don't have access to it anymore," the local link in `.vercel/project.json` is stale. Re-link with `vercel link --yes --project auction-os`, then re-check.
-
-### Probing a fresh deploy before declaring it good
-
-`npm run probe:preview <url>` — uses `vercel curl` (handles deployment protection) to GET `/api/health` on a deployed preview and asserts `{ ok: true }`. Run this after every push as the gating check before any manual-test work; it catches build/import/runtime failures that pass typecheck and vitest. Was added today after the `.js`-extension regression (commit [7b651db]).
-
-## Resume prompt (paste verbatim after context refresh)
-
-> Welcome back. Read `STATE.md` first. Phase 1 of auction-os is **fully signed off** (2026-04-30 PM). Phase 2 has been **scoped, designed, and planned**:
+> Welcome back. Read `STATE.md` first. Phase 3 of auction-os is **fully signed off** (2026-05-02 evening). The next thing to do is **Phase 3.5 — Client test infrastructure**, spec at `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` (expanded scope as of 2026-05-02 evening).
 >
-> - **Phase 2 design spec:** `docs/superpowers/specs/2026-04-30-phase-2-design.md` — "Lot lifecycle + label printing" (desktop tool: inventory list, lot detail modal, single-lot + bulk actions, label printing module, system settings). Note that Phase 2 was flipped from the original "mobile cataloging" — mobile cataloging is now Phase 3 per the design handoff's recommended sequencing and the user's no-throwaway constraint.
-> - **Phase 2 implementation plan:** `docs/superpowers/plans/2026-04-30-phase-2.md` — 39 tasks across 8 phases (A foundations, B backend, C hooks, D lot detail UI, E inventory UI, F bulk dialogs, G pages+routing, H verification) with explicit checkpoints between phases.
+> **Phase 3.5 plan:** 5 workstreams (A test infra → B canonical patterns → C backfill 9 regression tests → E server helper extraction → D going-forward rule docs). ~2.5 days estimated. Branch `phase-3-5-test-infra` to be created off `phase-3-mobile-cataloging` when starting.
 >
-> The next thing to do is **execute the Phase 2 plan**. Use the `superpowers:subagent-driven-development` skill (recommended for token-budget reasons — this main session has been long) or `superpowers:executing-plans` if you prefer inline. **Do NOT modify the spec or plan without flagging it explicitly to the user — they're committed and locked.**
+> **Carry-forwards from Phase 3** (DO NOT TOUCH unless user brings up):
+> - T-G1 Physical Zebra ZD450 — defer until hardware on hand; mandatory before Prod
+> - T-G2 Audit-log SQL spot-check — defer to Prod cutover
+> - T-G3 AI subsystem — Phase 4
+> - T-G4 /users admin UI — later phase
+> - T-G5 Audit reporting view — later phase
+> - T-G6 First-run / empty states polish — pre-Prod cutover polish PR
 >
-> Companion docs to read alongside the plan:
+> **Branch state:** `phase-3-mobile-cataloging` at `f83043f`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
+>
+> **Companion docs:**
+> - `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — Phase 3.5 spec (expanded scope)
+> - `docs/superpowers/specs/2026-05-01-phase-3-design.md` — Phase 3 spec (signed off)
 > - `docs/superpowers/specs/2026-04-29-v1-design.md` — overall v1 design (authoritative for product decisions)
-> - `ui-design/design_handoff/` — high-fidelity UI mockups + tokens (the design pass before Phase 1)
-> - `~/.claude/projects/d--Dev-auction-os/memory/MEMORY.md` — lessons learned. `feedback_avoid_hono_on_vercel.md` is critical context if a Hono-like framework is ever proposed again.
+> - `~/.claude/projects/d--Dev-auction-os/memory/MEMORY.md` — feedback rules + project memory
 >
-> The repo-local git config is set to `Vantheos <ops@vantheos.com>`; do NOT change it. Pushes only via `git push origin <branch>` (never `vercel deploy`). Phase 2 work continues on `phase-1-foundation` branch (or a new `phase-2-lot-lifecycle` branch — your call; conventional choice would be a new branch).
+> **Critical memory rules to honor** (these override defaults):
+> - Always run pre-push trio (build + lint + test, all green, lint 0/0)
+> - Phase work goes on `phase-N-<slug>` branches; never push `main` until v1 complete
+> - Repo-local git author is `Vantheos <ops@vantheos.com>` — do NOT change
+> - Validate before directing — never guess at UI / CLI / file locations
+> - Mobile UI checks (dvh, safe-area, auto-zoom, touch targets, etc.) standard for any mobile UI work — see `feedback_mobile_ui_checklist.md`
+> - Don't offer "minimal" or workaround fixes; default to the proper fix
+> - Validate speculative benefits before listing them in option analysis
+>
+> **What to do first:** Confirm Phase 3.5 spec scope is still aligned with user expectation. If yes, propose the start of workstream A (test infra setup) and ask for green light to create the new branch + add deps. Do NOT start implementation without explicit go-ahead — the user prefers top-down confirmation before each major chunk.
 
 ## Files of record
 
 | File | Purpose |
 |---|---|
+| `STATE.md` | This file — live tracker |
 | `.env.setup` | Real credentials for the three Supabase projects (gitignored) |
-| `.env`, `.env.test` | Auto-generated by `npm run env:setup`; pointed at Dev / Test (gitignored) |
-| `.gitignore` | Protects `.env*`, `.vercel/`, `node_modules/`, `*.tsbuildinfo`, compiled config artifacts |
+| `.env`, `.env.test` | Auto-generated by `npm run env:setup` (gitignored) |
+| `.gitignore` | Protects `.env*`, `.vercel/`, `node_modules/`, `*.tsbuildinfo` |
 | `.claude/settings.json` | Project allowlist (read-only Bash + MCP read tools) — TRACKED |
 | `.claude/settings.local.json` | User-private allowlist — gitignored |
-| `package.json` | Phase 1 deps (Hono removed); scripts: `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, `test:e2e`, `seed:admin`, `db:generate`, `db:push`, `probe:preview` |
-| `scripts/verify-env.ts` | Read-only environment health check |
-| `scripts/env-setup.ts` | Pushes env vars to Vercel via `vercel api`; writes `.env` + `.env.test` |
-| `scripts/seed-admin.ts` | Creates initial admin (auth.users + app_user row) |
-| `scripts/probe-deploy.ts` | Smoke-test `/api/health` against a deployed preview via `vercel curl` |
-| `vercel.ts`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `vitest.config.ts`, `playwright.config.ts` | Build/test config |
-| `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/globals.css` | Frontend entry |
-| `src/lib/{supabase,auth,api,query,utils}.ts` | Frontend libraries |
-| `src/components/ui/*.tsx` | shadcn primitives + hand-written `form.tsx` |
-| `src/components/auth/ProtectedRoute.tsx`, `src/components/shell/AdminShell.tsx` | App chrome |
-| `src/routes/{Login,Customers,CustomerDetail}.tsx` | Pages |
-| `src/hooks/{useCustomers,useJobs}.ts` | TanStack Query bindings |
-| `api/_lib/{auth,body,db,responses}.ts` | API foundation: JWT verify + role check, body reading, Drizzle client + `asActor` actor-scoped transactions, JSON response helpers (all native `(req, res)`) |
-| `api/{health,customers,jobs,users}/*.ts` | API endpoints (all native `(req: IncomingMessage, res: ServerResponse) => Promise<void>`; method dispatch via `if (req.method === ...)`; central try/catch translates `AuthError` → 401/403) |
-| `db/{schema,client,types}.ts`, `drizzle.config.ts` | Drizzle ORM |
-| `supabase/config.toml`, `supabase/migrations/0000-0005*.sql` | 5 migrations: schema, seed_system_settings, jwt_hook, rls_policies, audit_triggers, jwt_hook_security_definer |
-| `tests/helpers/{setup,test-db,test-jwt,call-handler}.ts` | Test infra (ES256 keypair injection + mock-req/res driver) |
-| `tests/api/{customers,jobs,users}.test.ts` | API tests (21 passing; refactored to native handler shape) |
-| `tests/e2e/smoke.spec.ts` | Playwright smoke spec — gated on resolution of vercel-dev body parsing quirk |
-| `shared/types.ts` | DTOs |
-| `README.md` | Local dev + Vercel deploy docs |
-| `docs/superpowers/specs/2026-04-29-v1-design.md` | v1 design spec (authoritative for Phase 2+) |
-| `docs/superpowers/plans/2026-04-29-phase-1-foundation.md` | Phase 1 plan (now historical reference) |
-| `STATE.md` | This file |
+| `package.json` | Phase 1-3 deps (Hono removed); scripts incl. `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, `seed:admin`, `seed:test-lots`, `db:generate`, `db:push`, `probe:preview` |
+| `vercel.ts` | Build/runtime config, SPA fallback rewrite, cache headers, cron schedule |
+| `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `vitest.config.ts`, `playwright.config.ts` | Build/test config |
+| `src/styles/globals.css` | Global CSS incl. mobile font-size enforcement (16px !important under 767px) |
+| `src/components/ui/dialog.tsx` | Shared Dialog primitive with `fullScreenOnMobile`, `max-h-[90vh]`, `dvh`, safe-area-inset-bottom |
+| `src/components/ui/toast.tsx` | Toaster at z-[60] (above Dialog) |
+| `src/components/ui/sheet.tsx` | Mobile filter drawer with dvh + safe-area-inset-bottom |
+| `src/hooks/useCatalogSession.ts` | Session state with URL persistence for lotId |
+| `src/hooks/useLotMutations.ts` | Single-lot mutations (update / change-state / move / delete) — invalidates `['lots-infinite']` |
+| `src/hooks/useBulkLotAction.ts` | Bulk mutations endpoint — invalidates `['lots-infinite']` and `['lot']` |
+| `src/lib/upload-processor.ts` | Photo upload queue processor — invalidates lot-photos before dequeue |
+| `src/lib/query.ts` | QueryClient singleton (staleTime 30s, refetchOnWindowFocus false) |
+| `src/components/catalog/LotInProgress.tsx` | Cataloging session screen — Additional Info collapse, customer/job header, free-form quantity |
+| `src/components/catalog/PhotoStrip.tsx`, `PhotoManager.tsx` | Reused across cataloging + LotDetail |
+| `src/components/lot/LotEditForm.tsx`, `LotDetail.tsx` | Inventory edit form with Additional Info collapse, empty-string normalization, unsaved-changes guard |
+| `src/routes/Inventory.tsx` | Inventory list — bulk gate for warehouse, unsaved-changes confirm dialog |
+| `api/_lib/lot-state.ts` | State machine (server) — `unassigned` only transitions to `not-sellable` |
+| `api/lots/[id].ts` | Single-lot GET/PATCH/DELETE — warehouse-aware role gating |
+| `api/lots/[id]/move.ts` | Move endpoint — admin/office/warehouse |
+| `api/lots/bulk.ts` | Bulk operations — admin/office for change-state/move; admin only for delete |
+| `api/_lib/storage.ts` | Supabase storage helpers — `Transform` type incl. `resize` |
+| `api/lots/[id]/photos.ts` | Photos GET with `resize: 'contain'` to preserve aspect ratio |
+| `supabase/config.toml`, `supabase/migrations/0000-0008*.sql` | 8 migrations (Phase 1: 5, Phase 2: 1, Phase 3: 2) |
+| `tests/api/*.test.ts`, `tests/lib/*.test.ts`, `tests/helpers/*.ts` | 144 tests (server-side only — Phase 3.5 will add `tests/client/`) |
+| `docs/superpowers/specs/` | All design specs (2026-04-29 v1 design, 2026-04-30 phase-2, 2026-05-01 phase-3, 2026-05-02 phase-3.5) |
+| `docs/superpowers/plans/` | Phase 1, 2, 3 implementation plans (historical record) |
 
 ## Key user preferences (in memory under `~/.claude/projects/d--Dev-auction-os/memory/`)
 
 - Top-down spec process; one focused round per area
 - File-based feedback for substantive input
 - Mention CWD only when it matters
-- Validate environment before running commands
-- Never push `master`/`main` until v1 complete; phase work goes on `phase-N-<slug>` branches
-- Never run `vercel deploy` (CLI bypasses branch routing); push via Git only
-- Verify before directing — never guess at UI/CLI/file locations; check first
-- Repo-local git author email matters for Vercel attribution; use `Vantheos <ops@vantheos.com>` for auction-os
-- **Avoid Hono on Vercel — use native (req, res) handlers** (added today after Phase 1 debug)
-- Production-worthy from day one — no proof-of-concept / MVP / band-aid solutions; if a workaround is the only path, name it as such and propose the proper fix
-
----
-
-## Phase 2 manual test checklist (sign-off)
-
-Run against the latest preview URL after `npm run seed:test-lots` has been applied to Dev.
-
-### Inventory
-1. Open preview URL → redirects to `/inventory`
-2. Inventory loads showing the 6 seeded lots (5 in `Test Estate / 2026-04-Test-001` + 1 unassigned `Mystery Item`)
-3. Filter by Customer "Test Estate" → list narrows to 5
-4. Filter by Job → list still shows 5
-5. Toggle State filter chips → list updates per selection
-6. Clear filters → all 6 lots return
-
-### Single-lot modal
-7. Click row → lot detail modal opens with the lot's data
-8. URL contains `?openLot=<id>`; refresh keeps modal open
-9. Edit title, click Save → toast "Lot updated"; row title updates after close
-10. Click Reprint label → toast "Printer not configured" (helper URL not set yet — expected)
-11. Click Change status → menu shows only legal transitions for current state
-12. Pick `sold` (from `assigned`) → state pill flips immediately (optimistic), no confirm
-13. Pick `picked-up` (from `sold`) → confirm modal appears; click Confirm → flips
-14. Open the picked-up lot → modal shows 🔒 Read-only; no form, only Reprint + Change-status buttons
-15. From a `not-sellable` lot, Change-status → `unassigned` → flips back; `(jobId, lotNumber)` cleared
-
-### Move
-16. On an `assigned` lot, click Move to another auction → dialog opens
-17. Pick destination customer + job; submit → toast "Lot updated"; lot now belongs to new job
-18. Move dialog should NOT show on a `sold` lot (button hidden — assigned-only per spec §4.2)
-
-### Bulk
-19. Select 2 assigned lots via row checkbox → bulk action bar appears at bottom
-20. Bulk Change status → only shared transitions shown; pick `sold` → both flip; toast "2 lots updated"
-21. Select 2 lots in different states (one assigned, one picked-up) → Bulk Change status dialog says "no shared legal transitions"
-22. Bulk Move → dialog → confirm → both move
-23. Bulk Delete (admin only) → type `DELETE` to enable submit → both deleted; toast confirms count
-24. Bulk Export CSV → CSV downloads; verify columns match v1 manifest (id, customer, job, lot_number, state, title, description, price, special_notes_category, special_notes_text, untested, quantity, ai_status, created_at, updated_at)
-
-### Settings
-25. As admin, navigate to `/settings`
-26. Set Helper URL to `http://localhost:9100`; click Test → reports "✗ Helper unreachable" (expected, no helper running)
-27. Click Save → toast "Settings saved"; refresh confirms persistence
-
-### Mobile lot view
-28. Visit `/lot/<a-lot-id>` directly in browser
-29. Resize browser to 375px wide (or open on a phone) — fields stack vertically, photo grid wraps, all actions reachable without horizontal scroll
-
-### Audit trail spot-check
-30. Run: `psql "$DEV_DATABASE_URL" -c "SELECT changed_at, action, changed_by FROM audit_log WHERE table_name = 'lot' ORDER BY changed_at DESC LIMIT 10;"`
-31. Confirm `changed_by` is non-NULL and matches the admin user's id for every recent mutation
-
-### Acceptance
-- [ ] All 31 steps above pass
-- [ ] No console errors visible during the flow
-- [ ] No `FUNCTION_INVOCATION_TIMEOUT` or 500s in `vercel logs`
-
-If all pass → Phase 2 is signed off. Move to Phase 3 plan (mobile cataloging + photo capture pipeline).
-
-**Deferred to physical-printer test (NOT a Phase 2 blocker):**
-- [ ] With Zebra Browser Print helper installed and Zebra ZD450 connected: Test button reports "✓ Helper reachable" and Reprint Label produces a physical 2"×1" label that scans correctly via QR
+- Validate environment before running commands (env vars, tool presence, auth state)
+- Phase-branch workflow; never push master until v1 complete
+- Let Vercel manage deploys via Git webhook (never run `vercel deploy`)
+- Verify before directing — never guess at UI / CLI / file locations
+- Repo-local git author is `Vantheos <ops@vantheos.com>` for auction-os
+- Avoid Hono on Vercel — use native (req, res) handlers
+- v1 cutover is not an alternative to phase work
+- Spec is a snapshot, not a constraint — propose better approaches when they emerge
+- Pre-push trio (build + lint + test) ALL green before any push
+- No deferred quality issues for auction-os
+- Phase sign-off requires clean state (lint 0/0, build green, test green, no undiscussed items)
+- Validate speculative benefits before listing them in option analysis
+- Mobile UI checks (dvh, safe-area, auto-zoom, touch targets, hover, scroll, keyboard, tap feedback) standard for any mobile UI work
