@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-02 late evening. **Phase 3.5 (Client test infrastructure) signed off.** Workstreams A→B→C→E→D complete; carry-forwards T-3.5-G1 and T-3.5-G2 closed in a follow-up cleanup commit (also caught + fixed a missing `invalidateQueries` in the upload-processor's transient cap-promotion path). 181/181 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra`, 8+ commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — AI subsystem (title/description/reference price generation) + Playwright workstream. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
+> Last updated 2026-05-03 evening (roadmap restructured). **Phase 3.5 (Client test infrastructure) signed off.** Carry-forwards T-3.5-G1 and T-3.5-G2 closed in cleanup commit `e271015` (also caught + fixed a missing `invalidateQueries` in the upload-processor's transient cap-promotion path). 181/181 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra`, 9+ commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — Settings + Users + Customers/Jobs polish. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
 >
 > **For the full v1 + beyond phase plan, see [`docs/roadmap.md`](docs/roadmap.md).** This file (`STATE.md`) is the live tracker for the current branch + immediate next steps; the roadmap doc is the higher-altitude view of all remaining phases through v1 cutover and into v1.5.
 
@@ -56,16 +56,16 @@ User-driven manual click-through against the preview surfaced a long list of iss
 - Dialog scrollability and mobile-fullscreen behavior locked into the shared `DialogContent` primitive.
 - iOS Safari/Chrome compatibility: `100dvh` over `100vh`, `env(safe-area-inset-bottom)` on full-screen overlays, `!important` on the mobile font-size rule. Documented as mobile UI checklist memory rule.
 
-## Phase 3 carry-forwards (DEFERRED — explicitly agreed)
+## Phase 3 carry-forward outcomes (resolved 2026-05-03 during roadmap planning)
 
-| ID | Item | Status |
+| ID | Item | Resolution |
 |---|---|---|
-| T-G1 | Physical Zebra ZD450 round-trip test | Defer until hardware on hand; **mandatory before Prod cutover** |
-| T-G2 | Audit-log SQL spot-check | Defer to Prod cutover (Dev/Test/Prod each have their own DB; Dev check wouldn't replace Prod check). Run via Supabase Dashboard → SQL Editor |
-| T-G3 | AI subsystem (title/description/reference price generation) | Phase 4 |
-| T-G4 | /users admin UI | Later phase (v1.5 candidate) |
-| T-G5 | Audit reporting view | Later phase |
-| T-G6 | First-run / empty states polish | Pre-Prod cutover polish PR |
+| T-G1 | Physical Zebra ZD450 round-trip test | → **Phase 7** (Label printing) |
+| T-G2 | Audit-log SQL spot-check | → **Phase 8** (Cutover) step 4 |
+| T-G3 | AI subsystem (title/description/reference price generation) | → **Phase 6** (AI subsystem) |
+| T-G4 | /users admin UI | → **Phase 4** (Settings + Users) |
+| T-G5 | Audit reporting view | → **v2** (Reporting module) |
+| ~~T-G6~~ | ~~First-run / empty states polish~~ | **ELIMINATED** — single-tenant hands-on install per client; practical value too low |
 
 ## Phase 3.5 status: ✅ signed off (2026-05-02 late evening)
 
@@ -100,16 +100,21 @@ User-driven manual click-through against the preview surfaced a long list of iss
 |---|---|---|
 | ~~T-3.5-G1~~ | ~~LotDetail state-change + move toast tests~~ | **CLOSED 2026-05-02** — written in commit `e271015`. All four single-lot mutation paths now have success + failure toast assertions. |
 | ~~T-3.5-G2~~ | ~~upload-processor retry/backoff path tests~~ | **CLOSED 2026-05-02** — written in commit `e271015`. Permanent-failure and transient cap-reached paths tested. Source bug found and fixed in same commit: cap-promotion path was missing `invalidateQueries`, inconsistent with success/permanent paths. Under-cap retry-schedule path remains explicitly untested (mechanical timer choreography); see `docs/testing-policy.md` known gaps. |
-| T-3.5-G3 | Playwright e2e for golden-path flows | Phase 4 workstream — see Phase 3.5 spec §4 for the 5-10 spec list |
+| T-3.5-G3 | Playwright e2e for golden-path flows | → **v1.5** (Playwright phase). Decoupled from AI during Phase 4 grouping discussion — AI is mostly backend with minimal new UI surface, so Playwright value is independent and earned its own slot. |
 
-## Next: Phase 4 — AI subsystem + Playwright
+## Next: Phase 4 — Settings + Users + Customers/Jobs polish
 
 **Status:** Not started. Spec to be drafted via top-down discussion (one focused round per area, per prior-phase pattern).
 
-Scope per Phase 3 carry-forward T-G3 + Phase 3.5 deferral T-3.5-G3:
-- AI subsystem: title/description/reference price generation per lot, schedule config, status flips, cost tracking
-- Playwright workstream: 5-10 golden-path specs (login routing, inventory CRUD, bulk delete, move, catalog session, role gating, pull-to-refresh persistence)
-- AI mutation hooks must follow the testing policy from Phase 3.5 (`docs/testing-policy.md`)
+**Scope (full breakdown in `docs/roadmap.md` Phase 4 section):**
+- Settings → AI Schedule panel: replace placeholder with working form (on/off, frequency, time-of-day) — saves to existing `system_settings.aiSchedule*` columns; Phase 6 reads from those
+- Settings → drop "Organization" placeholder section entirely
+- `/users` admin UI: list, add (email/password/role/displayName), inline role change, deactivate, hard delete
+- `app_user.active` migration (boolean column; JWT hook checks it before issuing role claim)
+- Customers/Jobs visibility polish: bump "View jobs →" link to a more prominent button (job creation already exists in `/customers/:id` — just easy to miss)
+- Enable `/users` nav link (currently `enabled: false`)
+
+All Phase 4 mutation hooks must follow `docs/testing-policy.md` — invalidation + error toast tests at minimum, optimistic if applicable.
 
 ## Phase 2 status: ✅ signed off (2026-05-01)
 
@@ -153,15 +158,19 @@ Scope per Phase 3 carry-forward T-G3 + Phase 3.5 deferral T-3.5-G3:
 - Env vars: 18 across production/preview/development scopes
 - **Cache headers** (added 2026-05-02): HTML no-cache/must-revalidate; `/assets/(.*)` immutable max-age=31536000
 
-## What still must happen before Prod is real (deferred to v1 cutover)
+## Phase 8 — v1 cutover checklist (a.k.a. "what must happen before Prod is real")
 
-1. Apply 8 migrations to Prod Supabase: `npx supabase db push --db-url "$PROD_DATABASE_URL"`
+**Strict ordering — not flexible.** Supabase bootstrap requirements constrain the sequence.
+
+1. Apply migrations to Prod: `npx supabase db push --db-url "$PROD_DATABASE_URL"`
 2. Activate JWT Claims Hook in Prod's Supabase dashboard
-3. Run `npm run seed:admin` against Prod (with `.env` pointed at Prod)
-4. **Change the seeded admin's default password** before non-test use
-5. Run T-G2 audit-log spot-check via Supabase Dashboard SQL Editor on Prod
-6. Run T-G1 physical Zebra round-trip test (requires hardware on hand)
-7. Apply T-G6 first-run / empty-states polish
+3. Run `npm run seed:admin` against Prod (with `.env` pointed at Prod) — creates the bootstrap admin
+4. **T-G2** — audit-log SQL spot-check via Supabase Dashboard SQL Editor on Prod (verify the audit trigger fires correctly with the right `user_id` + before/after fields)
+5. **Change the seeded admin's default password** before non-test use
+6. Open the app to real users — admin uses Settings → Users (built in Phase 4) to add Office and Warehouse users
+7. Promote final pre-cutover branch → `main` via merge; Vercel deploys to Prod via the existing Git webhook
+
+**T-G1** (physical Zebra ZD450 round-trip test) lands in Phase 7 (Label printing), not in this cutover sequence — runs whenever the hardware is on hand. Must be done before cutover, but the test itself is a Phase 7 deliverable.
 
 ## Working tree note
 
@@ -184,28 +193,36 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 
 ## Resume prompt (paste verbatim into a new context window)
 
-> Welcome back. Read `STATE.md` first. Phase 3 AND Phase 3.5 of auction-os are **fully signed off** (2026-05-02 late evening). The next thing to do is **Phase 4 — AI subsystem + Playwright workstream**. Spec to be drafted via top-down discussion (one focused round per area, per prior-phase pattern).
+> Welcome back. Read `STATE.md` first, then `docs/roadmap.md` for the higher-altitude phase plan. Phase 3 AND Phase 3.5 of auction-os are **fully signed off** (2026-05-02). Roadmap was restructured 2026-05-03 to lock the remaining phase numbers and decouple Playwright from AI. The next thing to do is the **Phase 4 spec discussion** (top-down, one focused round per area, per prior-phase pattern).
 >
-> **Phase 4 scope (top-down spec needed):**
-> - AI subsystem per Phase 3 carry-forward T-G3: title / description / reference price generation per lot, schedule config, status flips, cost tracking
-> - Playwright workstream per Phase 3.5 deferral T-3.5-G3: 5-10 golden-path specs (login routing, inventory CRUD, bulk delete, move, catalog session, role gating, pull-to-refresh persistence)
-> - AI mutation hooks must follow the testing policy from Phase 3.5 (`docs/testing-policy.md`) — invalidation + error path tests at minimum, optimistic if applicable
+> **Phase 4 scope (Settings + Users + Customers/Jobs polish — top-down spec needed):**
+> - Settings → AI Schedule panel: replace placeholder with working form (on/off, frequency, time-of-day); persists to `system_settings.aiSchedule*`; Phase 6 reads from those
+> - Settings → drop "Organization" placeholder section entirely
+> - `/users` admin UI: list, add (email/password/role/displayName), inline role change, deactivate, hard delete
+> - `app_user.active` schema migration (boolean column; JWT hook checks before issuing role claim)
+> - Customers/Jobs visibility polish: bump "View jobs →" link to a more prominent button (job creation already exists in `/customers/:id`)
+> - Enable `/users` nav link (currently `enabled: false`)
+> - All new mutation hooks must follow `docs/testing-policy.md`
 >
-> **Carry-forwards still alive:**
-> From Phase 3 (DO NOT TOUCH unless user brings up):
-> - T-G1 Physical Zebra ZD450 — defer until hardware on hand; mandatory before Prod
-> - T-G2 Audit-log SQL spot-check — defer to Prod cutover
-> - T-G4 /users admin UI — later phase
-> - T-G5 Audit reporting view — later phase
-> - T-G6 First-run / empty states polish — pre-Prod cutover polish PR
+> **Phase 5 (Auction Platform Export) captured decisions to honor when planning that phase:** see `docs/roadmap.md` Phase 5 section for the full set — column mapping shape (Option B with optional formatters), default platform seeded with real auction-site specs (NOT the current arbitrary 15-column layout), image upload to platform deferred. User will provide CSV specs for the first platform at Phase 5 planning time.
 >
-> From Phase 3.5 (documented in `docs/testing-policy.md` known gaps):
-> - upload-processor under-cap retry-schedule path — only the timer-schedule branch remains untested; the three terminal paths (success, permanent failure, transient cap-reached) are pinned
+> **Subsequent phases (full detail in `docs/roadmap.md`):**
+> - Phase 6 — AI subsystem (T-G3); mostly backend, minimal new UI
+> - Phase 7 — Label printing (T-G1); decoupled because hardware availability is uncertain
+> - Phase 8 — v1 cutover (strict-ordered runbook; T-G2 inside as step 4)
+> - v1.5 — Playwright e2e (T-3.5-G3)
+> - v2 — Reporting module (T-G5)
 >
-> **Branch state:** `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. `phase-3-mobile-cataloging` at `7d15a35`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
+> **Carry-forward outcomes** (resolved during roadmap restructure — DO NOT TOUCH unless user brings up):
+> All Phase 3 + 3.5 carry-forwards have been formally placed into a phase. See `docs/roadmap.md` "Carry-forward index" table for the full mapping. T-G6 (first-run polish) was eliminated entirely.
+>
+> **Open known gap** (documented in `docs/testing-policy.md`):
+> - upload-processor under-cap retry-schedule path — mechanical timer-schedule branch remains untested; the three terminal paths (success, permanent failure, transient cap-reached) are pinned
+>
+> **Branch state:** `phase-3-5-test-infra` at `60fac7f` (or later — check `git log`), 9+ commits ahead of `phase-3-mobile-cataloging`. `phase-3-mobile-cataloging` at `7d15a35`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
 >
 > **Companion docs:**
-> - `docs/roadmap.md` — v1 + beyond phase plan (start here for the big picture)
+> - `docs/roadmap.md` — v1 + beyond phase plan (start here after STATE.md)
 > - `docs/superpowers/specs/2026-04-29-v1-design.md` — overall v1 design (authoritative for product decisions)
 > - `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — Phase 3.5 spec (signed off, historical)
 > - `docs/superpowers/specs/2026-05-01-phase-3-design.md` — Phase 3 spec (signed off, historical)
@@ -222,7 +239,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 > - Don't offer "minimal" or workaround fixes; default to the proper fix
 > - Validate speculative benefits before listing them in option analysis
 >
-> **What to do first:** Open the Phase 4 spec discussion using the same top-down one-focused-round-per-area pattern from Phases 2 and 3. Start with high-level scope confirmation (AI subsystem boundaries, Playwright golden-path list), then drill into each area. Branch `phase-4-ai` (or similar) to be created off `phase-3-5-test-infra` once the spec is locked. Do NOT start implementation without explicit go-ahead.
+> **What to do first:** Open the Phase 4 spec discussion using the same top-down one-focused-round-per-area pattern from Phases 2 and 3. Confirm the Phase 4 scope outline above is still aligned, then drill in area by area (Settings → AI Schedule UI; `/users` admin UI shape; `app_user.active` migration; Customers/Jobs polish). Branch `phase-4-settings` (or similar) to be created off `phase-3-5-test-infra` once the spec is locked. Do NOT start implementation without explicit go-ahead.
 
 ## Files of record
 
@@ -264,7 +281,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 | `docs/superpowers/plans/` | Phase 1, 2, 3 implementation plans (historical record) |
 | `docs/testing-policy.md` | Going-forward testing policy from Phase 3.5 (new mutation hook → hook test required) |
 | `docs/testing-patterns.md` | Canonical client test pattern catalog from Phase 3.5 |
-| `docs/roadmap.md` | Higher-altitude v1 + beyond plan — completed phases, Phase 4/5 outlines, Prod cutover runbook, v1.5 candidates |
+| `docs/roadmap.md` | Higher-altitude v1 + beyond plan — completed phases, Phase 4-8 outlines, v1.5/v2, carry-forward index. **Restructured 2026-05-03** to formally place every carry-forward into a phase. |
 
 ## Key user preferences (in memory under `~/.claude/projects/d--Dev-auction-os/memory/`)
 
