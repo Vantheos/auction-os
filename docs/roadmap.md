@@ -23,7 +23,12 @@
 
 ## v1 — remaining
 
-### Phase 4 — Settings + Users + Customers/Jobs polish ⬜
+### Phase 4 — Settings + Users + Customers/Jobs polish 🟡
+
+**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](./superpowers/specs/2026-05-03-phase-4-design.md) — drafted 2026-05-03, not started. Authoritative for scope, decisions, and acceptance gate.
+
+**Branch:** `phase-4-settings-users` (to be created off `phase-3-5-test-infra` when implementation begins).
+**Effort estimate:** ~3.5 days across 5 areas.
 
 Completes the admin/config surface that was placeholder-only after Phase
 3.5. Settings page becomes fully functional; user management graduates
@@ -192,6 +197,7 @@ surfaces that emerge from v1 production use.
   - [Phase 2 design](./superpowers/specs/2026-04-30-phase-2-design.md) — signed off
   - [Phase 3 design](./superpowers/specs/2026-05-01-phase-3-design.md) — signed off
   - [Phase 3.5 design](./superpowers/specs/2026-05-02-phase-3-5-design.md) — signed off
+  - [Phase 4 design](./superpowers/specs/2026-05-03-phase-4-design.md) — drafted 2026-05-03, not started
 - **Implementation plans (per-phase):** [`docs/superpowers/plans/`](./superpowers/plans/)
 - **Testing policy:** [`docs/testing-policy.md`](./testing-policy.md)
 - **Testing patterns:** [`docs/testing-patterns.md`](./testing-patterns.md)

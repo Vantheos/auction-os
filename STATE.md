@@ -104,17 +104,20 @@ User-driven manual click-through against the preview surfaced a long list of iss
 
 ## Next: Phase 4 — Settings + Users + Customers/Jobs polish
 
-**Status:** Not started. Spec to be drafted via top-down discussion (one focused round per area, per prior-phase pattern).
+**Status:** 🟡 Spec drafted (2026-05-03), not started. Branch `phase-4-settings-users` to be created off `phase-3-5-test-infra` when implementation begins.
+**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](docs/superpowers/specs/2026-05-03-phase-4-design.md) — authoritative for scope, decisions, and acceptance gate.
+**Effort estimate:** ~3.5 days.
 
-**Scope (full breakdown in `docs/roadmap.md` Phase 4 section):**
-- Settings → AI Schedule panel: replace placeholder with working form (on/off, frequency, time-of-day) — saves to existing `system_settings.aiSchedule*` columns; Phase 6 reads from those
-- Settings → drop "Organization" placeholder section entirely
-- `/users` admin UI: list, add (email/password/role/displayName), inline role change, deactivate, hard delete
-- `app_user.active` migration (boolean column; JWT hook checks it before issuing role claim)
-- Customers/Jobs visibility polish: bump "View jobs →" link to a more prominent button (job creation already exists in `/customers/:id` — just easy to miss)
-- Enable `/users` nav link (currently `enabled: false`)
+**5 areas (full breakdown + locked decisions in spec):**
+- **Area 1** — `app_user.disabled_at` + JWT hook gate; self-disable + last-admin server policies. Migration `0009_jwt_hook_check_disabled.sql`.
+- **Area 2** — `/users` admin UI: list with email enrichment, add-user dialog, inline role change with confirm, disable / re-enable with confirm. **No hard delete in UI** (FK-blocked for users with lots; out-of-band cleanup via Supabase dashboard for narrow typo case).
+- **Area 3** — Settings → AI Schedule panel: enable toggle + interval-hours select (4 / 8 / 12 / 24) + time-of-day input. Schema migration `0010_ai_schedule_interval_hours.sql` replaces the `(hourly, daily)` enum with `aiScheduleIntervalHours int`.
+- **Area 4** — Drop "Organization" placeholder section from Settings (trivial).
+- **Area 5** — Customers/Jobs polish: whole-row-clickable rows + ChevronRight icon + hover state + description text + customer search input.
 
-All Phase 4 mutation hooks must follow `docs/testing-policy.md` — invalidation + error toast tests at minimum, optimistic if applicable.
+All new mutation hooks must follow `docs/testing-policy.md` — invalidation + error toast at minimum.
+
+Phase 5 (Auction Platform Export) becomes "next" once Phase 4 signs off.
 
 ## Phase 2 status: ✅ signed off (2026-05-01)
 
