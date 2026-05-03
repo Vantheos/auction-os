@@ -1,8 +1,9 @@
 # Phase 3.5 — Client test infrastructure
 
+> **Status:** ✅ **SIGNED OFF** on 2026-05-02 late evening. See `STATE.md` for the outcome and any spec deviations captured during execution. This document is preserved as a snapshot of the planned scope.
+>
 > **Date:** 2026-05-02 (originally drafted 2026-05-02 PM; expanded scope 2026-05-02 evening after Phase 3 sign-off testing wrapped)
-> **Status:** Drafted, not started — agreed scope locked in
-> **Branch:** `phase-3-5-test-infra` off `phase-3-mobile-cataloging` after Phase 3 signs off
+> **Branch:** `phase-3-5-test-infra` (created off `phase-3-mobile-cataloging`)
 > **Slot:** Between Phase 3 sign-off and Phase 4 kickoff
 > **Trigger:** The Phase 3 sign-off cycle exposed a much larger set of React Query / form-state / hook-wiring bugs than the original spec anticipated. Phase 4 (AI subsystem) will add 5-10+ new mutation hooks; we need a safety net before then.
 
