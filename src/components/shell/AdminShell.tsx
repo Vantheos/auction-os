@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { signOut, useSession, useRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
 
 type AllowedRoles = ('admin' | 'office' | 'warehouse')[];
 
@@ -17,6 +18,7 @@ export function AdminShell() {
   const { session } = useSession();
   const role = useRole();
   const navigate = useNavigate();
+  const { clearAll } = useToast();
 
   const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
@@ -25,7 +27,12 @@ export function AdminShell() {
   // sees the session vanish at /<current path> and bounces to
   // /login?redirect=/<current path> — which would then override the next
   // user's role-home on sign-in.
+  //
+  // clearAll() drops any persistent toasts (e.g., the user-creation password
+  // toast which has a 30s duration but might still be on screen) so they
+  // don't carry over into the next user's session.
   const handleSignOut = () => {
+    clearAll();
     navigate('/login', { replace: true });
     void signOut();
   };

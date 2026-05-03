@@ -243,14 +243,15 @@ function NewUserButton() {
   const onCreate = async () => {
     try {
       await create.mutateAsync({ email: email.trim(), password, role, displayName: displayName.trim() });
-      // durationMs: 0 — toast stays open until admin dismisses, so the
-      // initial password isn't lost to a 5-second auto-dismiss before
-      // they've shared it with the user.
+      // 30-second duration — long enough for the admin to capture the
+      // initial password before auto-dismiss; short enough that the toast
+      // doesn't persist across sign-out into the next user's session.
+      // (AdminShell.handleSignOut also calls clearAll() as a backstop.)
       toast({
         title: 'User created',
         description: `Initial password: ${password} — share securely with the user.`,
         variant: 'success',
-        durationMs: 0,
+        durationMs: 30000,
       });
       onClose();
     } catch (err) {

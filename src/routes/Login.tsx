@@ -10,7 +10,14 @@ export function Login() {
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // ?inactive=1 set by ProtectedRoute when a disabled user lands here after
+  // their session is signed out client-side. Surface the reason so they
+  // know to contact an admin rather than retry blindly.
+  const [error, setError] = useState<string | null>(
+    params.get('inactive') === '1'
+      ? 'This account has been disabled. Contact an admin to regain access.'
+      : null,
+  );
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {

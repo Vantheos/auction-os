@@ -17,6 +17,10 @@ type ToastEntry = ToastInput & { id: number };
 type Ctx = {
   toast: (t: ToastInput) => void;
   dismiss: (id: number) => void;
+  // Clear ALL active toasts. Called on sign-out so user-creation password
+  // toasts (and any other persistent ones) don't survive into the next
+  // user's session.
+  clearAll: () => void;
   toasts: ToastEntry[];
 };
 
@@ -28,6 +32,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback((id: number) => {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
+  const clearAll = useCallback(() => {
+    setToasts([]);
+  }, []);
   const toast = useCallback((t: ToastInput) => {
     const id = nextId++;
     setToasts((curr) => [...curr, { ...t, id }]);
@@ -36,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setTimeout(() => dismiss(id), ms);
     }
   }, [dismiss]);
-  return <ToastCtx.Provider value={{ toast, dismiss, toasts }}>{children}</ToastCtx.Provider>;
+  return <ToastCtx.Provider value={{ toast, dismiss, clearAll, toasts }}>{children}</ToastCtx.Provider>;
 }
 
 // react-refresh/only-export-components: useToast reads ToastCtx defined
