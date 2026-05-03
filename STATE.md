@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-02 evening. **Phase 3 (Mobile cataloging + photo pipeline + login routing + role gating + cleanup-orphan-lots cron) signed off** after thorough sign-off testing across Sections A through F. 144/144 vitest suite green; lint 0/0; build clean. Branch `phase-3-mobile-cataloging` at `f83043f`, 38 commits ahead of `phase-2-lot-lifecycle`. **Next:** Phase 3.5 — client test infrastructure (spec at `docs/superpowers/specs/2026-05-02-phase-3-5-design.md`).
+> Last updated 2026-05-02 late evening. **Phase 3.5 (Client test infrastructure) signed off.** Workstreams A→B→C→E→D complete; 175/175 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — AI subsystem (title/description/reference price generation) + Playwright workstream. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
 
 ## Phase 3 status: ✅ signed off
 
@@ -65,20 +65,49 @@ User-driven manual click-through against the preview surfaced a long list of iss
 | T-G5 | Audit reporting view | Later phase |
 | T-G6 | First-run / empty states polish | Pre-Prod cutover polish PR |
 
-## Next: Phase 3.5 — Client test infrastructure
+## Phase 3.5 status: ✅ signed off (2026-05-02 late evening)
 
-**Spec:** `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — drafted with **expanded scope** as of 2026-05-02 evening.
-**Status:** Drafted, NOT started. Branch `phase-3-5-test-infra` to be created off `phase-3-mobile-cataloging` when starting.
-**Effort:** ~2.5 days.
+**Spec:** `docs/superpowers/specs/2026-05-02-phase-3-5-design.md`
+**Branch:** `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`.
+**Effort actual:** Single sitting; estimate was ~2.5 days.
 
-5 workstreams:
-- **A.** Test infrastructure setup (vitest env switch, `@testing-library/react` + `happy-dom`, `mockApi` helper, `render-with-providers` helper). 0.5 day.
-- **B.** Canonical reference patterns (query invalidation, optimistic update + rollback, error toast wiring, role-gated render). 0.5 day.
-- **C.** Backfill regression tests for 9 bugs from the Phase 3 sign-off batch (expanded from original 4). ~1 day.
-- **D.** Going-forward rule (new mutation hook → hook test required). 0.25 day.
-- **E.** Server-side helper extraction (shared state-transition logic between single PATCH and bulk change-state). 0.25 day.
+| Item | Status |
+|---|---|
+| Vitest suite | ✅ 175 tests passing (was 144 after Phase 3; +31 in 3.5: 4 helper-test infra, 6 patterns, 19 backfill, 4 stateTransitionFields) |
+| Vitest workspace split (api/client projects) | ✅ shipped — `vitest.workspace.ts` |
+| Client test deps | ✅ `@testing-library/{react,user-event,jest-dom}`, `happy-dom` |
+| Helpers | ✅ `render-with-providers.tsx`, `mock-api.ts`, `fixtures.ts`, `setup-api.ts`, `setup-client.ts` |
+| Canonical patterns (4 files) | ✅ `tests/client/patterns/01-04-*.test.tsx` |
+| Backfill regression tests (C1-C9) | ✅ 7 test files / 19 tests, mirroring the Phase 3 sign-off bug classes |
+| Server helper extraction (E) | ✅ `stateTransitionFields()` in `api/_lib/lot-state.ts`; both single PATCH and bulk change-state use it |
+| Going-forward policy doc | ✅ `docs/testing-policy.md` |
+| Pattern catalog doc | ✅ `docs/testing-patterns.md` |
+| Lint | ✅ 0 errors, 0 warnings |
+| Build | ✅ clean, 5.37s; bundle output unchanged from main |
 
-Playwright e2e deliberately deferred to Phase 4 (rationale in spec §4).
+**Spec deviations captured during execution:**
+- A's `environmentMatchGlobs` approach (single config) didn't survive `singleFork: true` — happy-dom's globalThis install doesn't reliably reset between mixed node/dom files in one fork. Pivoted to `vitest.workspace.ts` with two projects (api: node + singleFork; client: happy-dom). Same outcome as spec, different mechanism.
+- Setup file split forced by the workspace pivot: `setup-api.ts` (dotenv + JWKS) and `setup-client.ts` (jest-dom matchers + RTL cleanup + unhandled-rejection silencer for the intentional RHF re-throw pattern).
+- `renderHookWithProviders` added to the helper (not in original spec) — needed by pattern 02 since useMutation hooks can't be tested through `render()` alone.
+- C4 (LotDetail toast wiring) covers save + delete paths only; state-change and move share the same wiring shape, deferred per `docs/testing-policy.md` known gaps until those flows are touched.
+- C9 (upload-processor invalidation timing) shipped successfully — the OOM I hit on the first attempt was a mock-state issue (idb queue mock returned the same entry forever), fixed by mutating shared queue state in the mock.
+
+## Phase 3.5 carry-forwards (DEFERRED — explicitly agreed)
+
+| ID | Item | Status |
+|---|---|---|
+| T-3.5-G1 | LotDetail state-change + move toast tests | Defer until those flows change; pattern is pinned by save + delete tests. Documented in `docs/testing-policy.md` |
+| T-3.5-G2 | upload-processor retry/backoff path tests | Defer; mocking surface too large vs. ROI. Documented in `docs/testing-policy.md` |
+| T-3.5-G3 | Playwright e2e for golden-path flows | Phase 4 workstream — see Phase 3.5 spec §4 for the 5-10 spec list |
+
+## Next: Phase 4 — AI subsystem + Playwright
+
+**Status:** Not started. Spec to be drafted via top-down discussion (one focused round per area, per prior-phase pattern).
+
+Scope per Phase 3 carry-forward T-G3 + Phase 3.5 deferral T-3.5-G3:
+- AI subsystem: title/description/reference price generation per lot, schedule config, status flips, cost tracking
+- Playwright workstream: 5-10 golden-path specs (login routing, inventory CRUD, bulk delete, move, catalog session, role gating, pull-to-refresh persistence)
+- AI mutation hooks must follow the testing policy from Phase 3.5 (`docs/testing-policy.md`)
 
 ## Phase 2 status: ✅ signed off (2026-05-01)
 
@@ -104,7 +133,8 @@ Playwright e2e deliberately deferred to Phase 4 (rationale in spec §4).
 | `main` | `7bbeee0` (36 commits — same as Phase 1 sign-off point) | same |
 | `phase-1-foundation` | `70cc776` (43 commits) | same |
 | `phase-2-lot-lifecycle` | `a517f9d` (signed off; 67 commits ahead of phase-1) | same |
-| `phase-3-mobile-cataloging` | `f83043f` (signed off; 38 commits ahead of phase-2) | same |
+| `phase-3-mobile-cataloging` | `7d15a35` (signed off; 38 commits ahead of phase-2) | same |
+| `phase-3-5-test-infra` | `aff9716` (signed off; 5 commits ahead of phase-3) | same |
 
 `main` unchanged from original Phase 1 deploy point. Per branch strategy memory rule, we never push to `main` until v1 cutover.
 
@@ -152,24 +182,33 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 
 ## Resume prompt (paste verbatim into a new context window)
 
-> Welcome back. Read `STATE.md` first. Phase 3 of auction-os is **fully signed off** (2026-05-02 evening). The next thing to do is **Phase 3.5 — Client test infrastructure**, spec at `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` (expanded scope as of 2026-05-02 evening).
+> Welcome back. Read `STATE.md` first. Phase 3 AND Phase 3.5 of auction-os are **fully signed off** (2026-05-02 late evening). The next thing to do is **Phase 4 — AI subsystem + Playwright workstream**. Spec to be drafted via top-down discussion (one focused round per area, per prior-phase pattern).
 >
-> **Phase 3.5 plan:** 5 workstreams (A test infra → B canonical patterns → C backfill 9 regression tests → E server helper extraction → D going-forward rule docs). ~2.5 days estimated. Branch `phase-3-5-test-infra` to be created off `phase-3-mobile-cataloging` when starting.
+> **Phase 4 scope (top-down spec needed):**
+> - AI subsystem per Phase 3 carry-forward T-G3: title / description / reference price generation per lot, schedule config, status flips, cost tracking
+> - Playwright workstream per Phase 3.5 deferral T-3.5-G3: 5-10 golden-path specs (login routing, inventory CRUD, bulk delete, move, catalog session, role gating, pull-to-refresh persistence)
+> - AI mutation hooks must follow the testing policy from Phase 3.5 (`docs/testing-policy.md`) — invalidation + error path tests at minimum, optimistic if applicable
 >
-> **Carry-forwards from Phase 3** (DO NOT TOUCH unless user brings up):
+> **Carry-forwards still alive:**
+> From Phase 3 (DO NOT TOUCH unless user brings up):
 > - T-G1 Physical Zebra ZD450 — defer until hardware on hand; mandatory before Prod
 > - T-G2 Audit-log SQL spot-check — defer to Prod cutover
-> - T-G3 AI subsystem — Phase 4
 > - T-G4 /users admin UI — later phase
 > - T-G5 Audit reporting view — later phase
 > - T-G6 First-run / empty states polish — pre-Prod cutover polish PR
 >
-> **Branch state:** `phase-3-mobile-cataloging` at `f83043f`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
+> From Phase 3.5 (documented in `docs/testing-policy.md` known gaps):
+> - T-3.5-G1 LotDetail state-change + move toast tests — add when those flows change
+> - T-3.5-G2 upload-processor retry/backoff path tests — add when retry logic changes
+>
+> **Branch state:** `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. `phase-3-mobile-cataloging` at `7d15a35`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
 >
 > **Companion docs:**
-> - `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — Phase 3.5 spec (expanded scope)
-> - `docs/superpowers/specs/2026-05-01-phase-3-design.md` — Phase 3 spec (signed off)
 > - `docs/superpowers/specs/2026-04-29-v1-design.md` — overall v1 design (authoritative for product decisions)
+> - `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — Phase 3.5 spec (signed off, historical)
+> - `docs/superpowers/specs/2026-05-01-phase-3-design.md` — Phase 3 spec (signed off, historical)
+> - `docs/testing-policy.md` — going-forward testing policy from Phase 3.5
+> - `docs/testing-patterns.md` — canonical client test pattern catalog
 > - `~/.claude/projects/d--Dev-auction-os/memory/MEMORY.md` — feedback rules + project memory
 >
 > **Critical memory rules to honor** (these override defaults):
@@ -181,7 +220,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 > - Don't offer "minimal" or workaround fixes; default to the proper fix
 > - Validate speculative benefits before listing them in option analysis
 >
-> **What to do first:** Confirm Phase 3.5 spec scope is still aligned with user expectation. If yes, propose the start of workstream A (test infra setup) and ask for green light to create the new branch + add deps. Do NOT start implementation without explicit go-ahead — the user prefers top-down confirmation before each major chunk.
+> **What to do first:** Open the Phase 4 spec discussion using the same top-down one-focused-round-per-area pattern from Phases 2 and 3. Start with high-level scope confirmation (AI subsystem boundaries, Playwright golden-path list), then drill into each area. Branch `phase-4-ai` (or similar) to be created off `phase-3-5-test-infra` once the spec is locked. Do NOT start implementation without explicit go-ahead.
 
 ## Files of record
 
@@ -195,7 +234,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 | `.claude/settings.local.json` | User-private allowlist — gitignored |
 | `package.json` | Phase 1-3 deps (Hono removed); scripts incl. `env:verify`, `env:setup`, `dev`, `build`, `typecheck`, `test`, `seed:admin`, `seed:test-lots`, `db:generate`, `db:push`, `probe:preview` |
 | `vercel.ts` | Build/runtime config, SPA fallback rewrite, cache headers, cron schedule |
-| `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `vitest.config.ts`, `playwright.config.ts` | Build/test config |
+| `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` | Build/test config (workspace splits api + client vitest projects) |
 | `src/styles/globals.css` | Global CSS incl. mobile font-size enforcement (16px !important under 767px) |
 | `src/components/ui/dialog.tsx` | Shared Dialog primitive with `fullScreenOnMobile`, `max-h-[90vh]`, `dvh`, safe-area-inset-bottom |
 | `src/components/ui/toast.tsx` | Toaster at z-[60] (above Dialog) |
@@ -216,9 +255,13 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 | `api/_lib/storage.ts` | Supabase storage helpers — `Transform` type incl. `resize` |
 | `api/lots/[id]/photos.ts` | Photos GET with `resize: 'contain'` to preserve aspect ratio |
 | `supabase/config.toml`, `supabase/migrations/0000-0008*.sql` | 8 migrations (Phase 1: 5, Phase 2: 1, Phase 3: 2) |
-| `tests/api/*.test.ts`, `tests/lib/*.test.ts`, `tests/helpers/*.ts` | 144 tests (server-side only — Phase 3.5 will add `tests/client/`) |
+| `tests/api/*.test.ts`, `tests/lib/*.test.ts`, `tests/helpers/*.ts` | API project: 144+ tests (node env, singleFork for DB serialization) |
+| `tests/client/**/*.test.tsx`, `tests/client/patterns/*.test.tsx` | Client project: 31 tests (happy-dom env) — patterns + hooks + components + lib backfill from Phase 3.5 |
+| `tests/helpers/render-with-providers.tsx`, `mock-api.ts`, `fixtures.ts`, `setup-api.ts`, `setup-client.ts` | Test infrastructure (Phase 3.5) |
 | `docs/superpowers/specs/` | All design specs (2026-04-29 v1 design, 2026-04-30 phase-2, 2026-05-01 phase-3, 2026-05-02 phase-3.5) |
 | `docs/superpowers/plans/` | Phase 1, 2, 3 implementation plans (historical record) |
+| `docs/testing-policy.md` | Going-forward testing policy from Phase 3.5 (new mutation hook → hook test required) |
+| `docs/testing-patterns.md` | Canonical client test pattern catalog from Phase 3.5 |
 
 ## Key user preferences (in memory under `~/.claude/projects/d--Dev-auction-os/memory/`)
 
