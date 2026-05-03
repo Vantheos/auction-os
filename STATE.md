@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-03 evening (roadmap restructured). **Phase 3.5 (Client test infrastructure) signed off.** Carry-forwards T-3.5-G1 and T-3.5-G2 closed in cleanup commit `e271015` (also caught + fixed a missing `invalidateQueries` in the upload-processor's transient cap-promotion path). 181/181 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra`, 9+ commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — Settings + Users + Customers/Jobs polish. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
+> Last updated 2026-05-03 late evening. **Phase 4 (Settings + Users + Customers/Jobs polish) signed off.** All 5 areas shipped, manual sign-off batch caught + fixed a toast-persistence bug, a disabled-user login hang, and a useSession race condition I introduced in the disabled-detection logic. 214/214 vitest suite green; lint 0/0; build clean. Branch `phase-4-settings-users` at `fc2bb25`, 7 commits ahead of `phase-3-5-test-infra`. **Next:** Phase 5 — Auction Platform Export. User will provide the first auction platform's CSV specs at planning time.
 >
 > **For the full v1 + beyond phase plan, see [`docs/roadmap.md`](docs/roadmap.md).** This file (`STATE.md`) is the live tracker for the current branch + immediate next steps; the roadmap doc is the higher-altitude view of all remaining phases through v1 cutover and into v1.5.
 
@@ -63,7 +63,7 @@ User-driven manual click-through against the preview surfaced a long list of iss
 | T-G1 | Physical Zebra ZD450 round-trip test | → **Phase 7** (Label printing) |
 | T-G2 | Audit-log SQL spot-check | → **Phase 8** (Cutover) step 4 |
 | T-G3 | AI subsystem (title/description/reference price generation) | → **Phase 6** (AI subsystem) |
-| T-G4 | /users admin UI | → **Phase 4** (Settings + Users) |
+| ~~T-G4~~ | ~~/users admin UI~~ | **CLOSED 2026-05-03** in Phase 4 commit `0a81933`. List + add + role change with confirm + disable/re-enable with confirm. No hard delete in UI per spec §3.2. |
 | T-G5 | Audit reporting view | → **v2** (Reporting module) |
 | ~~T-G6~~ | ~~First-run / empty states polish~~ | **ELIMINATED** — single-tenant hands-on install per client; practical value too low |
 
@@ -102,22 +102,43 @@ User-driven manual click-through against the preview surfaced a long list of iss
 | ~~T-3.5-G2~~ | ~~upload-processor retry/backoff path tests~~ | **CLOSED 2026-05-02** — written in commit `e271015`. Permanent-failure and transient cap-reached paths tested. Source bug found and fixed in same commit: cap-promotion path was missing `invalidateQueries`, inconsistent with success/permanent paths. Under-cap retry-schedule path remains explicitly untested (mechanical timer choreography); see `docs/testing-policy.md` known gaps. |
 | T-3.5-G3 | Playwright e2e for golden-path flows | → **v1.5** (Playwright phase). Decoupled from AI during Phase 4 grouping discussion — AI is mostly backend with minimal new UI surface, so Playwright value is independent and earned its own slot. |
 
-## Next: Phase 4 — Settings + Users + Customers/Jobs polish
+## Phase 4 status: ✅ signed off (2026-05-03 late evening)
 
-**Status:** 🟡 Spec drafted (2026-05-03), not started. Branch `phase-4-settings-users` to be created off `phase-3-5-test-infra` when implementation begins.
-**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](docs/superpowers/specs/2026-05-03-phase-4-design.md) — authoritative for scope, decisions, and acceptance gate.
-**Effort estimate:** ~3.5 days.
+**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](docs/superpowers/specs/2026-05-03-phase-4-design.md)
+**Branch:** `phase-4-settings-users` at `fc2bb25`, 7 commits ahead of `phase-3-5-test-infra`.
+**Actual effort:** Single sitting. Estimate was ~3.5 days.
 
-**5 areas (full breakdown + locked decisions in spec):**
-- **Area 1** — `app_user.disabled_at` + JWT hook gate; self-disable + last-admin server policies. Migration `0009_jwt_hook_check_disabled.sql`.
-- **Area 2** — `/users` admin UI: list with email enrichment, add-user dialog, inline role change with confirm, disable / re-enable with confirm. **No hard delete in UI** (FK-blocked for users with lots; out-of-band cleanup via Supabase dashboard for narrow typo case).
-- **Area 3** — Settings → AI Schedule panel: enable toggle + interval-hours select (4 / 8 / 12 / 24) + time-of-day input. Schema migration `0010_ai_schedule_interval_hours.sql` replaces the `(hourly, daily)` enum with `aiScheduleIntervalHours int`.
-- **Area 4** — Drop "Organization" placeholder section from Settings (trivial).
-- **Area 5** — Customers/Jobs polish: whole-row-clickable rows + ChevronRight icon + hover state + description text + customer search input.
+| Item | Status |
+|---|---|
+| Vitest suite | ✅ 214 tests passing (was 181 after Phase 3.5; +33 in Phase 4: 9 Area 1, 12 Area 2, 8 Area 3, 4 Area 5) |
+| Migrations applied to Dev + Test | ✅ `0009_jwt_hook_check_disabled.sql`, `0010_ai_schedule_interval_hours.sql` |
+| Area 1 — JWT hook gate + last-admin protection | ✅ commit `b6b771a` |
+| Area 2 — `/users` admin UI | ✅ commit `0a81933` |
+| Area 3 — AI Schedule panel + integer-hours schema | ✅ commit `4704c06` |
+| Area 4 — drop Organization placeholder | ✅ commit `d356361` |
+| Area 5 — Customers/Jobs polish + customer search | ✅ commit `0656c97` |
+| Lint | ✅ 0 errors, 0 warnings |
+| Build | ✅ clean, ~5.3s |
+| Manual sign-off click-through | ✅ all 7 acceptance items pass |
 
-All new mutation hooks must follow `docs/testing-policy.md` — invalidation + error toast at minimum.
+## Phase 4 manual sign-off bug fix batch
 
-Phase 5 (Auction Platform Export) becomes "next" once Phase 4 signs off.
+User-driven manual click-through against the preview surfaced 2 real bugs and revealed 1 race condition I introduced while fixing the second. All resolved on `phase-4-settings-users`.
+
+| # | Issue | Resolution | Commit |
+|---|---|---|---|
+| 1 | New-user toast persisted across logout/login. `durationMs: 0` (manual dismiss only) survived sign-out because toast state lives in App-level React state; navigate to `/login` doesn't unmount the app. Next user landed on their page seeing the previous user's "User created" toast. | `Users.tsx` durationMs 0 → 30000; added `clearAll()` to ToastCtx; `AdminShell.handleSignOut` calls `clearAll()` as a backstop for any future persistent toasts. | `ff84514` |
+| 2 | Disabled user attempting to sign in hung on Loading indefinitely. Supabase auth still succeeds for disabled users (auth.users isn't gated — only app_user.disabled_at); JWT carries app_metadata.role=null because of the gated hook; `RoleHomeRedirect` early-returns on null role. | `ProtectedRoute` detects "session present + role null" → fires `signOut()` and Navigate to `/login?inactive=1`; `Login.tsx` reads `?inactive=1` and shows "This account has been disabled. Contact an admin to regain access." | `ff84514` |
+| 3 | Race condition introduced in commit `ff84514` — every user got bounced to `/login?inactive=1` on first mount. Cause: `ProtectedRoute` called `useSession()` AND `useRole()` (which internally calls `useSession()` again); each instance has its own async resolution. Briefly, outer instance had session=present + loading=false while inner instance still had session=null → role evaluated to null → disabled-detection fired for every user. | Extracted pure `roleFromSession(session)` helper from `useRole`; `ProtectedRoute` now derives role from the SAME session it's already reading. Single source of truth, no race. | `fc2bb25` |
+
+**Deviations captured during execution:**
+- Area 1 last-admin protection extended to cover role-demote (not just disable). Same intent: don't leave the system without an active admin. Used generic `CANNOT_REMOVE_LAST_ADMIN` error code instead of disable-specific name. Small spec extension; documented in commit message.
+- Area 2 add-user toast set to `durationMs: 30000` after sign-off testing (originally `durationMs: 0`). 30s is plenty for password capture; doesn't survive sign-out.
+- `roleFromSession` helper added to `src/lib/auth.ts` as fallout of the race-condition fix. Useful for any future component that needs the role of a session it's already holding without subscribing again.
+
+## Next: Phase 5 — Auction Platform Export
+
+**Spec to be drafted** via top-down discussion at the start of the next session. Captured decisions (column mapping shape Option B, default platform seeded from real specs, image upload deferred) live in [`docs/roadmap.md`](docs/roadmap.md) Phase 5 section. User will provide the first auction platform's CSV specs at planning time.
 
 ## Phase 2 status: ✅ signed off (2026-05-01)
 
@@ -144,7 +165,8 @@ Phase 5 (Auction Platform Export) becomes "next" once Phase 4 signs off.
 | `phase-1-foundation` | `70cc776` (43 commits) | same |
 | `phase-2-lot-lifecycle` | `a517f9d` (signed off; 67 commits ahead of phase-1) | same |
 | `phase-3-mobile-cataloging` | `7d15a35` (signed off; 38 commits ahead of phase-2) | same |
-| `phase-3-5-test-infra` | `aff9716` (signed off; 5 commits ahead of phase-3) | same |
+| `phase-3-5-test-infra` | `7218165` (signed off; 11 commits ahead of phase-3) | same |
+| `phase-4-settings-users` | `fc2bb25` (signed off; 7 commits ahead of phase-3-5) | same |
 
 `main` unchanged from original Phase 1 deploy point. Per branch strategy memory rule, we never push to `main` until v1 cutover.
 
@@ -226,9 +248,14 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 | `api/lots/bulk.ts` | Bulk operations — admin/office for change-state/move; admin only for delete |
 | `api/_lib/storage.ts` | Supabase storage helpers — `Transform` type incl. `resize` |
 | `api/lots/[id]/photos.ts` | Photos GET with `resize: 'contain'` to preserve aspect ratio |
-| `supabase/config.toml`, `supabase/migrations/0000-0008*.sql` | 8 migrations (Phase 1: 5, Phase 2: 1, Phase 3: 2) |
-| `tests/api/*.test.ts`, `tests/lib/*.test.ts`, `tests/helpers/*.ts` | API project: 144+ tests (node env, singleFork for DB serialization) |
-| `tests/client/**/*.test.tsx`, `tests/client/patterns/*.test.tsx` | Client project: 31 tests (happy-dom env) — patterns + hooks + components + lib backfill from Phase 3.5 |
+| `supabase/config.toml`, `supabase/migrations/0000-0010*.sql` | 11 migrations (Phase 1: 5, Phase 2: 1, Phase 3: 2, Phase 4: 2 — JWT hook gate + AI schedule integer hours, Phase 3.5 added no migrations) |
+| `src/routes/Users.tsx`, `src/hooks/useUsers.ts` | Phase 4 — `/users` admin UI + hooks (CRUD via existing `/api/users` endpoints) |
+| `api/users/index.ts` | List enriched with email via Supabase admin client; POST creates auth.users + app_user atomically |
+| `api/users/[id].ts` | PATCH with self-disable rejection + last-admin protection (Phase 4 Area 1) |
+| `src/lib/auth.ts` | `useSession`, `useRole`, `roleFromSession` (Phase 4 race-fix helper); `signIn` / `signOut` |
+| `src/components/auth/ProtectedRoute.tsx` | Disabled-session detection + Navigate to `/login?inactive=1` (Phase 4) |
+| `tests/api/*.test.ts`, `tests/lib/*.test.ts`, `tests/helpers/*.ts` | API project: 153+ tests (node env, singleFork for DB serialization). +9 in Phase 4 Area 1 (JWT hook + user policy). |
+| `tests/client/**/*.test.tsx`, `tests/client/patterns/*.test.tsx` | Client project: 55+ tests (happy-dom env). +12 in Phase 4 Area 2 (Users hooks + components), +8 in Area 3 (Settings hook + AI schedule panel), +4 in Area 5 (Customers polish). |
 | `tests/helpers/render-with-providers.tsx`, `mock-api.ts`, `fixtures.ts`, `setup-api.ts`, `setup-client.ts` | Test infrastructure (Phase 3.5) |
 | `docs/superpowers/specs/` | All design specs (2026-04-29 v1 design, 2026-04-30 phase-2, 2026-05-01 phase-3, 2026-05-02 phase-3.5) |
 | `docs/superpowers/plans/` | Phase 1, 2, 3 implementation plans (historical record) |

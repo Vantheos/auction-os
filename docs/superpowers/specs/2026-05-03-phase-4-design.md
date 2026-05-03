@@ -1,7 +1,8 @@
 # Phase 4 — Settings + Users + Customers/Jobs polish
 
+> **Status:** ✅ **SIGNED OFF** on 2026-05-03 evening at branch `phase-4-settings-users` HEAD `fc2bb25`. See `STATE.md` for the manual sign-off bug fix batch and final outcomes. This document is preserved as a snapshot of the planned scope.
+>
 > **Date:** 2026-05-03 (planning round)
-> **Status:** Drafted, not started — agreed scope locked in
 > **Branch:** `phase-4-settings-users` off `phase-3-5-test-infra`
 > **Slot:** Between Phase 3.5 sign-off and Phase 5 (Auction Platform Export)
 > **Trigger:** Phase 3.5 left the Settings page partially placeholder (`AI schedule` and `Organization` sections shipped as "Configured in a future phase"), the `/users` nav link greyed-out as `(later)`, and the customer-jobs flow with a discoverable-but-easy-to-miss entry point. This phase completes the admin/config surface so the bootstrap admin can manage users + configure AI scheduling without raw SQL access, and bumps customer-list ergonomics ahead of Phase 5's auction-platform configuration arriving in the same Settings page.

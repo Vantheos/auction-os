@@ -20,15 +20,16 @@
 | 2 | Lot lifecycle — CRUD, state machine, bulk actions, label print | ✅ | `phase-2-lot-lifecycle` @ `a517f9d` |
 | 3 | Mobile cataloging + photo pipeline + login routing + role gating + cleanup-orphan-lots cron | ✅ | `phase-3-mobile-cataloging` @ `7d15a35` |
 | 3.5 | Client test infrastructure — RTL + happy-dom + canonical patterns + 19-item sign-off bug backfill | ✅ | `phase-3-5-test-infra` @ `f189cc6` |
+| 4 | Settings + Users + Customers/Jobs polish — `/users` admin UI, `disabled_at` JWT gate, AI Schedule panel + integer-hours schema, customer search + whole-row click | ✅ | `phase-4-settings-users` @ `fc2bb25` |
 
 ## v1 — remaining
 
-### Phase 4 — Settings + Users + Customers/Jobs polish 🟡
+### Phase 4 — Settings + Users + Customers/Jobs polish ✅
 
-**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](./superpowers/specs/2026-05-03-phase-4-design.md) — drafted 2026-05-03, not started. Authoritative for scope, decisions, and acceptance gate.
+**Spec:** [`docs/superpowers/specs/2026-05-03-phase-4-design.md`](./superpowers/specs/2026-05-03-phase-4-design.md) — signed off 2026-05-03.
 
-**Branch:** `phase-4-settings-users` (to be created off `phase-3-5-test-infra` when implementation begins).
-**Effort estimate:** ~3.5 days across 5 areas.
+**Branch:** `phase-4-settings-users` @ `fc2bb25` — 7 commits ahead of `phase-3-5-test-infra` (5 area commits + 2 sign-off bug fixes).
+**Actual effort:** Single sitting. Estimate was ~3.5 days.
 
 Completes the admin/config surface that was placeholder-only after Phase
 3.5. Settings page becomes fully functional; user management graduates
@@ -59,7 +60,7 @@ discoverability bump.
 
 **T-G4** (Phase 3 carry-forward) is fully addressed by this phase.
 
-### Phase 5 — Auction Platform Export ⬜
+### Phase 5 — Auction Platform Export ⬜ (next)
 
 Replaces the current hardcoded 15-column CSV export with a configurable
 multi-platform system. v1 ships with one platform but the structure
@@ -182,7 +183,7 @@ surfaces that emerge from v1 production use.
 | T-G1 | Physical Zebra ZD450 round-trip test | → Phase 7 (Label printing) |
 | T-G2 | Audit-log SQL spot-check | → Phase 8 (Cutover) step 4 |
 | T-G3 | AI subsystem | → Phase 6 (AI subsystem) |
-| T-G4 | `/users` admin UI | → Phase 4 (Settings + Users) |
+| ~~T-G4~~ | `/users` admin UI | **CLOSED 2026-05-03** in Phase 4. Branch `phase-4-settings-users` @ `fc2bb25`. |
 | T-G5 | Audit reporting view | → v2 (Reporting module) |
 | T-G6 | First-run / empty-states polish | **ELIMINATED** |
 | T-3.5-G1 | LotDetail state-change + move toast tests | **CLOSED 2026-05-02** in commit `e271015` |
