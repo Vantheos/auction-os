@@ -96,8 +96,8 @@ User-driven manual click-through against the preview surfaced a long list of iss
 
 | ID | Item | Status |
 |---|---|---|
-| ~~T-3.5-G1~~ | ~~LotDetail state-change + move toast tests~~ | **CLOSED 2026-05-02** — written; commit `<see git log>`. All four single-lot mutation paths now have success + failure toast assertions. |
-| ~~T-3.5-G2~~ | ~~upload-processor retry/backoff path tests~~ | **CLOSED 2026-05-02** — permanent-failure and transient cap-reached paths tested. Source bug found and fixed in same change: cap-promotion path was missing `invalidateQueries`, inconsistent with success/permanent paths. Under-cap retry-schedule path remains explicitly untested (mechanical timer choreography); see `docs/testing-policy.md` known gaps. |
+| ~~T-3.5-G1~~ | ~~LotDetail state-change + move toast tests~~ | **CLOSED 2026-05-02** — written in commit `e271015`. All four single-lot mutation paths now have success + failure toast assertions. |
+| ~~T-3.5-G2~~ | ~~upload-processor retry/backoff path tests~~ | **CLOSED 2026-05-02** — written in commit `e271015`. Permanent-failure and transient cap-reached paths tested. Source bug found and fixed in same commit: cap-promotion path was missing `invalidateQueries`, inconsistent with success/permanent paths. Under-cap retry-schedule path remains explicitly untested (mechanical timer choreography); see `docs/testing-policy.md` known gaps. |
 | T-3.5-G3 | Playwright e2e for golden-path flows | Phase 4 workstream — see Phase 3.5 spec §4 for the 5-10 spec list |
 
 ## Next: Phase 4 — AI subsystem + Playwright
