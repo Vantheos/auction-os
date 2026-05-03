@@ -1,11 +1,16 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { signOut, useSession, useRole, type AppRole } from '@/lib/auth';
+import { signOut, useSession, roleFromSession, type AppRole } from '@/lib/auth';
 import { homeRouteFor } from '@/lib/role';
 
 export function ProtectedRoute({ children, allow }: { children: React.ReactNode; allow?: AppRole[] }) {
   const { session, loading } = useSession();
-  const role = useRole();
+  // Derive role from the SAME session — avoids the race where useRole()
+  // would subscribe to a separate useSession instance that resolves out
+  // of step with this one (briefly returning role=null while session is
+  // already present). Without this, isDisabledSession below would fire
+  // a redirect for healthy users on first mount.
+  const role = roleFromSession(session);
   const location = useLocation();
 
   // Phase 4 Area 1: a disabled user can still sign in at the Supabase auth

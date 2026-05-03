@@ -37,13 +37,27 @@ function decodeJwtPayload(token: string): { app_metadata?: { role?: string } } |
   }
 }
 
-export function useRole(): AppRole | null {
-  const { session } = useSession();
+/**
+ * Pure role extraction from a session — does NOT subscribe to auth state.
+ * Use this in components that already call useSession() to avoid a race
+ * condition: each useSession() call is a separate useState/useEffect
+ * instance that resolves independently. If a component calls useSession()
+ * AND useRole() (which internally calls useSession()), the two instances
+ * can briefly desync, surfacing as session=present + role=null. That
+ * mismatch breaks any logic gating on it (e.g., the disabled-session
+ * detection in ProtectedRoute).
+ */
+export function roleFromSession(session: Session | null): AppRole | null {
   const token = session?.access_token;
   if (!token) return null;
   const payload = decodeJwtPayload(token);
   const role = payload?.app_metadata?.role;
   return role === 'admin' || role === 'office' || role === 'warehouse' ? role : null;
+}
+
+export function useRole(): AppRole | null {
+  const { session } = useSession();
+  return roleFromSession(session);
 }
 
 export async function signIn(email: string, password: string) {
