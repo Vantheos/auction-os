@@ -20,7 +20,26 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (req.method === 'GET') {
       await requireAuth(req, 'admin');
       const rows = await getDb().select().from(appUser).orderBy(appUser.createdAt);
-      return jsonOk(res, { users: rows });
+
+      // Enrich with email from auth.users via the admin client. Email lives
+      // in auth.users, not app_user; fetching all and building a map is
+      // cheap at this scale (sub-100 users) and avoids per-row admin calls.
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!supabaseUrl || !serviceKey) {
+        return jsonError(res, 500, 'INTERNAL', 'Supabase admin credentials not configured');
+      }
+      const admin = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (error) {
+        console.error('Failed to fetch auth users for email enrichment:', error);
+        return jsonError(res, 500, 'INTERNAL', 'Failed to fetch user emails');
+      }
+      const emailById = new Map(data.users.map((u) => [u.id, u.email ?? null]));
+      const enriched = rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null }));
+      return jsonOk(res, { users: enriched });
     }
 
     if (req.method === 'POST') {

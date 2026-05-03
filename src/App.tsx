@@ -14,6 +14,7 @@ import { startProcessor } from './lib/upload-processor';
 const Inventory = lazy(() => import('./routes/Inventory').then((m) => ({ default: m.Inventory })));
 const LotDetailPage = lazy(() => import('./routes/LotDetailPage').then((m) => ({ default: m.LotDetailPage })));
 const Settings = lazy(() => import('./routes/Settings').then((m) => ({ default: m.Settings })));
+const Users = lazy(() => import('./routes/Users').then((m) => ({ default: m.Users })));
 const Catalog = lazy(() => import('./routes/Catalog').then((m) => ({ default: m.Catalog })));
 const CatalogSession = lazy(() => import('./routes/CatalogSession').then((m) => ({ default: m.CatalogSession })));
 
@@ -72,6 +73,11 @@ export function App() {
         } />
         <Route path="/customers/:id" element={
           <ProtectedRoute allow={['admin', 'office']}><CustomerDetail /></ProtectedRoute>
+        } />
+        <Route path="/users" element={
+          <ProtectedRoute allow={['admin']}>
+            <Suspense fallback={<Loading />}><Users /></Suspense>
+          </ProtectedRoute>
         } />
         <Route path="/settings" element={
           <ProtectedRoute allow={['admin']}>

@@ -8,7 +8,7 @@ const NAV: { to: string; label: string; enabled: boolean; roles?: AllowedRoles }
   { to: '/inventory',  label: 'Inventory', enabled: true },
   { to: '/catalog',    label: 'Catalog',   enabled: true },
   { to: '/customers',  label: 'Customers', enabled: true, roles: ['admin', 'office'] },
-  { to: '/users',      label: 'Users',     enabled: false, roles: ['admin'] },
+  { to: '/users',      label: 'Users',     enabled: true,  roles: ['admin'] },
   { to: '/settings',   label: 'Settings',  enabled: true,  roles: ['admin'] },
   { to: '/audit',      label: 'Audit',     enabled: false, roles: ['admin'] },
 ];

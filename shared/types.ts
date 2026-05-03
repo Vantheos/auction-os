@@ -11,6 +11,31 @@ export type UpdateCustomerRequest = { name?: string };
 
 export type ApiError = { error: { code: string; message: string } };
 
+export type UserRole = 'admin' | 'office' | 'warehouse';
+
+export type UserDTO = {
+  id: string;
+  role: UserRole;
+  displayName: string;
+  email: string | null;
+  disabledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateUserRequest = {
+  email: string;
+  password: string;
+  role: UserRole;
+  displayName: string;
+};
+
+export type UpdateUserRequest = Partial<{
+  role: UserRole;
+  displayName: string;
+  disabled: boolean;
+}>;
+
 export type LotState = 'assigned' | 'unassigned' | 'sold' | 'picked-up' | 'not-sellable';
 export type LotSource = 'cataloging' | 'imported';
 

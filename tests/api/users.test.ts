@@ -39,10 +39,14 @@ async function callId(id: string, method: string, body: unknown, role: 'admin' |
 describe('GET /api/users', () => {
   beforeEach(async () => { await truncateAll(); await seedUsers(); });
 
-  it('admin lists users', async () => {
+  it('admin lists users with email field (enriched from auth)', async () => {
     const res = await callIndex('GET', null, 'admin', ADMIN);
     expect(res.status).toBe(200);
     expect(res.body.users).toHaveLength(2);
+    // Email field is always present in the response shape; null when there's
+    // no matching auth.users row (the seeded test users above are app_user-
+    // only, so email is null. Real users created via POST get a real email.)
+    expect(res.body.users[0]).toHaveProperty('email');
   });
 
   it('office is forbidden', async () => {
