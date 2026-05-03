@@ -1,6 +1,8 @@
 # Working state — Auction Inventory SaaS
 
 > Last updated 2026-05-02 late evening. **Phase 3.5 (Client test infrastructure) signed off.** Workstreams A→B→C→E→D complete; carry-forwards T-3.5-G1 and T-3.5-G2 closed in a follow-up cleanup commit (also caught + fixed a missing `invalidateQueries` in the upload-processor's transient cap-promotion path). 181/181 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra`, 8+ commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — AI subsystem (title/description/reference price generation) + Playwright workstream. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
+>
+> **For the full v1 + beyond phase plan, see [`docs/roadmap.md`](docs/roadmap.md).** This file (`STATE.md`) is the live tracker for the current branch + immediate next steps; the roadmap doc is the higher-altitude view of all remaining phases through v1 cutover and into v1.5.
 
 ## Phase 3 status: ✅ signed off
 
@@ -203,6 +205,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 > **Branch state:** `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. `phase-3-mobile-cataloging` at `7d15a35`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
 >
 > **Companion docs:**
+> - `docs/roadmap.md` — v1 + beyond phase plan (start here for the big picture)
 > - `docs/superpowers/specs/2026-04-29-v1-design.md` — overall v1 design (authoritative for product decisions)
 > - `docs/superpowers/specs/2026-05-02-phase-3-5-design.md` — Phase 3.5 spec (signed off, historical)
 > - `docs/superpowers/specs/2026-05-01-phase-3-design.md` — Phase 3 spec (signed off, historical)
@@ -261,6 +264,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 | `docs/superpowers/plans/` | Phase 1, 2, 3 implementation plans (historical record) |
 | `docs/testing-policy.md` | Going-forward testing policy from Phase 3.5 (new mutation hook → hook test required) |
 | `docs/testing-patterns.md` | Canonical client test pattern catalog from Phase 3.5 |
+| `docs/roadmap.md` | Higher-altitude v1 + beyond plan — completed phases, Phase 4/5 outlines, Prod cutover runbook, v1.5 candidates |
 
 ## Key user preferences (in memory under `~/.claude/projects/d--Dev-auction-os/memory/`)
 
