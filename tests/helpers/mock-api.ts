@@ -71,7 +71,11 @@ export const apiMockImpl: Mock = vi.fn(async (path: string, init?: RequestInit) 
     }
   }
   calls.push({ method, path, body });
-  const matched = matchRoute(method, path);
+  // Strip the query string for route matching so callers can register
+  // 'GET /lots' once and have it cover '/lots?limit=50&offset=0'. The full
+  // path (with query string) still appears in ctx so handlers can introspect.
+  const pathForMatch = path.split('?', 1)[0];
+  const matched = matchRoute(method, pathForMatch);
   if (!matched) {
     throw new Error(`mockApi: no route registered for ${method} ${path}`);
   }
