@@ -97,6 +97,10 @@ async function processOne(entry: UploadQueueEntry): Promise<void> {
       const next = await incrementRetries(entry.photoId);
       if (next === -1 || next > MAX_RETRIES) {
         await flipStatus(entry.photoId, entry.lotId, 'failed');
+        // Invalidate before terminal write so PhotoStrip reflects the
+        // failed status without waiting for staleTime to expire — same
+        // contract as the success and permanent-failure paths above.
+        await queryClient.invalidateQueries({ queryKey: ['lot-photos', entry.lotId] });
         await markUploadFailed(entry.photoId);
       } else {
         const delay = BACKOFF_MS[Math.min(next - 1, BACKOFF_MS.length - 1)];

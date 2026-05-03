@@ -1,15 +1,16 @@
 // tests/client/components/LotDetail.test.tsx
-// C4 of the Phase 3.5 backfill.
+// C4 of the Phase 3.5 backfill — toast wiring on all four single-lot
+// mutations (save, state-change, move, delete). The Phase 3 regression
+// batch (T-A6/A8/A10) had several mutations failing silently with no
+// user feedback. Each path now toasts on success and danger-toasts with
+// the server message on failure.
 //
-// Toast wiring on single-lot mutations. The Phase 3 regression batch
-// (T-A6/A8/A10) had several mutations failing silently with no user
-// feedback. The fix wired success/danger toasts in handleSave / handleDelete
-// / handlePickState / move dialog onConfirm. These tests verify that wiring
-// for save and delete (the two most-used flows). State change and move
-// share the same wiring shape; if the structural pattern works for save
-// and delete, regression risk on the others is low — and driving the
-// nested ChangeStateMenu / MoveLotDialog flows is significant test surface
-// for diminishing return. Add them when those flows are touched.
+// State-change is tested via a non-terminal transition (assigned →
+// unassigned), which doesn't open the confirm dialog. The terminal path
+// (e.g. assigned → sold) opens a Dialog first and then calls the same
+// changeState.mutate({ onSuccess, onError }) wiring — duplicated, but
+// structurally identical. Add a terminal-path test if either copy of
+// that wiring drifts.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
@@ -91,6 +92,163 @@ describe('LotDetail — toast wiring', () => {
       expect(await screen.findByText('Could not update lot')).toBeInTheDocument();
       expect(
         await screen.findByText('server validation: ref1 too long'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('state-change (PATCH /lots/:id with state)', () => {
+    it('shows success toast on successful non-terminal transition', async () => {
+      const lot = makeLot({ id: 'lot-1', state: 'assigned', jobId: 'job-1', lotNumber: 1 });
+      mockApi({
+        'GET /lots/lot-1/photos': () => ({ photos: [] }),
+        'PATCH /lots/lot-1': () => makeLot({ id: 'lot-1', state: 'unassigned' }),
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(<LotDetail lot={lot} canEdit canDelete />, {
+        withToaster: true,
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Change status' }));
+      // Pick the non-terminal transition (assigned → unassigned). Radix
+      // DropdownMenuItem is exposed as role="menuitem".
+      const menuitems = await screen.findAllByRole('menuitem');
+      const unassignedItem = menuitems.find((el) =>
+        el.textContent?.toLowerCase().includes('unassigned'),
+      );
+      if (!unassignedItem) throw new Error('unassigned menuitem not found');
+      await user.click(unassignedItem);
+
+      expect(
+        await screen.findByText('State changed to unassigned'),
+      ).toBeInTheDocument();
+    });
+
+    it('shows danger toast with server message on state-change failure', async () => {
+      const lot = makeLot({ id: 'lot-1', state: 'assigned', jobId: 'job-1', lotNumber: 1 });
+      mockApi({
+        'GET /lots/lot-1/photos': () => ({ photos: [] }),
+        'PATCH /lots/lot-1': () => {
+          throw new Error('illegal transition');
+        },
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(<LotDetail lot={lot} canEdit canDelete />, {
+        withToaster: true,
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Change status' }));
+      const menuitems = await screen.findAllByRole('menuitem');
+      const unassignedItem = menuitems.find((el) =>
+        el.textContent?.toLowerCase().includes('unassigned'),
+      );
+      if (!unassignedItem) throw new Error('unassigned menuitem not found');
+      await user.click(unassignedItem);
+
+      expect(
+        await screen.findByText('Could not change state'),
+      ).toBeInTheDocument();
+      expect(await screen.findByText('illegal transition')).toBeInTheDocument();
+    });
+  });
+
+  describe('move (POST /lots/:id/move)', () => {
+    it('shows success toast on successful move', async () => {
+      const lot = makeLot({ id: 'lot-1', state: 'assigned', jobId: 'job-1', lotNumber: 1 });
+      mockApi({
+        'GET /lots/lot-1/photos': () => ({ photos: [] }),
+        'GET /customers': () => ({
+          customers: [
+            {
+              id: 'cust-2',
+              name: 'Other Co',
+              createdAt: '2026-05-01T12:00:00.000Z',
+              updatedAt: '2026-05-01T12:00:00.000Z',
+            },
+          ],
+        }),
+        'GET /jobs': () => ({
+          jobs: [
+            {
+              id: 'job-9',
+              customerId: 'cust-2',
+              jobNumber: '2026-05-Other-001',
+              closedAt: null,
+              createdAt: '2026-05-01T12:00:00.000Z',
+              updatedAt: '2026-05-01T12:00:00.000Z',
+            },
+          ],
+        }),
+        'POST /lots/lot-1/move': () => makeLot({ id: 'lot-1', jobId: 'job-9', lotNumber: 10 }),
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(<LotDetail lot={lot} canEdit canDelete />, {
+        withToaster: true,
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Assign to Job' }));
+
+      // Customer dropdown — wait for query to resolve and option to appear
+      const custSelect = await screen.findByLabelText('Destination customer');
+      await user.selectOptions(custSelect, 'cust-2');
+
+      // Job dropdown appears after customer is picked
+      const jobSelect = await screen.findByLabelText('Destination job');
+      await user.selectOptions(jobSelect, 'job-9');
+
+      await user.click(screen.getByRole('button', { name: 'Assign lot' }));
+
+      expect(await screen.findByText('Lot assigned')).toBeInTheDocument();
+    });
+
+    it('shows danger toast with server message on move failure', async () => {
+      const lot = makeLot({ id: 'lot-1', state: 'assigned', jobId: 'job-1', lotNumber: 1 });
+      mockApi({
+        'GET /lots/lot-1/photos': () => ({ photos: [] }),
+        'GET /customers': () => ({
+          customers: [
+            {
+              id: 'cust-2',
+              name: 'Other Co',
+              createdAt: '2026-05-01T12:00:00.000Z',
+              updatedAt: '2026-05-01T12:00:00.000Z',
+            },
+          ],
+        }),
+        'GET /jobs': () => ({
+          jobs: [
+            {
+              id: 'job-9',
+              customerId: 'cust-2',
+              jobNumber: '2026-05-Other-001',
+              closedAt: null,
+              createdAt: '2026-05-01T12:00:00.000Z',
+              updatedAt: '2026-05-01T12:00:00.000Z',
+            },
+          ],
+        }),
+        'POST /lots/lot-1/move': () => {
+          throw new Error('destination job is closed');
+        },
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(<LotDetail lot={lot} canEdit canDelete />, {
+        withToaster: true,
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Assign to Job' }));
+      const custSelect = await screen.findByLabelText('Destination customer');
+      await user.selectOptions(custSelect, 'cust-2');
+      const jobSelect = await screen.findByLabelText('Destination job');
+      await user.selectOptions(jobSelect, 'job-9');
+      await user.click(screen.getByRole('button', { name: 'Assign lot' }));
+
+      expect(await screen.findByText('Could not assign lot')).toBeInTheDocument();
+      expect(
+        await screen.findByText('destination job is closed'),
       ).toBeInTheDocument();
     });
   });

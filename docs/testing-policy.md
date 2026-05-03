@@ -69,15 +69,13 @@ These are intentional carve-outs from the test surface; flagged so that
 - **Mobile-specific UI checks** (dvh, safe-area-inset, iOS auto-zoom,
   touch targets). CSS + browser concerns; not unit-testable. Covered by
   the manual checklist in `feedback_mobile_ui_checklist.md` (project memory).
-- **State change + move toast wiring on `LotDetail`.** The four
-  single-lot mutation toasts share one wiring shape; save and delete are
-  tested in [`tests/client/components/LotDetail.test.tsx`](../tests/client/components/LotDetail.test.tsx).
-  Add state-change and move tests when those flows are touched (driving
-  the nested ChangeStateMenu / MoveLotDialog UIs is significant test
-  surface for diminishing return on a pattern that's already pinned).
-- **`upload-processor` retry/backoff paths.** The success path's
-  invalidation timing is tested
-  ([`tests/client/lib/upload-processor.test.ts`](../tests/client/lib/upload-processor.test.ts)),
-  but the transient-failure backoff and permanent-failure paths aren't.
-  The processor is a module-level singleton with significant idb +
-  fetch + timer mocking surface; add when the retry logic changes.
+- **`upload-processor` under-cap retry-schedule path.** Three of the four
+  branches through `processOne` are pinned in
+  [`tests/client/lib/upload-processor.test.ts`](../tests/client/lib/upload-processor.test.ts):
+  success, permanent failure (4xx), and transient cap-reached (5xx with
+  retries > MAX). The fourth — transient under cap, which schedules a
+  `setTimeout` with `BACKOFF_MS[next-1]` and re-picks on tick — is
+  mechanical (data lookup + timer schedule) and would require fake-timer
+  + multi-cycle choreography to exercise authentically. Add when the
+  retry logic itself changes; the backoff constants are already pinned
+  by source review.

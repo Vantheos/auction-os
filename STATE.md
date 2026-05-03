@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-02 late evening. **Phase 3.5 (Client test infrastructure) signed off.** Workstreams A→B→C→E→D complete; 175/175 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — AI subsystem (title/description/reference price generation) + Playwright workstream. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
+> Last updated 2026-05-02 late evening. **Phase 3.5 (Client test infrastructure) signed off.** Workstreams A→B→C→E→D complete; carry-forwards T-3.5-G1 and T-3.5-G2 closed in a follow-up cleanup commit (also caught + fixed a missing `invalidateQueries` in the upload-processor's transient cap-promotion path). 181/181 vitest suite green (split into `api` + `client` projects via `vitest.workspace.ts`); lint 0/0; build clean. Branch `phase-3-5-test-infra`, 8+ commits ahead of `phase-3-mobile-cataloging`. **Next:** Phase 4 — AI subsystem (title/description/reference price generation) + Playwright workstream. Top-down spec discussion to begin per the one-focused-round-per-area pattern from prior phases.
 
 ## Phase 3 status: ✅ signed off
 
@@ -73,7 +73,7 @@ User-driven manual click-through against the preview surfaced a long list of iss
 
 | Item | Status |
 |---|---|
-| Vitest suite | ✅ 175 tests passing (was 144 after Phase 3; +31 in 3.5: 4 helper-test infra, 6 patterns, 19 backfill, 4 stateTransitionFields) |
+| Vitest suite | ✅ 181 tests passing (was 144 after Phase 3; +37 in 3.5: 4 helper-test infra, 6 patterns, 19 backfill, 4 stateTransitionFields, 4 LotDetail state/move toast, 2 upload-processor permanent/cap) |
 | Vitest workspace split (api/client projects) | ✅ shipped — `vitest.workspace.ts` |
 | Client test deps | ✅ `@testing-library/{react,user-event,jest-dom}`, `happy-dom` |
 | Helpers | ✅ `render-with-providers.tsx`, `mock-api.ts`, `fixtures.ts`, `setup-api.ts`, `setup-client.ts` |
@@ -96,8 +96,8 @@ User-driven manual click-through against the preview surfaced a long list of iss
 
 | ID | Item | Status |
 |---|---|---|
-| T-3.5-G1 | LotDetail state-change + move toast tests | Defer until those flows change; pattern is pinned by save + delete tests. Documented in `docs/testing-policy.md` |
-| T-3.5-G2 | upload-processor retry/backoff path tests | Defer; mocking surface too large vs. ROI. Documented in `docs/testing-policy.md` |
+| ~~T-3.5-G1~~ | ~~LotDetail state-change + move toast tests~~ | **CLOSED 2026-05-02** — written; commit `<see git log>`. All four single-lot mutation paths now have success + failure toast assertions. |
+| ~~T-3.5-G2~~ | ~~upload-processor retry/backoff path tests~~ | **CLOSED 2026-05-02** — permanent-failure and transient cap-reached paths tested. Source bug found and fixed in same change: cap-promotion path was missing `invalidateQueries`, inconsistent with success/permanent paths. Under-cap retry-schedule path remains explicitly untested (mechanical timer choreography); see `docs/testing-policy.md` known gaps. |
 | T-3.5-G3 | Playwright e2e for golden-path flows | Phase 4 workstream — see Phase 3.5 spec §4 for the 5-10 spec list |
 
 ## Next: Phase 4 — AI subsystem + Playwright
@@ -198,8 +198,7 @@ Now handled by the explicit cache headers in `vercel.ts`. If a tester still sees
 > - T-G6 First-run / empty states polish — pre-Prod cutover polish PR
 >
 > From Phase 3.5 (documented in `docs/testing-policy.md` known gaps):
-> - T-3.5-G1 LotDetail state-change + move toast tests — add when those flows change
-> - T-3.5-G2 upload-processor retry/backoff path tests — add when retry logic changes
+> - upload-processor under-cap retry-schedule path — only the timer-schedule branch remains untested; the three terminal paths (success, permanent failure, transient cap-reached) are pinned
 >
 > **Branch state:** `phase-3-5-test-infra` at `aff9716`, 5 commits ahead of `phase-3-mobile-cataloging`. `phase-3-mobile-cataloging` at `7d15a35`, 38 commits ahead of `phase-2-lot-lifecycle`. `main` unchanged from Phase 1 sign-off point. Per branch strategy memory rule, NEVER push to `main` until v1 cutover.
 >
