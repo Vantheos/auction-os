@@ -75,8 +75,18 @@ export function CustomerDetail() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Jobs</h2>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button>New job</Button></DialogTrigger>
+          {/* Phase 5 Area B: disabled customers can't accept new jobs.
+              Existing jobs remain visible/editable so admin can still
+              manage in-flight work; only the create surface is gated. */}
+          <Dialog open={open && !customer.disabledAt} onOpenChange={(o) => !customer.disabledAt && setOpen(o)}>
+            <DialogTrigger asChild>
+              <Button
+                disabled={!!customer.disabledAt}
+                title={customer.disabledAt ? 'Customer is disabled — re-enable to create new jobs' : undefined}
+              >
+                New job
+              </Button>
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>New job for {customer.name}</DialogTitle></DialogHeader>
               <div className="space-y-3">
