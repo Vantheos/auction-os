@@ -96,6 +96,28 @@ export async function bulkSignReadUrls(
 }
 
 /**
+ * Server-side download of a single photo with optional image transform.
+ * Used by the AF360 export pipeline to fetch photos directly into the
+ * archiver zip stream — bypasses signed-URL round-trips and double egress.
+ *
+ * Returns a Node Buffer for direct piping into archiver.
+ */
+export async function downloadPhotoTransformed(
+  path: string,
+  transform?: Transform
+): Promise<Buffer> {
+  const { data, error } = await getAdmin()
+    .storage.from(BUCKET)
+    .download(path, transform ? { transform } : undefined);
+  if (error || !data) {
+    throw new Error(`Failed to download ${path}: ${error?.message ?? 'unknown'}`);
+  }
+  // Supabase returns a Blob in node; convert to Buffer for archiver compatibility.
+  const arrayBuffer = await data.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+/**
  * Remove storage objects. Used by lot-delete and photo-delete handlers.
  * Best-effort: failures are logged but do not throw — DB state is the
  * source of truth, and orphaned files (if any) are tolerable since the

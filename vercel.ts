@@ -14,6 +14,13 @@ export const config: VercelConfig = {
       // memory removed — ignored on Active CPU billing per platform warning.
       maxDuration: 60,
     },
+    // Phase 5: AF360 export batch endpoint fetches up to 100 lots' worth
+    // of photos from Supabase, builds a zip, and streams it to Vercel Blob.
+    // Estimated 30-60s per batch at the upper bound (1000 photos, ~200MB);
+    // 300s gives ~5× margin so a single slow batch doesn't kill the export.
+    'api/jobs/[id]/export-af360/batch.ts': {
+      maxDuration: 300,
+    },
   },
   // SPA fallback: any non-/api/* path that isn't a static file gets the
   // Vite-built index.html so React Router can handle the route. Without
@@ -47,5 +54,8 @@ export const config: VercelConfig = {
   // when invoking; the handler verifies via requireCronAuth.
   crons: [
     { path: '/api/cron/cleanup-orphan-lots', schedule: '*/15 * * * *' },
+    // Phase 5: daily cleanup of AF360 export zips in Vercel Blob older than
+    // 24h. Runs at 04:00 UTC (off-hours; matches the orphan-lots pattern).
+    { path: '/api/cron/cleanup-export-blobs', schedule: '0 4 * * *' },
   ],
 };
