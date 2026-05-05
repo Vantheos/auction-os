@@ -18,7 +18,11 @@ export const config: VercelConfig = {
     // of photos from Supabase, builds a zip, and streams it to Vercel Blob.
     // Estimated 30-60s per batch at the upper bound (1000 photos, ~200MB);
     // 300s gives ~5× margin so a single slow batch doesn't kill the export.
-    'api/jobs/[id]/export-af360/batch.ts': {
+    //
+    // Glob note: the literal `[id]` directory in the path can't be written
+    // verbatim — minimatch reads `[id]` as a character class (matches `i`
+    // or `d`). Use `*` to match the single path segment instead.
+    'api/jobs/*/export-af360/batch.ts': {
       maxDuration: 300,
     },
   },
