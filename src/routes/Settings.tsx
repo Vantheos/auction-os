@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
 import { useToast } from '@/components/ui/toast';
+import { AuctionPlatformsPanel } from '@/components/settings/AuctionPlatformsPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +32,7 @@ export function Settings() {
       <h1 className="text-xl font-semibold text-text">Settings</h1>
       <LabelPrinterPanel initial={settingsQ.data} />
       <AISchedulePanel initial={settingsQ.data} />
+      <AuctionPlatformsPanel />
     </div>
   );
 }
