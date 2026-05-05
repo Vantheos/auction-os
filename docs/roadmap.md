@@ -62,46 +62,44 @@ discoverability bump.
 
 ### Phase 5 — Auction Platform Export ⬜ (next)
 
-Replaces the current hardcoded 15-column CSV export with a configurable
-multi-platform system. v1 ships with one platform but the structure
-supports adding more without further code work.
+Ships the AF360 / HiBid CSV + batched image zip export pipeline.
+Customer → Job → "Export to AF360" produces 1 CSV (inline download) +
+N image zips (server-built, uploaded to Vercel Blob, downloaded
+sequentially). Bundles new Customer/Job edit forms (neither entity has
+an editable surface today) and Customer disable/re-enable.
 
-**Scope:**
-- New `auction_platform` table — at minimum: `id`, `name`, `columns`
-  (JSONB ordered list), `createdAt` / `updatedAt`. Possibly `separator`,
-  `filenamePattern`, `includeHeaderRow`.
-- `/api/auction-platforms` CRUD endpoints (admin only).
-- Settings → "Auction Platforms" section: list / add / edit / delete.
-- Augment `POST /api/lots/export` to accept a `platformId` parameter and
-  apply that platform's column mapping.
-- Inventory bulk-actions Export: replace single button with a platform
-  picker.
-- Seed first platform from real auction-site specs (provided at Phase 5
-  planning time — NOT the current arbitrary 15-column layout, which was
-  placeholder).
+**Spec:** [`docs/superpowers/specs/2026-05-04-phase-5-design.md`](./superpowers/specs/2026-05-04-phase-5-design.md) — drafted 2026-05-04.
+**Plan:** [`docs/superpowers/plans/2026-05-04-phase-5.md`](./superpowers/plans/2026-05-04-phase-5.md).
 
-**Captured design decisions (tentative — revisit during Phase 5 spec):**
-- **Column mapping shape:** Option B from the planning round —
-  `{ header, lotField, formatter? }` per column. Formatter is optional
-  and handles platform-specific quirks (date formats, currency formatting,
-  enum value remapping, etc.). Final formatter list locked during the
-  planning round.
-- **Default platform:** Seeded via migration with the real first auction
-  platform's specs (provided at planning time). Not the current
-  placeholder format.
-- **Existing 15-column hardcoded export:** Deprecated and replaced
-  entirely. No backward-compatibility shim — the format was never used by
-  a real platform.
+**Scope (locked during planning round):**
+- 7-column AF360 CSV per [`docs/auction-platform/AF360_HiBid_Lot_Import_Spec.md`](./auction-platform/AF360_HiBid_Lot_Import_Spec.md)
+- Schema additions: `customer.seller_code`, `customer.disabled_at`,
+  `job.start_bid`, `job.shippable`
+- Customer + Job edit forms built from scratch (verified 2026-05-04 —
+  no existing edit surface for either)
+- `src/lib/exporters/af360.ts` — hardcoded TS const for the platform
+  mapping (no `auction_platform` DB table; no CRUD endpoints; v1 ships
+  one platform, multi-platform is v2)
+- Two server endpoints: `POST /api/jobs/:id/export-af360/start` (returns
+  CSV inline + batch plan) and `POST .../batch` (builds + uploads one
+  100-lot batch zip to Vercel Blob)
+- Daily cleanup cron `cleanup-export-blobs` (24h TTL on Vercel Blob)
+- Read-only Settings → Auction Platforms panel
+- New deps: `archiver` (server zip), `@vercel/blob` (temp store)
+- Photo egress reduction: existing `width=1568, quality=80, resize=contain`
+  Supabase transform reused at export (~15× smaller than originals;
+  matches what the cataloging UI displays)
+- Replaces the placeholder 15-column hardcoded export entirely; no
+  backward-compatibility shim
 
-**Open / deferred for Phase 5 planning:**
-- **Image upload to auction platform** — noted as a real requirement for
-  the export workflow but deferred. Out of scope for Phase 5 unless specs
-  reveal it's small once we see the real platform's image handling. If
-  non-trivial, splits to its own follow-up phase or v1.5.
-- **Multi-platform support concrete count:** v1 ships with one configured
-  platform; structure supports more without additional phases.
-- **Sample CSV from first platform** — user provides during Phase 5
-  planning; informs final schema shape.
+**Open carry-forwards for Phase 5 sign-off (post-implementation):**
+- **Sample CSV from current customer workflow** — user to provide as a
+  post-implementation sanity check against the generated CSV. Eyeball
+  comparison; not blocking implementation.
+- **Real-world AF360 import dry-run** — ideally the customer runs an
+  exported set through their AF360 wizards before sign-off. If
+  unavailable in the sign-off window, becomes a Phase 8 (cutover)
+  prerequisite.
 
 ### Phase 6 — AI subsystem ⬜
 
