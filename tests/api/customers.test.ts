@@ -35,24 +35,24 @@ describe('POST /api/customers', () => {
   });
 
   it('admin can create a customer', async () => {
-    const res = await call('POST', { name: 'Smith Estate' }, 'admin', ADMIN);
+    const res = await call('POST', { name: 'Smith Estate', sellerCode: 'SMTH001' }, 'admin', ADMIN);
     expect(res.status).toBe(201);
     expect(res.body.name).toBe('Smith Estate');
     expect(res.body.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('office can create a customer', async () => {
-    const res = await call('POST', { name: 'Jones Family' }, 'office', OFFICE);
+    const res = await call('POST', { name: 'Jones Family', sellerCode: 'JONE004' }, 'office', OFFICE);
     expect(res.status).toBe(201);
   });
 
   it('warehouse cannot create a customer', async () => {
-    const res = await call('POST', { name: 'Nope' }, 'warehouse', WAREHOUSE);
+    const res = await call('POST', { name: 'Nope', sellerCode: 'NOPE001' }, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(403);
   });
 
   it('rejects empty name', async () => {
-    const res = await call('POST', { name: '' }, 'admin', ADMIN);
+    const res = await call('POST', { name: '', sellerCode: 'X' }, 'admin', ADMIN);
     expect(res.status).toBe(400);
   });
 
@@ -61,7 +61,7 @@ describe('POST /api/customers', () => {
       method: 'POST',
       url: '/api/customers',
       headers: { 'Content-Type': 'application/json' },
-      body: { name: 'X' },
+      body: { name: 'X', sellerCode: 'X1' },
     });
     expect(res.status).toBe(401);
   });
@@ -74,8 +74,8 @@ describe('GET /api/customers', () => {
   });
 
   it('lists customers for any authenticated role', async () => {
-    await call('POST', { name: 'A' }, 'admin', ADMIN);
-    await call('POST', { name: 'B' }, 'admin', ADMIN);
+    await call('POST', { name: 'A', sellerCode: 'A1' }, 'admin', ADMIN);
+    await call('POST', { name: 'B', sellerCode: 'B1' }, 'admin', ADMIN);
     const res = await call('GET', null, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(200);
     expect(res.body.customers).toHaveLength(2);
@@ -97,14 +97,14 @@ describe('PATCH /api/customers/:id', () => {
   beforeEach(async () => { await truncateAll(); await seedUsers(); });
 
   it('admin updates name', async () => {
-    const created = (await call('POST', { name: 'Old' }, 'admin', ADMIN)).body;
+    const created = (await call('POST', { name: 'Old', sellerCode: 'OLD1' }, 'admin', ADMIN)).body;
     const res = await callId(created.id, 'PATCH', { name: 'New' }, 'admin', ADMIN);
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('New');
   });
 
   it('warehouse cannot update', async () => {
-    const created = (await call('POST', { name: 'X' }, 'admin', ADMIN)).body;
+    const created = (await call('POST', { name: 'X', sellerCode: 'X1' }, 'admin', ADMIN)).body;
     const res = await callId(created.id, 'PATCH', { name: 'Y' }, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(403);
   });
@@ -114,13 +114,13 @@ describe('DELETE /api/customers/:id', () => {
   beforeEach(async () => { await truncateAll(); await seedUsers(); });
 
   it('admin deletes', async () => {
-    const created = (await call('POST', { name: 'X' }, 'admin', ADMIN)).body;
+    const created = (await call('POST', { name: 'X', sellerCode: 'X1' }, 'admin', ADMIN)).body;
     const res = await callId(created.id, 'DELETE', null, 'admin', ADMIN);
     expect(res.status).toBe(200);
   });
 
   it('office cannot delete', async () => {
-    const created = (await call('POST', { name: 'X' }, 'admin', ADMIN)).body;
+    const created = (await call('POST', { name: 'X', sellerCode: 'X1' }, 'admin', ADMIN)).body;
     const res = await callId(created.id, 'DELETE', null, 'office', OFFICE);
     expect(res.status).toBe(403);
   });

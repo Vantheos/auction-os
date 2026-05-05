@@ -17,6 +17,10 @@ export function CustomerJobPicker() {
   const [jobId, setJobId] = useState<string>('');
   const jobsQ = useJobs(customerId || undefined);
 
+  // Phase 5: hide disabled customers from the picker. Existing in-flight
+  // jobs under a disabled customer can still be viewed elsewhere, but no
+  // new cataloging session can target them.
+  const activeCustomers = (customers.data ?? []).filter((c) => c.disabledAt === null);
   const openJobs = (jobsQ.data ?? []).filter((j) => !j.closedAt);
   const canBegin = !!customerId && !!jobId;
 
@@ -41,7 +45,7 @@ export function CustomerJobPicker() {
           className="w-full h-10 rounded-md border border-borderStrong bg-surfaceSolid px-3 text-sm"
         >
           <option value="">{customers.isLoading ? 'Loading…' : 'Select a customer'}</option>
-          {customers.data?.map((c) => (
+          {activeCustomers.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>

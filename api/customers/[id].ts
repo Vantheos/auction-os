@@ -8,7 +8,11 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { customer } from '../../db/schema.js';
 
-const UpdateSchema = z.object({ name: z.string().min(1).max(200).optional() });
+const UpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  sellerCode: z.string().min(1).max(50).optional(),
+  disabled: z.boolean().optional(),
+});
 
 function getId(req: IncomingMessage): string | null {
   // Vercel rewrite: /api/customers/<id> → /api/customers/[id]?id=<id>
@@ -44,10 +48,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       const parsed = UpdateSchema.safeParse(body);
       if (!parsed.success) return jsonError(res, 400, 'INVALID_BODY', parsed.error.issues[0].message);
+      // `disabled` is the request-shape boolean toggle. Translate to
+      // disabledAt timestamp for the column write; never store `disabled`
+      // directly. Other fields (name, sellerCode) pass through.
+      const { disabled, ...rest } = parsed.data;
+      const updateValues: Record<string, unknown> = { ...rest, updatedAt: new Date() };
+      if (disabled === true) updateValues.disabledAt = new Date();
+      else if (disabled === false) updateValues.disabledAt = null;
       const row = await asActor(userId, async (tx) => {
         const [r] = await tx
           .update(customer)
-          .set({ ...parsed.data, updatedAt: new Date() })
+          .set(updateValues)
           .where(eq(customer.id, id))
           .returning();
         return r;

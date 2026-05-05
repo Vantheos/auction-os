@@ -7,7 +7,10 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { customer } from '../../db/schema.js';
 
-const CreateSchema = z.object({ name: z.string().min(1).max(200) });
+const CreateSchema = z.object({
+  name: z.string().min(1).max(200),
+  sellerCode: z.string().min(1).max(50),
+});
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -31,7 +34,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return jsonError(res, 400, 'INVALID_BODY', parsed.error.issues[0].message);
       }
       const row = await asActor(userId, async (tx) => {
-        const [r] = await tx.insert(customer).values({ name: parsed.data.name }).returning();
+        const [r] = await tx
+          .insert(customer)
+          .values({ name: parsed.data.name, sellerCode: parsed.data.sellerCode })
+          .returning();
         return r;
       });
       return jsonOk(res, row, 201);
