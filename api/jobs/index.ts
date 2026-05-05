@@ -8,9 +8,14 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { job } from '../../db/schema.js';
 
+// Phase 5: startBid stored as numeric(10,2); accepted as decimal string
+// matching the same regex used for lot.price. shippable boolean.
+const CURRENCY_REGEX = /^\d+(\.\d{1,2})?$/;
 const CreateSchema = z.object({
   customerId: z.string().uuid(),
   jobNumber: z.string().min(1).max(200),
+  startBid: z.string().regex(CURRENCY_REGEX, 'startBid must be a positive decimal').optional(),
+  shippable: z.boolean().optional(),
 });
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -40,8 +45,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!parsed.success) return jsonError(res, 400, 'INVALID_BODY', parsed.error.issues[0].message);
 
       try {
+        // Build insert payload explicitly so undefined optional fields fall
+        // through to the column defaults (start_bid=5.00, shippable=false)
+        // rather than getting passed as undefined and bypassing them.
         const row = await asActor(userId, async (tx) => {
-          const [r] = await tx.insert(job).values(parsed.data).returning();
+          const base = {
+            customerId: parsed.data.customerId,
+            jobNumber: parsed.data.jobNumber,
+          };
+          const insertValues = {
+            ...base,
+            ...(parsed.data.startBid !== undefined ? { startBid: parsed.data.startBid } : {}),
+            ...(parsed.data.shippable !== undefined ? { shippable: parsed.data.shippable } : {}),
+          };
+          const [r] = await tx.insert(job).values(insertValues).returning();
           return r;
         });
         return jsonOk(res, row, 201);

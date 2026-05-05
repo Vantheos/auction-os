@@ -8,9 +8,13 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { job } from '../../db/schema.js';
 
+const CURRENCY_REGEX = /^\d+(\.\d{1,2})?$/;
 const PatchSchema = z.object({
   jobNumber: z.string().min(1).max(200).optional(),
   closed: z.boolean().optional(),
+  // Phase 5: Job-level export defaults are editable.
+  startBid: z.string().regex(CURRENCY_REGEX, 'startBid must be a positive decimal').optional(),
+  shippable: z.boolean().optional(),
 });
 
 function getId(req: IncomingMessage): string | null {
@@ -48,6 +52,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const update: Record<string, unknown> = { updatedAt: new Date() };
       if (parsed.data.jobNumber !== undefined) update.jobNumber = parsed.data.jobNumber;
       if (parsed.data.closed !== undefined) update.closedAt = parsed.data.closed ? new Date() : null;
+      if (parsed.data.startBid !== undefined) update.startBid = parsed.data.startBid;
+      if (parsed.data.shippable !== undefined) update.shippable = parsed.data.shippable;
 
       const row = await asActor(userId, async (tx) => {
         const [r] = await tx.update(job).set(update).where(eq(job.id, id)).returning();
