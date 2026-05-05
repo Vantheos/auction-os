@@ -12,17 +12,18 @@ export const config: VercelConfig = {
       // ("Function Runtimes must have a valid version") because Vercel
       // parses the string as a package name expecting an @version suffix.
       // memory removed — ignored on Active CPU billing per platform warning.
-      maxDuration: 60,
-    },
-    // Phase 5: AF360 export batch endpoint fetches up to 100 lots' worth
-    // of photos from Supabase, builds a zip, and streams it to Vercel Blob.
-    // Estimated 30-60s per batch at the upper bound (1000 photos, ~200MB);
-    // 300s gives ~5× margin so a single slow batch doesn't kill the export.
-    //
-    // Glob note: the literal `[id]` directory in the path can't be written
-    // verbatim — minimatch reads `[id]` as a character class (matches `i`
-    // or `d`). Use `*` to match the single path segment instead.
-    'api/jobs/*/export-af360/batch.ts': {
+      //
+      // Phase 5: bumped from 60s → 300s to accommodate the AF360 export
+      // batch endpoint (api/jobs/[id]/export-af360/batch.ts), which fetches
+      // up to 100 lots' worth of photos from Supabase, builds a zip, and
+      // streams it to Vercel Blob — estimated 30-60s per batch at the
+      // upper bound. We tried a per-function override targeting just the
+      // batch endpoint, but Vercel's functions-config glob scanner doesn't
+      // resolve the literal `[id]` dynamic segment in the path (verified
+      // empirically — `[id]` and `*` and `**` all failed to match the file
+      // even though the default `api/**/*.ts` glob deploys it fine). 300s
+      // is the platform default cap on all plans; Active CPU billing means
+      // unaffected endpoints incur no extra cost from the higher cap.
       maxDuration: 300,
     },
   },
