@@ -15,11 +15,13 @@ export function Customers() {
   const create = useCreateCustomer();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  const [sellerCode, setSellerCode] = useState('');
   const [search, setSearch] = useState('');
 
   async function onCreate() {
-    await create.mutateAsync({ name });
+    await create.mutateAsync({ name: name.trim(), sellerCode: sellerCode.trim() });
     setName('');
+    setSellerCode('');
     setOpen(false);
   }
 
@@ -52,13 +54,26 @@ export function Customers() {
           <DialogTrigger asChild><Button>New customer</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>New customer</DialogTitle></DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sellerCode">Seller Code</Label>
+                <Input
+                  id="sellerCode"
+                  value={sellerCode}
+                  onChange={(e) => setSellerCode(e.target.value)}
+                  maxLength={50}
+                  placeholder="e.g. SMTH001"
+                />
+                <p className="text-xs text-textDim">From AF360 → Customers → Customer List → Customer Code.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={onCreate} disabled={!name.trim() || create.isPending}>
+              <Button onClick={onCreate} disabled={!name.trim() || !sellerCode.trim() || create.isPending}>
                 {create.isPending ? 'Creating…' : 'Create'}
               </Button>
             </DialogFooter>
@@ -71,25 +86,44 @@ export function Customers() {
       {filtered && (
         <Table>
           <TableHeader>
-            <TableRow><TableHead>Name</TableHead><TableHead>Created</TableHead><TableHead /></TableRow>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Seller Code</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead />
+            </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((c) => (
-              <TableRow
-                key={c.id}
-                onClick={() => navigate(`/customers/${c.id}`)}
-                className="cursor-pointer hover:bg-surfaceAlt"
-              >
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell className="text-textDim font-mono text-xs">{new Date(c.createdAt).toLocaleString()}</TableCell>
-                <TableCell className="w-8 text-right text-textDim">
-                  <ChevronRight size={16} aria-hidden="true" />
-                </TableCell>
-              </TableRow>
-            ))}
+            {filtered.map((c) => {
+              const isDisabled = c.disabledAt !== null;
+              return (
+                <TableRow
+                  key={c.id}
+                  onClick={() => navigate(`/customers/${c.id}`)}
+                  className={`cursor-pointer hover:bg-surfaceAlt ${isDisabled ? 'opacity-60' : ''}`}
+                >
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className={c.sellerCode ? 'font-mono text-xs' : 'text-textDim italic text-xs'}>
+                    {c.sellerCode ?? '(not set)'}
+                  </TableCell>
+                  <TableCell>
+                    {isDisabled ? (
+                      <span className="text-xs px-2 py-0.5 rounded-pill bg-warning-bg text-warning">Disabled</span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-pill bg-success-bg text-success">Active</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-textDim font-mono text-xs">{new Date(c.createdAt).toLocaleString()}</TableCell>
+                  <TableCell className="w-8 text-right text-textDim">
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-textDim text-center">
+                <TableCell colSpan={5} className="text-textDim text-center">
                   {search.trim()
                     ? `No customers match '${search.trim()}'`
                     : 'No customers yet'}

@@ -2,12 +2,89 @@
 export type CustomerDTO = {
   id: string;
   name: string;
+  // Phase 5: AF360 SellerCode (per-Customer). Nullable for existing customers
+  // until admin updates via Customer edit UI.
+  sellerCode: string | null;
+  // Phase 5: soft-deactivation marker (mirrors app_user.disabledAt).
+  disabledAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type CreateCustomerRequest = { name: string };
-export type UpdateCustomerRequest = { name?: string };
+export type CreateCustomerRequest = {
+  name: string;
+  sellerCode: string;
+};
+
+export type UpdateCustomerRequest = Partial<{
+  name: string;
+  sellerCode: string;
+  disabled: boolean;
+}>;
+
+// ── Job ──────────────────────────────────────────────────────────────────
+// Moved from src/hooks/useJobs.ts in Phase 5 (DTO consolidation — matches
+// where CustomerDTO and others live).
+export type JobDTO = {
+  id: string;
+  customerId: string;
+  jobNumber: string;
+  closedAt: string | null;
+  // Phase 5: Job-level export defaults. Numeric serialized as string by
+  // Drizzle/Postgres for the CSV pipeline.
+  startBid: string;
+  shippable: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateJobRequest = {
+  customerId: string;
+  jobNumber: string;
+  startBid?: string;
+  shippable?: boolean;
+};
+
+export type UpdateJobRequest = Partial<{
+  jobNumber: string;
+  startBid: string;
+  shippable: boolean;
+  closed: boolean;
+}>;
+
+// ── Auction platform export ──────────────────────────────────────────────
+// Phase 5: response shapes for the two-step export endpoint.
+
+export type ExportBatchPlanItem = {
+  batchNum: number;
+  lotIds: string[];
+};
+
+export type ExportStartResponse = {
+  csv: string;
+  csvFilename: string;
+  batchSize: number;
+  totalBatches: number;
+  totalLots: number;
+  batches: ExportBatchPlanItem[];
+  exportLabel: string;
+};
+
+export type ExportBatchRequest = {
+  batchNum: number;
+  lotIds: string[];
+  exportLabel: string;
+  totalBatches: number;
+};
+
+export type ExportBatchResponse = {
+  downloadUrl: string;
+  expiresAt: string;
+  batchNum: number;
+  totalBatches: number;
+  filename: string;
+  photoCount: number;
+};
 
 export type ApiError = { error: { code: string; message: string } };
 

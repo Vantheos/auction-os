@@ -32,6 +32,13 @@ export const appUser = pgTable('app_user', {
 export const customer = pgTable('customer', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  // Phase 5: AF360 SellerCode for this consignor. DB-nullable; the
+  // application layer enforces required-ness at create + at export. Existing
+  // customers carry NULL until admin updates them via the edit UI.
+  sellerCode: text('seller_code'),
+  // Phase 5: soft-deactivation marker (mirrors app_user.disabled_at).
+  // Disabled customers are hidden from cataloging picker and new-job flow.
+  disabledAt: timestamp('disabled_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -42,6 +49,11 @@ export const job = pgTable('job', {
   customerId: uuid('customer_id').notNull().references(() => customer.id, { onDelete: 'restrict' }),
   jobNumber: text('job_number').notNull(),
   closedAt: timestamp('closed_at', { withTimezone: true }),
+  // Phase 5: Job-level export defaults. AF360 StartBid (required column;
+  // currency) and Shippable (boolean). Both have DB defaults so existing
+  // rows are valid post-migration.
+  startBid: numeric('start_bid', { precision: 10, scale: 2 }).notNull().default('5.00'),
+  shippable: boolean('shippable').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
