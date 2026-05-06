@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { useInfiniteLots, flattenLots } from '@/hooks/useInfiniteLots';
 import { useLot } from '@/hooks/useLots';
 import { useBulkLotAction } from '@/hooks/useBulkLotAction';
@@ -15,10 +17,11 @@ import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
 import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
 import { ExportCsvDialog } from '@/components/bulk/ExportCsvDialog';
+import { JobExportButton } from '@/components/jobs/JobExportButton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import type { LotState } from '@shared/types';
+import type { CustomerDTO, JobDTO, LotState } from '@shared/types';
 
 const STATES_VALID: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
 
@@ -60,6 +63,25 @@ export function Inventory() {
   const { lots, total } = useMemo(() => flattenLots(lotsQ.data?.pages), [lotsQ.data]);
   const openLotQ = useLot(openLotId ?? undefined);
   const bulk = useBulkLotAction();
+
+  // Phase 5: when a specific Job is filtered, surface the AF360 export
+  // button alongside the filter row. Customer and Job DTOs are loaded for
+  // the existing JobExportButton component (handles role/disabled/seller-
+  // code gating internally). Both queries are cached — if the user came
+  // from CustomerDetail, these are free.
+  const customerQ = useQuery({
+    queryKey: ['customer', filters.customerId],
+    enabled: !!filters.customerId,
+    queryFn: () => api<CustomerDTO>(`/customers/${filters.customerId}`),
+  });
+  const jobQ = useQuery({
+    queryKey: ['job', filters.jobId],
+    enabled: !!filters.jobId,
+    queryFn: () => api<JobDTO>(`/jobs/${filters.jobId}`),
+  });
+  const exportButton = filters.jobId && customerQ.data && jobQ.data
+    ? <JobExportButton job={jobQ.data} customer={customerQ.data} />
+    : null;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'export' | null>(null);
@@ -154,9 +176,9 @@ export function Inventory() {
 
       {/* Filters — desktop sidebar at md+, mobile filter button below */}
       <div className="hidden md:block">
-        <InventoryFilters filters={filters} onChange={handleFilterChange} />
+        <InventoryFilters filters={filters} onChange={handleFilterChange} actions={exportButton} />
       </div>
-      <div className="md:hidden flex items-center gap-2">
+      <div className="md:hidden flex flex-wrap items-center gap-2">
         <Button
           variant={filterCount > 0 ? 'secondary' : 'outline'}
           onClick={() => setFilterSheetOpen(true)}
@@ -169,6 +191,7 @@ export function Inventory() {
             Clear
           </Button>
         )}
+        {exportButton && <div className="ml-auto">{exportButton}</div>}
       </div>
 
       {lotsQ.error && (

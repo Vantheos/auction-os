@@ -1,4 +1,5 @@
 // src/components/inventory/InventoryFilters.tsx
+import type { ReactNode } from 'react';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useJobs } from '@/hooks/useJobs';
 import { Button } from '@/components/ui/button';
@@ -15,9 +16,12 @@ export type Filters = {
 type Props = {
   filters: Filters;
   onChange: (next: Filters) => void;
+  // Optional right-aligned slot — Phase 5 puts the Export to AF360 button
+  // here when a specific Job is filtered. Anything else can sit here too.
+  actions?: ReactNode;
 };
 
-export function InventoryFilters({ filters, onChange }: Props) {
+export function InventoryFilters({ filters, onChange, actions }: Props) {
   const customers = useCustomers();
   const jobs = useJobs(filters.customerId);
   const toggle = (s: LotState) =>
@@ -57,7 +61,9 @@ export function InventoryFilters({ filters, onChange }: Props) {
         })}
       </div>
 
-      {hasAny && <Button size="sm" variant="ghost" onClick={clear} className="ml-auto">Clear filters</Button>}
+      {hasAny && <Button size="sm" variant="ghost" onClick={clear}>Clear filters</Button>}
+
+      {actions && <div className="ml-auto">{actions}</div>}
     </div>
   );
 }
