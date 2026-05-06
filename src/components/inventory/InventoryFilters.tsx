@@ -11,6 +11,10 @@ export type Filters = {
   customerId?: string;
   jobId?: string;
   state: LotState[];
+  // Phase 6: when true, only return lots whose AI run produced incomplete
+  // results (lastAiRunStatus partial/failure, OR success but with NULL
+  // user-facing fields). The /lots GET handler implements the predicate.
+  needsInfo?: boolean;
 };
 
 type Props = {
@@ -27,7 +31,7 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
   const toggle = (s: LotState) =>
     onChange({ ...filters, state: filters.state.includes(s) ? filters.state.filter((x) => x !== s) : [...filters.state, s] });
 
-  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0;
+  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0 || filters.needsInfo;
   const clear = () => onChange({ state: [] });
 
   return (
@@ -60,6 +64,12 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
           );
         })}
       </div>
+
+      <button type="button"
+        onClick={() => onChange({ ...filters, needsInfo: !filters.needsInfo })}
+        className={`text-xs px-2 py-1 rounded-md border ml-2 ${
+          filters.needsInfo ? 'bg-warning-bg border-warning text-warning' : 'border-border text-textDim hover:bg-muted'
+        }`}>Needs Info.</button>
 
       {hasAny && <Button size="sm" variant="ghost" onClick={clear}>Clear filters</Button>}
 

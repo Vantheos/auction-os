@@ -28,20 +28,22 @@ function parseFiltersFromUrl(params: URLSearchParams): Filters {
     customerId: params.get('customerId') ?? undefined,
     jobId: params.get('jobId') ?? undefined,
     state: params.getAll('state').filter((s): s is LotState => STATES_VALID.includes(s as LotState)),
+    needsInfo: params.get('needsInfo') === 'true' ? true : undefined,
   };
 }
 
 function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams {
   const next = new URLSearchParams(params);
-  next.delete('customerId'); next.delete('jobId'); next.delete('state');
+  next.delete('customerId'); next.delete('jobId'); next.delete('state'); next.delete('needsInfo');
   if (f.customerId) next.set('customerId', f.customerId);
   if (f.jobId) next.set('jobId', f.jobId);
   for (const s of f.state) next.append('state', s);
+  if (f.needsInfo) next.set('needsInfo', 'true');
   return next;
 }
 
 function activeFilterCount(f: Filters): number {
-  return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length;
+  return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length + (f.needsInfo ? 1 : 0);
 }
 
 export function Inventory() {

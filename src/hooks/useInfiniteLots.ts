@@ -14,6 +14,9 @@ export type InfiniteLotFilters = {
   customerId?: string;
   jobId?: string;
   state?: LotState[];
+  // Phase 6: passthrough for the /lots GET ?needsInfo=true predicate
+  // (Phase 6 server filter already implemented in api/lots/index.ts).
+  needsInfo?: boolean;
 };
 
 function toQueryString(f: InfiniteLotFilters, offset: number): string {
@@ -21,6 +24,7 @@ function toQueryString(f: InfiniteLotFilters, offset: number): string {
   if (f.customerId) p.set('customerId', f.customerId);
   if (f.jobId) p.set('jobId', f.jobId);
   if (f.state) for (const s of f.state) p.append('state', s);
+  if (f.needsInfo) p.set('needsInfo', 'true');
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return `?${p.toString()}`;
