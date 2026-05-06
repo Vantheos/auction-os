@@ -16,11 +16,9 @@ import { LotDetail } from '@/components/lot/LotDetail';
 import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
 import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
-import { ExportCsvDialog } from '@/components/bulk/ExportCsvDialog';
 import { JobExportButton } from '@/components/jobs/JobExportButton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
 import type { CustomerDTO, JobDTO, LotState } from '@shared/types';
 
 const STATES_VALID: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
@@ -84,7 +82,7 @@ export function Inventory() {
     : null;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'export' | null>(null);
+  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [lotEditDirty, setLotEditDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -231,7 +229,6 @@ export function Inventory() {
             onMove={() => setBulkDialog('move')}
             onChangeState={() => setBulkDialog('change-state')}
             onDelete={() => setBulkDialog('delete')}
-            onExport={() => setBulkDialog('export')}
           />
         </div>
       )}
@@ -341,35 +338,6 @@ export function Inventory() {
               description: err instanceof Error ? err.message : 'Unknown error',
               variant: 'danger',
             });
-          }
-        }}
-      />
-      <ExportCsvDialog
-        open={bulkDialog === 'export'}
-        onClose={() => setBulkDialog(null)}
-        onConfirm={async () => {
-          try {
-            const qs = writeFiltersToUrl(new URLSearchParams(), filters).toString();
-            const url = `/api/lots/export${qs ? '?' + qs : ''}`;
-            const { data } = await supabase.auth.getSession();
-            const token = data.session?.access_token;
-            if (!token) { toast({ title: 'Export failed', description: 'Not signed in', variant: 'danger' }); return; }
-            const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-            if (!r.ok) { toast({ title: 'Export failed', description: `Server returned ${r.status}`, variant: 'danger' }); return; }
-            const blob = await r.blob();
-            const filename = `lots-${Date.now()}.csv`;
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
-            setBulkDialog(null);
-            toast({ title: 'Export ready', description: `Downloaded ${filename}`, variant: 'success' });
-          } catch (err) {
-            console.error('Export error:', err);
-            toast({ title: 'Export failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'danger' });
           }
         }}
       />
