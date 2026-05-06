@@ -137,6 +137,7 @@ export type LotDTO = {
   source: LotSource;
   lastAiRunStatus: 'success' | 'partial' | 'failure' | null;
   lastAiRunError: string | null;
+  aiProcessingStartedAt: string | null;
   intakeOperatorId: string;
   intakeTimestamp: string;
   createdAt: string;
@@ -207,6 +208,11 @@ export type SystemSettingsDTO = {
   aiScheduleIntervalHours: number;
   aiScheduleTimeOfDay: string;
   aiLastRunAt: string | null;
+  aiCostMtdCents: number;
+  aiCostLifetimeCents: number;
+  aiRunCountLifetime: number;
+  aiCostMtdStartedAt: string;
+  aiRunLockUntil: string | null;
   labelPrinterHelperUrl: string | null;
   updatedAt: string;
 };
@@ -217,3 +223,10 @@ export type UpdateSystemSettingsRequest = Partial<{
   aiScheduleTimeOfDay: string;
   labelPrinterHelperUrl: string | null;
 }>;
+
+// Phase 6: AI run endpoints
+export type AiRunRequest = { lotId: string };
+export type AiRunResponse = LotDTO;
+export type AiBacklogResponse =
+  | { processed: number; remaining: number; errors: number }
+  | { skipped: true; reason: 'disabled' | 'too_soon' | 'in_progress' };

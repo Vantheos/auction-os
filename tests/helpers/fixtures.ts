@@ -26,6 +26,7 @@ export function makeLot(overrides: Partial<LotDTO> = {}): LotDTO {
     source: 'cataloging',
     lastAiRunStatus: null,
     lastAiRunError: null,
+    aiProcessingStartedAt: null,
     intakeOperatorId: 'user-1',
     intakeTimestamp: '2026-05-01T12:00:00.000Z',
     createdAt: '2026-05-01T12:00:00.000Z',

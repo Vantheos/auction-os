@@ -29,6 +29,7 @@ const MOCK_LOT: LotDTO = {
   price: '45.00', condition: 'used', ref1: null, ref2: null,
   specialNotesCategory: 'TOOL ONLY', specialNotesText: null, untested: false,
   state: 'assigned', source: 'cataloging', lastAiRunStatus: 'success', lastAiRunError: null,
+  aiProcessingStartedAt: null,
   intakeOperatorId: 'u', intakeTimestamp: new Date().toISOString(),
   createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 };
