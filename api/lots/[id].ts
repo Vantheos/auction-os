@@ -68,6 +68,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const current = await fetchLot(getDb(), id);
       if (!current) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
 
+      // Phase 6: per-lot AI processing lock — reject field edits while AI
+      // is generating content for this lot. State changes still pass through
+      // (operator should be able to e.g. mark not-sellable mid-AI run).
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const isAiInFlight =
+        current.aiProcessingStartedAt !== null &&
+        current.aiProcessingStartedAt > fiveMinAgo;
+      const hasFieldEdits = Object.keys(parsed.data).some((k) => k !== 'state');
+      if (isAiInFlight && hasFieldEdits) {
+        return jsonError(res, 423, 'LOT_AI_IN_PROGRESS', 'AI is currently generating content for this lot');
+      }
+
       // Warehouse can edit fields (per UI design spec — required by the
       // cataloging autosave path) but cannot change lot state. State changes
       // remain admin/office only.
@@ -92,7 +104,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // `sold` is frozen because the lot was sold to a buyer at the price/quantity
       // displayed on the auction platform; edits would mutate what was sold.
       const isFrozen = current.state === 'sold' || current.state === 'picked-up' || current.state === 'not-sellable';
-      const hasFieldEdits = Object.keys(parsed.data).some((k) => k !== 'state');
       if (isFrozen && hasFieldEdits) {
         return jsonError(res, 422, 'FROZEN', `Lot in ${current.state} cannot be edited`);
       }
