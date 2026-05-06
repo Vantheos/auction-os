@@ -14,6 +14,7 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
 import { bumpAiCounters } from '../_lib/ai-counters.js';
+import { PER_LOT_STALE_THRESHOLD_SQL } from '../_lib/ai-thresholds.js';
 import { lot, lotPhoto } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
@@ -22,7 +23,6 @@ import {
 } from '../../src/lib/ai/compose.js';
 
 const Body = z.object({ lotId: z.string().uuid() });
-const PER_LOT_STALE_THRESHOLD = sql`interval '5 minutes'`;
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -54,7 +54,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       UPDATE lot SET ai_processing_started_at = NOW()
        WHERE id = ${parsed.data.lotId}
          AND (ai_processing_started_at IS NULL
-              OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
+              OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
        RETURNING id
     `);
     if (claimed.length === 0) {

@@ -14,6 +14,7 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
 import { bumpAiCounters } from '../_lib/ai-counters.js';
+import { PER_LOT_STALE_THRESHOLD_SQL } from '../_lib/ai-thresholds.js';
 import { lot, lotPhoto, systemSettings } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
@@ -26,11 +27,11 @@ import { pLimit } from '../../src/lib/ai/p-limit.js';
 // expected processed/remaining split from the actual constant.
 export const CAP_PER_INVOCATION = 20;
 const CONCURRENCY = 3;
-// Different concepts that happen to share a value: how long a held
-// system-level lock is valid before being treated as crashed/stale,
-// and how long a per-lot processing flag is valid. Split for clarity.
+// System-level lock TTL — separate concept from PER_LOT_STALE_THRESHOLD
+// even though both currently equal 5 min. The lock is held for the
+// duration of one invocation; the per-lot threshold is the staleness
+// window for a per-lot processing flag.
 const SYSTEM_LOCK_TTL = sql`interval '5 minutes'`;
-const PER_LOT_STALE_THRESHOLD = sql`interval '5 minutes'`;
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -90,7 +91,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
          WHERE l.last_ai_run_status IS NULL
            AND l.state IN ('assigned', 'unassigned')
            AND (l.ai_processing_started_at IS NULL
-                OR l.ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
+                OR l.ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
          ORDER BY l.intake_timestamp ASC
          LIMIT ${CAP_PER_INVOCATION}
       `);
@@ -109,7 +110,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
          WHERE last_ai_run_status IS NULL
            AND state IN ('assigned', 'unassigned')
            AND (ai_processing_started_at IS NULL
-                OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
+                OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
       `);
 
       // Drain-eagerly tail: advance ai_last_run_at only when backlog empty
@@ -151,7 +152,7 @@ async function processOne(row: EligibleRow, operatorUserId: string | null): Prom
     UPDATE lot SET ai_processing_started_at = NOW()
      WHERE id = ${row.id}
        AND (ai_processing_started_at IS NULL
-            OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
+            OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
      RETURNING id
   `);
   if (claimed.length === 0) return; // someone else got it

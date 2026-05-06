@@ -9,6 +9,7 @@ import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { customer, job, lot, lotPhoto } from '../../db/schema.js';
 import { LotStateError, stateTransitionFields, validateTransition, type LotState } from '../_lib/lot-state.js';
 import { removeObjects } from '../_lib/storage.js';
+import { PER_LOT_STALE_THRESHOLD_MS } from '../_lib/ai-thresholds.js';
 
 const PatchSchema = z.object({
   state: z.enum(['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable']).optional(),
@@ -71,10 +72,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // Phase 6: per-lot AI processing lock — reject field edits while AI
       // is generating content for this lot. State changes still pass through
       // (operator should be able to e.g. mark not-sellable mid-AI run).
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const staleCutoff = new Date(Date.now() - PER_LOT_STALE_THRESHOLD_MS);
       const isAiInFlight =
         current.aiProcessingStartedAt !== null &&
-        current.aiProcessingStartedAt > fiveMinAgo;
+        current.aiProcessingStartedAt > staleCutoff;
       const hasFieldEdits = Object.keys(parsed.data).some((k) => k !== 'state');
       if (isAiInFlight && hasFieldEdits) {
         return jsonError(res, 423, 'LOT_AI_IN_PROGRESS', 'AI is currently generating content for this lot');
