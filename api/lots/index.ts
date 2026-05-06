@@ -69,6 +69,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const aiStatuses = parseAiStatusFilter(url.searchParams);
       const dateFrom = parseDate(url.searchParams.get('dateFrom'));
       const dateTo = parseDate(url.searchParams.get('dateTo'));
+      const needsInfo = url.searchParams.get('needsInfo') === 'true';
       const limitRaw = parseInt(url.searchParams.get('limit') ?? '50', 10);
       const offsetRaw = parseInt(url.searchParams.get('offset') ?? '0', 10);
       const limit = Number.isFinite(limitRaw) && limitRaw >= 0 ? Math.min(limitRaw, 200) : 50;
@@ -88,6 +89,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         if (aiClauses.length > 0) {
           conditions.push(aiClauses.length === 1 ? aiClauses[0] : or(...aiClauses)!);
         }
+      }
+      if (needsInfo) {
+        conditions.push(or(
+          sql`${lot.lastAiRunStatus} IS DISTINCT FROM 'success'`,
+          isNull(lot.title),
+          isNull(lot.description),
+          isNull(lot.price),
+        )!);
       }
       if (dateFrom) conditions.push(gte(lot.createdAt, dateFrom));
       if (dateTo) conditions.push(lte(lot.createdAt, dateTo));
