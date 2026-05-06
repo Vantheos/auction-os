@@ -17,12 +17,11 @@
     "allowImportingTsExtensions": false,
     "noEmit": true,
     "types": ["vite/client"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@db/*": ["db/*"],
-      "@shared/*": ["shared/*"],
-      "@api/*": ["api/*"]
+      "@/*": ["./src/*"],
+      "@db/*": ["./db/*"],
+      "@shared/*": ["./shared/*"],
+      "@api/*": ["./api/*"]
     }
   },
   "include": ["src", "api", "db", "shared", "tests", "scripts"],
