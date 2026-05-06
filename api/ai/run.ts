@@ -10,9 +10,10 @@ import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
-import { asActor, getDb, type Transaction } from '../_lib/db.js';
+import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
+import { bumpAiCounters } from '../_lib/ai-counters.js';
 import { lot, lotPhoto } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
@@ -21,32 +22,7 @@ import {
 } from '../../src/lib/ai/compose.js';
 
 const Body = z.object({ lotId: z.string().uuid() });
-const FIVE_MIN = sql`interval '5 minutes'`;
-
-// Atomically increment the system_settings AI counters within a transaction.
-// MTD counter resets to the new cost when the calendar month has flipped
-// since `ai_cost_mtd_started_at`; the lifetime counters always accumulate.
-// Used by both the success and failure paths so any future change to the
-// MTD-rollover semantics happens in one place.
-function bumpAiCounters(tx: Transaction, costCents: number) {
-  return tx.execute(sql`
-    UPDATE system_settings SET
-      ai_cost_mtd_cents = CASE
-        WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-          THEN ${costCents}
-        ELSE ai_cost_mtd_cents + ${costCents}
-      END,
-      ai_cost_mtd_started_at = CASE
-        WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-          THEN NOW()
-        ELSE ai_cost_mtd_started_at
-      END,
-      ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${costCents},
-      ai_run_count_lifetime = ai_run_count_lifetime + 1,
-      updated_at = NOW()
-     WHERE id = 1
-  `);
-}
+const PER_LOT_STALE_THRESHOLD = sql`interval '5 minutes'`;
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -78,7 +54,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       UPDATE lot SET ai_processing_started_at = NOW()
        WHERE id = ${parsed.data.lotId}
          AND (ai_processing_started_at IS NULL
-              OR ai_processing_started_at < NOW() - ${FIVE_MIN})
+              OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
        RETURNING id
     `);
     if (claimed.length === 0) {

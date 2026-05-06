@@ -12,20 +12,8 @@ installAnthropicMock();
 // actual files in Supabase Storage, so real signing would 404 per call
 // (~300ms × 20 lots = blows the test timeout). Returning an empty Map
 // makes the handler's photoUrls array empty, which is fine because the
-// AI call itself is mocked too.
-//
-// Both mock targets cover the handler's `from '../_lib/storage.js'` —
-// vitest's module resolver normalizes both forms but registering both
-// is the most defensive option.
-vi.mock('../../api/_lib/storage', () => ({
-  bulkSignReadUrls: vi.fn().mockResolvedValue(new Map<string, string>()),
-  signUploadUrl: vi.fn(),
-  signReadUrl: vi.fn(),
-  downloadPhotoTransformed: vi.fn(),
-  removeObjects: vi.fn(),
-  listLotObjects: vi.fn(),
-  STORAGE_BUCKET: 'lot-photos',
-}));
+// AI call itself is mocked too. The handler imports from '../_lib/storage.js'
+// — vitest resolves the .js form to the same module ID.
 vi.mock('../../api/_lib/storage.js', () => ({
   bulkSignReadUrls: vi.fn().mockResolvedValue(new Map<string, string>()),
   signUploadUrl: vi.fn(),
@@ -36,7 +24,7 @@ vi.mock('../../api/_lib/storage.js', () => ({
   STORAGE_BUCKET: 'lot-photos',
 }));
 import { runAiForLot } from '../../src/lib/ai/anthropic';
-import handler from '../../api/ai/backlog';
+import handler, { CAP_PER_INVOCATION } from '../../api/ai/backlog';
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';
 
@@ -96,17 +84,21 @@ describe('POST /api/ai/backlog (cron source)', () => {
   });
 
   it('processes eligible backlog up to cap', async () => {
-    await seedBacklog(25);
+    // Seed CAP+5 lots so there's a meaningful "remaining" no matter what
+    // the cap value is set to — the assertion derives both numbers from
+    // the actual constant so a cap change doesn't silently weaken the test.
+    const overflow = 5;
+    await seedBacklog(CAP_PER_INVOCATION + overflow);
     vi.mocked(runAiForLot).mockResolvedValue(SUCCESS_FIXTURE);
     const res = await callCron();
     expect(res.status).toBe(200);
-    expect(res.body.processed).toBe(20); // cap
-    expect(res.body.remaining).toBe(5);
+    expect(res.body.processed).toBe(CAP_PER_INVOCATION);
+    expect(res.body.remaining).toBe(overflow);
     expect(res.body.errors).toBe(0);
     // ai_last_run_at NOT updated because remaining > 0 (drain-eagerly)
     const [s] = await testDb.select().from(systemSettings);
     expect(s.aiLastRunAt).toBeNull();
-    // 25 seeded × ~5 DB round-trips each on a max=1 postgres pool runs
+    // CAP+5 seeded × ~5 DB round-trips each on a max=1 postgres pool runs
     // through one serialized connection; default 5s is too tight even with
     // concurrency=3 in the handler. 30s leaves comfortable headroom.
   }, 30_000);

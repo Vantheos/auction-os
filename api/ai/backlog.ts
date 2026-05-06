@@ -13,6 +13,7 @@ import { requireCronAuth } from '../_lib/cron-auth.js';
 import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
+import { bumpAiCounters } from '../_lib/ai-counters.js';
 import { lot, lotPhoto, systemSettings } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
@@ -21,9 +22,15 @@ import {
 } from '../../src/lib/ai/compose.js';
 import { pLimit } from '../../src/lib/ai/p-limit.js';
 
-const CAP_PER_INVOCATION = 20;
+// Cap on lots processed per invocation. Exported so tests can derive the
+// expected processed/remaining split from the actual constant.
+export const CAP_PER_INVOCATION = 20;
 const CONCURRENCY = 3;
-const FIVE_MIN_SQL = sql`interval '5 minutes'`;
+// Different concepts that happen to share a value: how long a held
+// system-level lock is valid before being treated as crashed/stale,
+// and how long a per-lot processing flag is valid. Split for clarity.
+const SYSTEM_LOCK_TTL = sql`interval '5 minutes'`;
+const PER_LOT_STALE_THRESHOLD = sql`interval '5 minutes'`;
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -56,7 +63,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     // Acquire system-level lock atomically
     const lockResult = await db.execute<{ ai_run_lock_until: Date }>(sql`
       UPDATE system_settings
-         SET ai_run_lock_until = NOW() + ${FIVE_MIN_SQL}
+         SET ai_run_lock_until = NOW() + ${SYSTEM_LOCK_TTL}
        WHERE id = 1
          AND (ai_run_lock_until IS NULL OR ai_run_lock_until < NOW())
        RETURNING ai_run_lock_until
@@ -83,7 +90,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
          WHERE l.last_ai_run_status IS NULL
            AND l.state IN ('assigned', 'unassigned')
            AND (l.ai_processing_started_at IS NULL
-                OR l.ai_processing_started_at < NOW() - ${FIVE_MIN_SQL})
+                OR l.ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
          ORDER BY l.intake_timestamp ASC
          LIMIT ${CAP_PER_INVOCATION}
       `);
@@ -102,7 +109,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
          WHERE last_ai_run_status IS NULL
            AND state IN ('assigned', 'unassigned')
            AND (ai_processing_started_at IS NULL
-                OR ai_processing_started_at < NOW() - ${FIVE_MIN_SQL})
+                OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
       `);
 
       // Drain-eagerly tail: advance ai_last_run_at only when backlog empty
@@ -144,7 +151,7 @@ async function processOne(row: EligibleRow, operatorUserId: string | null): Prom
     UPDATE lot SET ai_processing_started_at = NOW()
      WHERE id = ${row.id}
        AND (ai_processing_started_at IS NULL
-            OR ai_processing_started_at < NOW() - ${FIVE_MIN_SQL})
+            OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD})
      RETURNING id
   `);
   if (claimed.length === 0) return; // someone else got it
@@ -205,23 +212,7 @@ async function processOne(row: EligibleRow, operatorUserId: string | null): Prom
         aiProcessingStartedAt: null,
         updatedAt: new Date(),
       }).where(eq(lot.id, row.id));
-      await tx.execute(sql`
-        UPDATE system_settings SET
-          ai_cost_mtd_cents = CASE
-            WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-              THEN ${result.costCents}
-            ELSE ai_cost_mtd_cents + ${result.costCents}
-          END,
-          ai_cost_mtd_started_at = CASE
-            WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-              THEN NOW()
-            ELSE ai_cost_mtd_started_at
-          END,
-          ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${result.costCents},
-          ai_run_count_lifetime = ai_run_count_lifetime + 1,
-          updated_at = NOW()
-         WHERE id = 1
-      `);
+      await bumpAiCounters(tx, result.costCents);
     };
 
     if (operatorUserId) {
@@ -242,23 +233,7 @@ async function processOne(row: EligibleRow, operatorUserId: string | null): Prom
         aiProcessingStartedAt: null,
         updatedAt: new Date(),
       }).where(eq(lot.id, row.id));
-      await tx.execute(sql`
-        UPDATE system_settings SET
-          ai_cost_mtd_cents = CASE
-            WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-              THEN ${costCents}
-            ELSE ai_cost_mtd_cents + ${costCents}
-          END,
-          ai_cost_mtd_started_at = CASE
-            WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-              THEN NOW()
-            ELSE ai_cost_mtd_started_at
-          END,
-          ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${costCents},
-          ai_run_count_lifetime = ai_run_count_lifetime + 1,
-          updated_at = NOW()
-         WHERE id = 1
-      `);
+      await bumpAiCounters(tx, costCents);
     };
 
     if (operatorUserId) await asActor(operatorUserId, writeFn);
