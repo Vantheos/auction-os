@@ -11,10 +11,15 @@ export type Filters = {
   customerId?: string;
   jobId?: string;
   state: LotState[];
-  // Phase 6: when true, only return lots whose AI run produced incomplete
-  // results (lastAiRunStatus partial/failure, OR success but with NULL
-  // user-facing fields). The /lots GET handler implements the predicate.
-  needsInfo?: boolean;
+  // REQ-1 (2026-05-06): split the old needsInfo filter into two independent
+  // chips so operators can target precise queues.
+  // - awaitingAi: lastAiRunStatus IS NULL AND state in (assigned, unassigned).
+  //   "AI hasn't touched this lot yet."
+  // - needsReview: lastAiRunStatus in (partial, failure) OR a required
+  //   user-facing field is empty. "AI ran but the lot still isn't ready."
+  // Both active = union (everything needing attention).
+  awaitingAi?: boolean;
+  needsReview?: boolean;
 };
 
 type Props = {
@@ -31,7 +36,7 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
   const toggle = (s: LotState) =>
     onChange({ ...filters, state: filters.state.includes(s) ? filters.state.filter((x) => x !== s) : [...filters.state, s] });
 
-  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0 || filters.needsInfo;
+  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0 || filters.awaitingAi || filters.needsReview;
   const clear = () => onChange({ state: [] });
 
   return (
@@ -66,10 +71,16 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
       </div>
 
       <button type="button"
-        onClick={() => onChange({ ...filters, needsInfo: !filters.needsInfo })}
+        onClick={() => onChange({ ...filters, awaitingAi: !filters.awaitingAi })}
         className={`text-xs px-2 py-1 rounded-md border ml-2 ${
-          filters.needsInfo ? 'bg-warning-bg border-warning text-warning' : 'border-border text-textDim hover:bg-muted'
-        }`}>Needs Info.</button>
+          filters.awaitingAi ? 'bg-info-bg border-brand text-brand' : 'border-border text-textDim hover:bg-muted'
+        }`}>Awaiting AI</button>
+
+      <button type="button"
+        onClick={() => onChange({ ...filters, needsReview: !filters.needsReview })}
+        className={`text-xs px-2 py-1 rounded-md border ${
+          filters.needsReview ? 'bg-warning-bg border-warning text-warning' : 'border-border text-textDim hover:bg-muted'
+        }`}>Needs review</button>
 
       {hasAny && <Button size="sm" variant="ghost" onClick={clear}>Clear filters</Button>}
 

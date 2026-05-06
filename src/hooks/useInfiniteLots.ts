@@ -14,9 +14,10 @@ export type InfiniteLotFilters = {
   customerId?: string;
   jobId?: string;
   state?: LotState[];
-  // Phase 6: passthrough for the /lots GET ?needsInfo=true predicate
-  // (Phase 6 server filter already implemented in api/lots/index.ts).
-  needsInfo?: boolean;
+  // REQ-1 (2026-05-06): two independent passthrough flags for the
+  // /lots GET endpoint. See InventoryFilters for semantics.
+  awaitingAi?: boolean;
+  needsReview?: boolean;
 };
 
 function toQueryString(f: InfiniteLotFilters, offset: number): string {
@@ -24,7 +25,8 @@ function toQueryString(f: InfiniteLotFilters, offset: number): string {
   if (f.customerId) p.set('customerId', f.customerId);
   if (f.jobId) p.set('jobId', f.jobId);
   if (f.state) for (const s of f.state) p.append('state', s);
-  if (f.needsInfo) p.set('needsInfo', 'true');
+  if (f.awaitingAi) p.set('awaitingAi', 'true');
+  if (f.needsReview) p.set('needsReview', 'true');
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return `?${p.toString()}`;

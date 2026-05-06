@@ -28,22 +28,29 @@ function parseFiltersFromUrl(params: URLSearchParams): Filters {
     customerId: params.get('customerId') ?? undefined,
     jobId: params.get('jobId') ?? undefined,
     state: params.getAll('state').filter((s): s is LotState => STATES_VALID.includes(s as LotState)),
-    needsInfo: params.get('needsInfo') === 'true' ? true : undefined,
+    awaitingAi: params.get('awaitingAi') === 'true' ? true : undefined,
+    needsReview: params.get('needsReview') === 'true' ? true : undefined,
   };
 }
 
 function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams {
   const next = new URLSearchParams(params);
-  next.delete('customerId'); next.delete('jobId'); next.delete('state'); next.delete('needsInfo');
+  next.delete('customerId'); next.delete('jobId'); next.delete('state');
+  next.delete('awaitingAi'); next.delete('needsReview');
+  // Drop the legacy ?needsInfo URL param if present so old bookmarks
+  // resolve cleanly to the new chip set on the next interaction.
+  next.delete('needsInfo');
   if (f.customerId) next.set('customerId', f.customerId);
   if (f.jobId) next.set('jobId', f.jobId);
   for (const s of f.state) next.append('state', s);
-  if (f.needsInfo) next.set('needsInfo', 'true');
+  if (f.awaitingAi) next.set('awaitingAi', 'true');
+  if (f.needsReview) next.set('needsReview', 'true');
   return next;
 }
 
 function activeFilterCount(f: Filters): number {
-  return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length + (f.needsInfo ? 1 : 0);
+  return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length
+    + (f.awaitingAi ? 1 : 0) + (f.needsReview ? 1 : 0);
 }
 
 export function Inventory() {

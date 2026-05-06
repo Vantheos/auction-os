@@ -29,4 +29,34 @@ describe('computeCostCents', () => {
     // 1M input + 1M output = 300 + 1500 = 1800 cents = $18
     expect(computeCostCents(1_000_000, 1_000_000)).toBe(1800);
   });
+
+  it('charges cache writes at 1.25x input rate', () => {
+    // 1M cache_creation tokens at 375 cents/M = 375 cents
+    expect(computeCostCents(0, 0, 1_000_000, 0)).toBe(375);
+  });
+
+  it('charges cache reads at 0.10x input rate', () => {
+    // 1M cache_read tokens at 30 cents/M = 30 cents
+    expect(computeCostCents(0, 0, 0, 1_000_000)).toBe(30);
+  });
+
+  it('combines uncached input + cache read for a typical post-cache-warm call', () => {
+    // First call wrote ~3000 tokens of system prompt to cache.
+    // Second call: input_tokens=200 (user content only), cache_read=3000, output=200.
+    // 200 * 300 / 1M = 0.06, 3000 * 30 / 1M = 0.09, 200 * 1500 / 1M = 0.30 → 0.45 → 0
+    expect(computeCostCents(200, 200, 0, 3000)).toBe(0);
+    // Verified savings vs uncached equivalent:
+    // 3200 * 300 / 1M + 200 * 1500 / 1M = 0.96 + 0.30 = 1.26 → 1
+    expect(computeCostCents(3200, 200)).toBe(1);
+  });
+
+  it('charges cache write on the cache-creating call', () => {
+    // First-ever call: input_tokens=200, cache_creation=3000, output=200.
+    // 200 * 300 / 1M = 0.06, 3000 * 375 / 1M = 1.125, 200 * 1500 / 1M = 0.30 → 1.485 → 1
+    expect(computeCostCents(200, 200, 3000, 0)).toBe(1);
+  });
+
+  it('omitted cache args default to zero (backward compat)', () => {
+    expect(computeCostCents(5000, 200)).toBe(computeCostCents(5000, 200, 0, 0));
+  });
 });

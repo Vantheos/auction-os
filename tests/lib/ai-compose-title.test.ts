@@ -88,4 +88,31 @@ describe('composeTitle', () => {
     });
     expect(result?.length).toBeLessThanOrEqual(50);
   });
+
+  it('collapses adjacent spaces when brand+brief are both null with a TOOL ONLY suffix', () => {
+    // fixedLeft = '$120- 3x ' (trailing space), composedMiddle = '',
+    // fixedRight = ' TOOL ONLY' (leading space). Without the collapse step
+    // the result would have a double space between "3x" and "TOOL ONLY".
+    const result = composeTitle({
+      ...base,
+      brand: null,
+      briefDescription: null,
+      specialNotesCategory: 'TOOL ONLY',
+    });
+    expect(result).toBe('$120- 3x TOOL ONLY');
+    expect(result).not.toMatch(/ {2,}/);
+  });
+
+  it('trims trailing space when there is no fixedRight suffix', () => {
+    // fixedLeft = '$120- 3x ' (trailing space), composedMiddle = '',
+    // fixedRight = ''. Result must not end with whitespace.
+    const result = composeTitle({
+      ...base,
+      brand: null,
+      briefDescription: null,
+      specialNotesCategory: 'None',
+    });
+    expect(result).toBe('$120- 3x');
+    expect(result).not.toMatch(/ $/);
+  });
 });

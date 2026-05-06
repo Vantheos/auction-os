@@ -15,6 +15,7 @@ import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
 import { finalizeLotRun } from '../_lib/ai-finalize.js';
 import { PER_LOT_STALE_THRESHOLD_SQL } from '../_lib/ai-thresholds.js';
+import { mostRecentScheduledTime } from '../_lib/ai-schedule.js';
 import { lotPhoto, systemSettings } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
@@ -52,12 +53,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const [settings] = await db.select().from(systemSettings).where(eq(systemSettings.id, 1));
     if (!settings) return jsonError(res, 500, 'SETTINGS_MISSING', 'system_settings singleton missing');
 
-    // Schedule gate (cron only)
+    // Schedule gate (cron only). Two reasons to proceed:
+    //   (a) drain-in-progress: a previous tick (cron or Run Now) opened a
+    //       drain cycle that hasn't reached remaining=0 yet — keep going.
+    //   (b) a scheduled grid time has passed since the last completed
+    //       drain (or there's never been one).
+    // Otherwise: throttle. The grid is timeOfDay + N*intervalHours,
+    // recomputed live each tick so config changes apply naturally.
     if (isCronCall) {
       if (!settings.aiScheduleEnabled) return jsonOk(res, { skipped: true, reason: 'disabled' });
-      if (settings.aiLastRunAt !== null) {
-        const nextDue = new Date(settings.aiLastRunAt.getTime() + settings.aiScheduleIntervalHours * 3600 * 1000);
-        if (nextDue > new Date()) return jsonOk(res, { skipped: true, reason: 'too_soon' });
+      if (!settings.aiDrainInProgress) {
+        const grid = mostRecentScheduledTime(new Date(), settings.aiScheduleTimeOfDay, settings.aiScheduleIntervalHours);
+        if (settings.aiLastRunAt !== null && settings.aiLastRunAt.getTime() >= grid.getTime()) {
+          return jsonOk(res, { skipped: true, reason: 'too_soon' });
+        }
       }
     }
 
@@ -70,6 +79,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
        RETURNING ai_run_lock_until
     `);
     if (lockResult.length === 0) return jsonOk(res, { skipped: true, reason: 'in_progress' });
+
+    // Mark the drain cycle as open so subsequent cron heartbeats keep
+    // continuing it until remaining=0, regardless of where on the schedule
+    // grid we are. Idempotent: cron-triggered ticks may already see this
+    // set from a Run Now that left work pending, in which case it's a no-op.
+    await db.execute(sql`UPDATE system_settings SET ai_drain_in_progress = true WHERE id = 1`);
 
     let processed = 0;
     let errors = 0;
@@ -113,9 +128,20 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
       `);
 
-      // Drain-eagerly tail: advance ai_last_run_at only when backlog empty
-      if (remaining === 0 && processed > 0) {
-        await db.execute(sql`UPDATE system_settings SET ai_last_run_at = NOW() WHERE id = 1`);
+      // Drain-eagerly tail. When the queue is empty, close the drain cycle
+      // (clears ai_drain_in_progress) and advance ai_last_run_at so the
+      // schedule gate throttles until the next grid time. This bumps even
+      // when processed=0 (idle no-op) — that's intentional, the operator's
+      // schedule should govern when we re-check, not the cron's 15-min
+      // heartbeat. While the drain is still open (remaining > 0), leave
+      // both flags as is; the next tick continues the cycle.
+      if (remaining === 0) {
+        await db.execute(sql`
+          UPDATE system_settings
+             SET ai_last_run_at = NOW(),
+                 ai_drain_in_progress = false
+           WHERE id = 1
+        `);
       }
 
       // Release system lock (always)

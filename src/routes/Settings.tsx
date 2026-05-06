@@ -155,7 +155,16 @@ function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <span
+          aria-label={`${initial.aiPendingLotCount} lots pending AI`}
+          className="text-xs text-textDim mr-auto"
+          data-testid="ai-pending-count"
+        >
+          {initial.aiPendingLotCount === 1
+            ? '1 lot pending AI'
+            : `${initial.aiPendingLotCount} lots pending AI`}
+        </span>
         <Button variant="outline" onClick={() => backlog.mutate()} disabled={backlog.isPending}>
           {backlog.isPending ? 'Running…' : 'Run Now'}
         </Button>

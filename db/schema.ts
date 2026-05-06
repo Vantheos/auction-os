@@ -118,6 +118,10 @@ export const systemSettings = pgTable('system_settings', {
   aiRunCountLifetime: integer('ai_run_count_lifetime').notNull().default(0),
   aiCostMtdStartedAt: timestamp('ai_cost_mtd_started_at', { withTimezone: true }).notNull().defaultNow(),
   aiRunLockUntil: timestamp('ai_run_lock_until', { withTimezone: true }),
+  // Drain cycle marker. true = a drain is open and should be continued by
+  // the next cron heartbeat regardless of schedule grid. false = idle /
+  // throttled until the next scheduled grid time arrives. Migration 0013.
+  aiDrainInProgress: boolean('ai_drain_in_progress').notNull().default(false),
   labelPrinterHelperUrl: text('label_printer_helper_url'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -69,7 +69,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const aiStatuses = parseAiStatusFilter(url.searchParams);
       const dateFrom = parseDate(url.searchParams.get('dateFrom'));
       const dateTo = parseDate(url.searchParams.get('dateTo'));
-      const needsInfo = url.searchParams.get('needsInfo') === 'true';
+      // REQ-1 (2026-05-06): the legacy ?needsInfo=true filter was split into
+      // two independent chips. ?awaitingAi=true catches lots where AI hasn't
+      // produced output yet; ?needsReview=true catches lots whose AI output
+      // didn't fully succeed (partial/failure) OR succeeded but a required
+      // field is empty (e.g. operator cleared one). Both chips active = OR.
+      // Backward-compat: ?needsInfo=true still parses and behaves like the
+      // old union (awaitingAi OR needsReview) so external links don't break.
+      const awaitingAi = url.searchParams.get('awaitingAi') === 'true';
+      const needsReview = url.searchParams.get('needsReview') === 'true';
+      const legacyNeedsInfo = url.searchParams.get('needsInfo') === 'true';
       const limitRaw = parseInt(url.searchParams.get('limit') ?? '50', 10);
       const offsetRaw = parseInt(url.searchParams.get('offset') ?? '0', 10);
       const limit = Number.isFinite(limitRaw) && limitRaw >= 0 ? Math.min(limitRaw, 200) : 50;
@@ -90,13 +99,40 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           conditions.push(aiClauses.length === 1 ? aiClauses[0] : or(...aiClauses)!);
         }
       }
-      if (needsInfo) {
-        conditions.push(or(
-          sql`${lot.lastAiRunStatus} IS DISTINCT FROM 'success'`,
-          isNull(lot.title),
-          isNull(lot.description),
-          isNull(lot.price),
-        )!);
+      // Awaiting AI: status NULL AND state allows AI processing.
+      const awaitingAiClause = and(
+        isNull(lot.lastAiRunStatus),
+        inArray(lot.state, ['assigned', 'unassigned'] as const),
+      )!;
+      // Needs review: AI ran but didn't fully succeed (partial/failure),
+      // OR AI ran successfully but a required user-facing field is now
+      // empty (operator cleared title/description/price after the run).
+      // The empty-fields branch is gated by lastAiRunStatus IS NOT NULL —
+      // a status=NULL lot is "awaiting AI" territory, not "needs review."
+      // Empty = NULL or '' for text; NULL only for price (zero is operator
+      // intent, not "missing").
+      const needsReviewClause = or(
+        inArray(lot.lastAiRunStatus, ['partial', 'failure'] as const),
+        and(
+          sql`${lot.lastAiRunStatus} IS NOT NULL`,
+          inArray(lot.state, ['assigned', 'unassigned'] as const),
+          or(
+            isNull(lot.title),
+            sql`${lot.title} = ''`,
+            isNull(lot.description),
+            sql`${lot.description} = ''`,
+            isNull(lot.price),
+          ),
+        )!,
+      )!;
+      if (legacyNeedsInfo) {
+        conditions.push(or(awaitingAiClause, needsReviewClause)!);
+      } else if (awaitingAi && needsReview) {
+        conditions.push(or(awaitingAiClause, needsReviewClause)!);
+      } else if (awaitingAi) {
+        conditions.push(awaitingAiClause);
+      } else if (needsReview) {
+        conditions.push(needsReviewClause);
       }
       if (dateFrom) conditions.push(gte(lot.createdAt, dateFrom));
       if (dateTo) conditions.push(lte(lot.createdAt, dateTo));

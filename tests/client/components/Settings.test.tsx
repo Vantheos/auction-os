@@ -30,6 +30,8 @@ function makeSettings(overrides: Partial<SystemSettingsDTO> = {}): SystemSetting
     aiRunCountLifetime: 0,
     aiCostMtdStartedAt: '2026-05-03T00:00:00.000Z',
     aiRunLockUntil: null,
+    aiDrainInProgress: false,
+    aiPendingLotCount: 0,
     labelPrinterHelperUrl: null,
     updatedAt: '2026-05-03T00:00:00.000Z',
     ...overrides,
@@ -154,6 +156,27 @@ describe('Settings → AI section structure', () => {
     mockApi({ 'GET /system-settings': () => makeSettings() });
     renderWithProviders(<Settings />);
     expect(await screen.findByRole('button', { name: 'Run Now' })).toBeInTheDocument();
+  });
+
+  it('renders the pending-AI badge with the count from the server response', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings({ aiPendingLotCount: 7 }) });
+    renderWithProviders(<Settings />);
+    const badge = await screen.findByTestId('ai-pending-count');
+    expect(badge).toHaveTextContent('7 lots pending AI');
+  });
+
+  it('pending-AI badge uses singular form for exactly 1 lot', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings({ aiPendingLotCount: 1 }) });
+    renderWithProviders(<Settings />);
+    const badge = await screen.findByTestId('ai-pending-count');
+    expect(badge).toHaveTextContent('1 lot pending AI');
+  });
+
+  it('pending-AI badge shows 0 when no lots are pending', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings({ aiPendingLotCount: 0 }) });
+    renderWithProviders(<Settings />);
+    const badge = await screen.findByTestId('ai-pending-count');
+    expect(badge).toHaveTextContent('0 lots pending AI');
   });
 
   it('Run Now button is disabled while the backlog mutation is in flight', async () => {

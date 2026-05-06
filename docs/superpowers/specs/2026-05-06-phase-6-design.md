@@ -110,6 +110,8 @@ ALTER TABLE system_settings
 
 ### 3.2 Area B — Anthropic client + prompts module
 
+> **Amendment 2026-05-06 (REQ-3, prompt caching):** the static system prompt (SCAFFOLD + RULES) is now passed as a `TextBlockParam` array with `cache_control: { type: 'ephemeral' }`. Cache pricing for Sonnet 4.6 (5-min ephemeral): writes at 1.25x base input ($3.75/M, `cacheWriteCentsPerMillion: 375`); reads at 0.10x base input ($0.30/M, `cacheReadCentsPerMillion: 30`). `computeCostCents` extended with two optional cache-token params (zero-default for backward compat). `AiRunResult` gains `cacheCreationTokens` + `cacheReadTokens`. The first call in a 5-min window pays the cache-write surcharge; subsequent calls pay ~10% of normal input rate for the system-prompt portion. Net break-even is ~3 lots/window; typical drain (≥5 lots) is a clear win.
+
 New folder `src/lib/ai/` (used by both client-shared types and server runner; the actual Anthropic call happens in the server runner only):
 
 #### `src/lib/ai/model.ts`
@@ -397,11 +399,16 @@ Native `(req, res)` handler. Auth: requires `requireCronAuth` if called via the 
 **Per-invocation flow:**
 
 1. **Auth** based on `?source=cron`.
-2. **Schedule gate** (cron only): read `system_settings`. If `aiScheduleEnabled = false`, return `{ skipped: true, reason: 'disabled' }` with status 200. If `now < aiLastRunAt + intervalHours`, return `{ skipped: true, reason: 'too_soon' }`. (Run Now bypasses this entirely.)
+2. **Schedule gate** (cron only): read `system_settings`. If `aiScheduleEnabled = false`, return `{ skipped: true, reason: 'disabled' }`. Otherwise:
+   - If `aiDrainInProgress = true` → bypass the schedule check entirely (a drain is open and must continue across heartbeats until empty).
+   - Else compute `mostRecentScheduledTime(now, aiScheduleTimeOfDay, aiScheduleIntervalHours)` from the regular grid `timeOfDay + N * intervalHours`. If `aiLastRunAt` is set AND `aiLastRunAt >= mostRecentScheduledTime` → `{ skipped: true, reason: 'too_soon' }` (no scheduled tick has passed since the last completed drain).
+   - Otherwise: a scheduled grid time has passed since the last drain — proceed.
 
-   Schedule semantics (Round 1 = Option A, strict time-of-day anchor): the cron only fires actual work at `timeOfDay`, then again every `intervalHours` from there. Run Now bypasses both gates — drains immediately if eligible lots exist.
+   Run Now bypasses the schedule gate entirely.
 
-   **However, drain-eagerly applies (Round 3):** when the schedule says "go" and the run completes with `remaining > 0`, the handler does NOT update `ai_last_run_at` to now-plus-interval. Instead it leaves `ai_last_run_at` unchanged so the next 15-min Vercel cron tick re-enters and processes the next batch. Only when the backlog is empty does the handler set `ai_last_run_at = now()` (anchor moves forward). This is what makes the schedule act as an idle re-check cadence rather than a throttle.
+   > **Amendment 2026-05-06 (Schedule-gate fix):** the gate previously compared `now` vs `aiLastRunAt + intervalHours` — a last-run-anchored heuristic that drifted with each drain and didn't honor the operator's time-of-day anchor. Migration `0013` adds `system_settings.ai_drain_in_progress`; the gate now keys on (a) drain-in-progress for cross-heartbeat continuation and (b) the operator's grid (Round 1 = strict time-of-day anchor) for scheduled kickoff. Helper: `api/_lib/ai-schedule.ts` exposes `mostRecentScheduledTime`. Operator config changes (timeOfDay or intervalHours) take effect on the next heartbeat with no migration logic — the helper recomputes from the current settings each call.
+
+   **Drain-eagerly tail (Round 3, refined):** after processing, the handler re-counts `remaining`. If `remaining = 0`, set `ai_last_run_at = NOW()` AND clear `ai_drain_in_progress`. If `remaining > 0`, leave both as is — the next heartbeat continues the cycle. The bump happens whenever `remaining = 0`, including the no-eligible-lots case, so the operator's schedule actually throttles instead of polling every 15 min.
 
 3. **Acquire system-level lock** atomically:
    ```sql
@@ -539,7 +546,9 @@ Current: single "AI schedule" card with enabled / interval / time-of-day control
 
 After Phase 6: section renamed to **"AI"** containing two sub-cards:
 
-**Sub-card 1: "Schedule"** — keeps existing controls (enabled / interval / time-of-day) plus new **"Run Now"** button. Clicking calls `POST /api/ai/backlog` (no `?source=cron`); on response, shows toast:
+**Sub-card 1: "Schedule"** — keeps existing controls (enabled / interval / time-of-day) plus new **"Run Now"** button and a **pending-AI badge** (REQ-2, added 2026-05-06). The badge sits to the left of the Run Now / Save buttons and reads `"N lots pending AI"` (singular for N=1). N comes from a new `aiPendingLotCount` field on the GET `/api/system-settings` response, computed server-side as `COUNT(*) FROM lot WHERE last_ai_run_status IS NULL AND state IN ('assigned','unassigned')`. The count is read off the existing `useSystemSettings()` cache — no separate fetch — so it refreshes whenever the settings query is invalidated (after a Run Now completes, after a lot is created/edited, etc.).
+
+Clicking Run Now calls `POST /api/ai/backlog` (no `?source=cron`); on response, shows toast:
 
 | Outcome | Toast |
 |---|---|
@@ -576,27 +585,24 @@ On click: `POST /api/ai/run` with `{ lotId }`. On response:
 
 Hook follows the existing `useLotMutations.ts` pattern — same invalidation, same toast wiring, same testing-policy compliance.
 
-#### G.3 — Inventory "Needs Info." filter
+#### G.3 — Inventory "Awaiting AI" + "Needs review" filters
 
-Add a new filter chip to `InventoryFilters.tsx`:
+> **Amendment 2026-05-06 (REQ-1):** the original single "Needs Info." chip was split into two independent chips. The legacy `?needsInfo=true` query param is preserved server-side as a compatibility union (matches lots in either new bucket).
 
-```tsx
-<button onClick={() => onChange({ ...filters, needsInfo: !filters.needsInfo })}
-  className={...}>Needs Info.</button>
-```
+Two filter chips, each toggled independently via `InventoryFilters.tsx`:
 
-`Filters` type gains `needsInfo?: boolean`. The chip is a separate boolean toggle (not a state filter or AI-status filter) because its semantics are "anything not in fully-populated success state".
+| Chip | `Filters` field | Server query param | SQL clause |
+|---|---|---|---|
+| **Awaiting AI** | `awaitingAi?: boolean` | `?awaitingAi=true` | `last_ai_run_status IS NULL AND state IN ('assigned','unassigned')` |
+| **Needs review** | `needsReview?: boolean` | `?needsReview=true` | `last_ai_run_status IN ('partial','failure') OR (last_ai_run_status IS NOT NULL AND state IN ('assigned','unassigned') AND (title IS NULL OR title = '' OR description IS NULL OR description = '' OR price IS NULL))` |
 
-**Server-side** (in `api/lots/index.ts` GET handler): when `needsInfo=true` is in the query string, append the SQL clause:
+Both flags active = SQL `OR` of the two clauses (everything needing attention).
 
-```sql
-AND (last_ai_run_status IS DISTINCT FROM 'success'
-     OR title IS NULL
-     OR description IS NULL
-     OR price IS NULL)
-```
+**Empty-fields rule.** "Needs review" treats a lot as needing attention if any of `title`, `description`, or `price` is empty AFTER a completed AI run — typically because the operator manually cleared the field. Empty = `NULL` or `''` for text columns; `NULL` only for `price` (the numeric `0` is a valid operator decision, not "missing"). The empty-fields branch is gated by `last_ai_run_status IS NOT NULL` so a status=NULL lot stays exclusively in the Awaiting AI bucket and the two queues remain disjoint.
 
-This is the comprehensive "anything that needs operator attention" filter from Round 4 final. Combines status-based detection (catches AI failures) with field-presence detection (catches user-cleared-after-success edge case). Per Round 4, the redundancy is intentional — both clauses fire in normal AI-failure cases and the field-presence clause covers the post-AI edge.
+The state-restriction (`assigned`/`unassigned`) on the empty-fields branch keeps sold/picked-up/not-sellable lots out of the queue — those are conceptually done; cleared fields don't drag them back into review.
+
+**URL handling** in `Inventory.tsx`: `parseFiltersFromUrl` reads both flags from the query string. `writeFiltersToUrl` writes both AND deletes the legacy `?needsInfo` param so old bookmarks resolve cleanly to the new chip set. `activeFilterCount` counts each flag independently.
 
 #### G.4 — `LotDTO` and `useLot` updates
 

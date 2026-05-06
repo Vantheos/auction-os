@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { callHandler, type CallResult } from '../helpers/call-handler';
-import { appUser, systemSettings } from '../../db/schema';
+import { appUser, customer, job, lot, systemSettings } from '../../db/schema';
 import handler from '../../api/system-settings';
 
 const ADMIN = '00000000-0000-0000-0000-000000000001';
@@ -38,6 +38,29 @@ describe('GET /api/system-settings', () => {
   it('any authenticated role can read', async () => {
     const res = await call('GET', null, 'office', OFFICE);
     expect(res.status).toBe(200);
+  });
+
+  it('aiPendingLotCount is zero with no lots', async () => {
+    const res = await call('GET', null);
+    expect(res.status).toBe(200);
+    expect(res.body.aiPendingLotCount).toBe(0);
+  });
+
+  it('aiPendingLotCount counts lots awaiting AI (status=null, state in assigned/unassigned)', async () => {
+    const [c] = await testDb.insert(customer).values({ name: 'X' }).returning();
+    const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J-1' }).returning();
+    // 2 awaiting AI (the count) + 2 excluded (succeeded / sold-state).
+    // state_tuple_consistent: unassigned/not-sellable require jobId+lotNumber NULL;
+    // assigned/sold/picked-up require both set.
+    await testDb.insert(lot).values([
+      { jobId: null,  lotNumber: null, state: 'unassigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId: j.id,  lotNumber: 2,    state: 'assigned',   source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId: j.id,  lotNumber: 3,    state: 'assigned',   source: 'imported', intakeOperatorId: ADMIN, quantity: 1, lastAiRunStatus: 'success' },
+      { jobId: j.id,  lotNumber: 4,    state: 'sold',       source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+    ]);
+    const res = await call('GET', null);
+    expect(res.status).toBe(200);
+    expect(res.body.aiPendingLotCount).toBe(2);
   });
 });
 

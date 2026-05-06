@@ -32,6 +32,8 @@ function makeSettings(overrides: Partial<SystemSettingsDTO> = {}): SystemSetting
     aiRunCountLifetime: 0,
     aiCostMtdStartedAt: '2026-05-03T00:00:00.000Z',
     aiRunLockUntil: null,
+    aiDrainInProgress: false,
+    aiPendingLotCount: 0,
     labelPrinterHelperUrl: null,
     updatedAt: '2026-05-03T00:00:00.000Z',
     ...overrides,

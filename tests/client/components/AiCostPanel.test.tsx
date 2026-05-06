@@ -10,6 +10,7 @@ const base: SystemSettingsDTO = {
   aiLastRunAt: null,
   aiCostMtdCents: 0, aiCostLifetimeCents: 0, aiRunCountLifetime: 0,
   aiCostMtdStartedAt: '2026-05-01T00:00:00Z', aiRunLockUntil: null,
+  aiDrainInProgress: false, aiPendingLotCount: 0,
   labelPrinterHelperUrl: null, updatedAt: '2026-05-06T00:00:00Z',
 };
 

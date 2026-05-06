@@ -213,6 +213,15 @@ export type SystemSettingsDTO = {
   aiRunCountLifetime: number;
   aiCostMtdStartedAt: string;
   aiRunLockUntil: string | null;
+  // True while a drain cycle is open across cron heartbeats. Set when a
+  // scheduled or Run Now drain begins; cleared when the queue is fully
+  // drained. The cron gate uses this to keep continuing across heartbeats
+  // until empty, regardless of where on the schedule grid we are.
+  aiDrainInProgress: boolean;
+  // Count of lots eligible for AI processing right now: state in
+  // ('assigned','unassigned') and last_ai_run_status IS NULL. Computed
+  // server-side on each GET; rendered as a badge in Settings → AI → Schedule.
+  aiPendingLotCount: number;
   labelPrinterHelperUrl: string | null;
   updatedAt: string;
 };

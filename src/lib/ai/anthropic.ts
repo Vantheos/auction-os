@@ -2,6 +2,11 @@
 // Server-only Anthropic SDK wrapper. Owns: client construction,
 // structured-output schema, per-call timeout, transient-error retry,
 // token usage extraction, cost calculation. Never imported by client.
+//
+// Uses the direct @anthropic-ai/sdk on purpose — not @ai-sdk/anthropic
+// or ai-gateway. This app is locked to a single Anthropic model
+// (Sonnet 4.6) with bespoke web_search + ephemeral prompt caching;
+// AI Gateway adds latency and a dependency without unlocking value here.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
@@ -34,6 +39,8 @@ export type AiRunResult = {
   output: AiOutput;
   inputTokens: number;
   outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
   costCents: number;
 };
 
@@ -69,7 +76,14 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
       const message = await getClient().messages.parse({
         model: AI_MODEL,
         max_tokens: 1500,
-        system: SYSTEM_SCAFFOLD + '\n' + TITLE_RULES + '\n' + DESCRIPTION_RULES + '\n' + PRICE_RULES,
+        // System prompt marked ephemeral-cacheable. The static SCAFFOLD +
+        // RULES block is identical across runs, so subsequent calls within
+        // the cache TTL pay ~10% input rate for these tokens.
+        system: [{
+          type: 'text',
+          text: SYSTEM_SCAFFOLD + '\n' + TITLE_RULES + '\n' + DESCRIPTION_RULES + '\n' + PRICE_RULES,
+          cache_control: { type: 'ephemeral' },
+        }],
         messages: [{ role: 'user', content: userContent }],
         tools: [{ name: 'web_search', type: 'web_search_20250305' }],
         output_config: { format: zodOutputFormat(AiOutputSchema) },
@@ -81,11 +95,15 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
       };
       const inputTokens = message.usage.input_tokens;
       const outputTokens = message.usage.output_tokens;
+      const cacheCreationTokens = message.usage.cache_creation_input_tokens ?? 0;
+      const cacheReadTokens = message.usage.cache_read_input_tokens ?? 0;
       return {
         output,
         inputTokens,
         outputTokens,
-        costCents: computeCostCents(inputTokens, outputTokens),
+        cacheCreationTokens,
+        cacheReadTokens,
+        costCents: computeCostCents(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens),
       };
     } catch (err) {
       if (!isTransient(err) || attempt >= 1) throw err;

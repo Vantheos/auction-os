@@ -6,7 +6,12 @@ import { vi } from 'vitest';
 import type { AiRunResult, AiOutput } from '../../src/lib/ai/anthropic';
 import { computeCostCents } from '../../src/lib/ai/model';
 
-export type MockTokens = { input: number; output: number };
+export type MockTokens = {
+  input: number;
+  output: number;
+  cacheCreation?: number;
+  cacheRead?: number;
+};
 const DEFAULT_TOKENS: MockTokens = { input: 5000, output: 200 };
 
 export function mockAiRunResult(
@@ -21,11 +26,15 @@ export function mockAiRunResult(
     multi_item_detected: false,
     ...overrides,
   };
+  const cacheCreationTokens = tokens.cacheCreation ?? 0;
+  const cacheReadTokens = tokens.cacheRead ?? 0;
   return {
     output,
     inputTokens: tokens.input,
     outputTokens: tokens.output,
-    costCents: computeCostCents(tokens.input, tokens.output),
+    cacheCreationTokens,
+    cacheReadTokens,
+    costCents: computeCostCents(tokens.input, tokens.output, cacheCreationTokens, cacheReadTokens),
   };
 }
 

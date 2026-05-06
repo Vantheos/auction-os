@@ -1,7 +1,7 @@
 // api/system-settings.ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AuthError, requireAuth } from './_lib/auth.js';
 import { readJson, EmptyBodyError } from './_lib/body.js';
 import { asActor, getDb } from './_lib/db.js';
@@ -24,9 +24,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   try {
     if (req.method === 'GET') {
       await requireAuth(req);
-      const [row] = await getDb().select().from(systemSettings).where(eq(systemSettings.id, 1));
+      const db = getDb();
+      const [row] = await db.select().from(systemSettings).where(eq(systemSettings.id, 1));
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'system_settings singleton missing');
-      return jsonOk(res, row);
+      const [{ pending }] = await db.execute<{ pending: number }>(sql`
+        SELECT COUNT(*)::int AS pending
+          FROM lot
+         WHERE last_ai_run_status IS NULL
+           AND state IN ('assigned', 'unassigned')
+      `);
+      return jsonOk(res, { ...row, aiPendingLotCount: pending });
     }
 
     if (req.method === 'PATCH') {

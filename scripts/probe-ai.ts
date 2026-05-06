@@ -111,13 +111,26 @@ async function main() {
         specialNotesText: row.special_notes_text,
         untested: row.untested,
       });
-      console.log(`  status: ${lotStatus}  (${elapsed}ms, ${result.inputTokens}in/${result.outputTokens}out, ${result.costCents}¢)`);
+      const cacheNote = result.cacheReadTokens > 0
+        ? ` cache_read=${result.cacheReadTokens}`
+        : result.cacheCreationTokens > 0
+          ? ` cache_write=${result.cacheCreationTokens}`
+          : '';
+      console.log(`  status: ${lotStatus}  (${elapsed}ms, ${result.inputTokens}in/${result.outputTokens}out${cacheNote}, ${result.costCents}¢)`);
       console.log(`  title: ${newTitle}`);
       console.log(`  description: ${newDescription}`);
       console.log(`  price: ${result.output.price}`);
       totalCostCents += result.costCents;
 
       if (shouldWrite) {
+        // Deliberate divergence from production: --write updates the lot row
+        // but does NOT bump system_settings cost counters
+        // (ai_cost_mtd_cents / ai_cost_lifetime_cents / ai_run_count_lifetime).
+        // Real /api/ai/run + /api/ai/backlog calls go through finalizeLotRun
+        // → bumpAiCounters and ARE counted. Probe runs are excluded so
+        // prompt-tuning experiments don't pollute operator-visible cost
+        // metrics in Settings → AI → Cost. Probe spend is still visible in
+        // the Anthropic billing dashboard.
         await db.execute(sql`
           UPDATE lot SET title = ${newTitle},
             description = ${newDescription},
