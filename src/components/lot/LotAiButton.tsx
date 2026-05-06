@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { useAiRun } from '@/hooks/useAiRun';
 import { useRole } from '@/lib/auth';
+import { useNow } from '@/hooks/useNow';
 import type { LotDTO } from '@shared/types';
 
 type Props = { lot: LotDTO };
@@ -16,10 +17,16 @@ export function LotAiButton({ lot }: Props) {
   const aiRun = useAiRun();
   const qc = useQueryClient();
 
-  const isProcessing = lot.aiProcessingStartedAt !== null
-    && Date.now() - new Date(lot.aiProcessingStartedAt).getTime() < FIVE_MIN_MS;
+  // Time-derived state via useSyncExternalStore (encapsulated in useNow).
+  // While a lock is active, `now` ticks every 5s and the staleness check
+  // stays pure during render.
+  const now = useNow(5000, lot.aiProcessingStartedAt !== null);
 
-  // Auto-refetch every 5s while banner shown so it clears promptly when done
+  const isProcessing = lot.aiProcessingStartedAt !== null
+    && now - new Date(lot.aiProcessingStartedAt).getTime() < FIVE_MIN_MS;
+
+  // Auto-refetch the lot query every 5s while the banner is shown so
+  // upstream data (lock cleared by AI commit, status updated) flows in.
   useEffect(() => {
     if (!isProcessing) return;
     const id = setInterval(() => {

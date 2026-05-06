@@ -1,5 +1,6 @@
 // src/components/lot/LotDetail.tsx
 import { useState } from 'react';
+import { useNow } from '@/hooks/useNow';
 import { Button } from '@/components/ui/button';
 import { StatePill } from '@/components/ui/pill';
 import { LotEditForm, type LotFormValues } from './LotEditForm';
@@ -39,8 +40,12 @@ const AI_PROCESSING_TTL_MS = 5 * 60 * 1000;
 
 export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onDirtyChange }: Props) {
   const isFrozen = FROZEN_STATES.includes(lot.state);
+  // Time-derived staleness check via useSyncExternalStore — stays pure
+  // during render and auto-clears the read-only state once the TTL
+  // window passes even without upstream data changes.
+  const now = useNow(5000, lot.aiProcessingStartedAt !== null);
   const isAiProcessing = lot.aiProcessingStartedAt !== null
-    && Date.now() - new Date(lot.aiProcessingStartedAt).getTime() < AI_PROCESSING_TTL_MS;
+    && now - new Date(lot.aiProcessingStartedAt).getTime() < AI_PROCESSING_TTL_MS;
   const [moveOpen, setMoveOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ to: LotState } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
