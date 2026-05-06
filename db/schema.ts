@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, integer, numeric, boolean, timestamp, time, jsonb, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, uuid, text, integer, numeric, bigint, boolean, timestamp, time, jsonb, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // ── Enums ────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ export const lot = pgTable('lot', {
   id: uuid('id').primaryKey().defaultRandom(),
   jobId: uuid('job_id').references(() => job.id, { onDelete: 'restrict' }),
   lotNumber: integer('lot_number'),
-  quantity: integer('quantity'),
+  quantity: integer('quantity').notNull().default(1),
   title: text('title'),
   description: text('description'),
   price: numeric('price', { precision: 10, scale: 2 }),
@@ -79,6 +79,7 @@ export const lot = pgTable('lot', {
   source: lotSourceEnum('source').notNull().default('cataloging'),
   lastAiRunStatus: aiRunStatusEnum('last_ai_run_status'),
   lastAiRunError: text('last_ai_run_error'),
+  aiProcessingStartedAt: timestamp('ai_processing_started_at', { withTimezone: true }),
   intakeOperatorId: uuid('intake_operator_id').notNull().references(() => appUser.id),
   intakeTimestamp: timestamp('intake_timestamp', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -112,6 +113,11 @@ export const systemSettings = pgTable('system_settings', {
   aiScheduleIntervalHours: integer('ai_schedule_interval_hours').notNull().default(24),
   aiScheduleTimeOfDay: time('ai_schedule_time_of_day').notNull().default('23:00:00'),
   aiLastRunAt: timestamp('ai_last_run_at', { withTimezone: true }),
+  aiCostMtdCents: integer('ai_cost_mtd_cents').notNull().default(0),
+  aiCostLifetimeCents: bigint('ai_cost_lifetime_cents', { mode: 'number' }).notNull().default(0),
+  aiRunCountLifetime: integer('ai_run_count_lifetime').notNull().default(0),
+  aiCostMtdStartedAt: timestamp('ai_cost_mtd_started_at', { withTimezone: true }).notNull().defaultNow(),
+  aiRunLockUntil: timestamp('ai_run_lock_until', { withTimezone: true }),
   labelPrinterHelperUrl: text('label_printer_helper_url'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
