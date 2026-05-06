@@ -144,3 +144,67 @@ export function composeDescription(input: DescriptionComposeInput): string | nul
   }
   return body.slice(0, bodyBudget) + ELLIPSIS + suffix;
 }
+
+export type AiOutputForStatus = {
+  brand: string | null;
+  briefDescription: string | null;
+  descriptionBody: string | null;
+  price: number | null;
+};
+
+export type FieldStatuses = {
+  title: 'success' | 'failure';
+  description: 'success' | 'failure';
+  price: 'success' | 'failure';
+};
+
+export type LotAiStatus = 'success' | 'partial' | 'failure';
+
+/**
+ * Per-field success determination from AI output (Round 7 Q7a final).
+ *
+ * - price: succeeds when AI returned a non-null numeric value
+ * - title: succeeds when AI returned non-null brand AND non-null
+ *   briefDescription AND non-null price (all three needed for a
+ *   complete title)
+ * - description: succeeds when AI returned a non-null, non-empty
+ *   description_body
+ */
+export function determineFieldStatus(output: AiOutputForStatus): FieldStatuses {
+  const titleOk = output.brand !== null
+    && output.briefDescription !== null
+    && output.price !== null;
+  const descOk = output.descriptionBody !== null
+    && output.descriptionBody.trim().length > 0;
+  const priceOk = output.price !== null;
+  return {
+    title: titleOk ? 'success' : 'failure',
+    description: descOk ? 'success' : 'failure',
+    price: priceOk ? 'success' : 'failure',
+  };
+}
+
+/**
+ * Maps per-field statuses to the lot-level lastAiRunStatus enum.
+ * - all three success → 'success'
+ * - all three failure → 'failure'
+ * - mixed → 'partial'
+ */
+export function mapStatus(fields: FieldStatuses): LotAiStatus {
+  const okCount = [fields.title, fields.description, fields.price]
+    .filter((s) => s === 'success').length;
+  if (okCount === 3) return 'success';
+  if (okCount === 0) return 'failure';
+  return 'partial';
+}
+
+/**
+ * Builds a comma-separated short error string from field statuses.
+ * Used to populate lot.lastAiRunError.
+ */
+export function buildErrorString(fields: FieldStatuses): string | null {
+  const failed = (Object.entries(fields) as [keyof FieldStatuses, 'success' | 'failure'][])
+    .filter(([, s]) => s === 'failure')
+    .map(([k]) => k);
+  return failed.length > 0 ? failed.join(', ') : null;
+}
