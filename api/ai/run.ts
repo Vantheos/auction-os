@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
-import { asActor, getDb } from '../_lib/db.js';
+import { asActor, getDb, type Transaction } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
 import { lot, lotPhoto } from '../../db/schema.js';
@@ -22,6 +22,31 @@ import {
 
 const Body = z.object({ lotId: z.string().uuid() });
 const FIVE_MIN = sql`interval '5 minutes'`;
+
+// Atomically increment the system_settings AI counters within a transaction.
+// MTD counter resets to the new cost when the calendar month has flipped
+// since `ai_cost_mtd_started_at`; the lifetime counters always accumulate.
+// Used by both the success and failure paths so any future change to the
+// MTD-rollover semantics happens in one place.
+function bumpAiCounters(tx: Transaction, costCents: number) {
+  return tx.execute(sql`
+    UPDATE system_settings SET
+      ai_cost_mtd_cents = CASE
+        WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+          THEN ${costCents}
+        ELSE ai_cost_mtd_cents + ${costCents}
+      END,
+      ai_cost_mtd_started_at = CASE
+        WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+          THEN NOW()
+        ELSE ai_cost_mtd_started_at
+      END,
+      ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${costCents},
+      ai_run_count_lifetime = ai_run_count_lifetime + 1,
+      updated_at = NOW()
+     WHERE id = 1
+  `);
+}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
@@ -107,8 +132,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       });
       const newPriceStr = result.output.price !== null ? result.output.price.toFixed(2) : null;
 
-      // Atomic update: lot + system_settings counters in one transaction
-      await asActor(userId, async (tx) => {
+      // Atomic update: lot + system_settings counters + final read in one
+      // transaction, so the response row is read-after-write safe regardless
+      // of connection-pool config.
+      const fresh = await asActor(userId, async (tx) => {
         await tx.update(lot).set({
           title: newTitle,
           description: newDescription,
@@ -118,27 +145,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           aiProcessingStartedAt: null,
           updatedAt: new Date(),
         }).where(eq(lot.id, parsed.data.lotId));
-
-        await tx.execute(sql`
-          UPDATE system_settings SET
-            ai_cost_mtd_cents = CASE
-              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-                THEN ${result.costCents}
-              ELSE ai_cost_mtd_cents + ${result.costCents}
-            END,
-            ai_cost_mtd_started_at = CASE
-              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-                THEN NOW()
-              ELSE ai_cost_mtd_started_at
-            END,
-            ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${result.costCents},
-            ai_run_count_lifetime = ai_run_count_lifetime + 1,
-            updated_at = NOW()
-           WHERE id = 1
-        `);
+        await bumpAiCounters(tx, result.costCents);
+        const [row] = await tx.select().from(lot).where(eq(lot.id, parsed.data.lotId));
+        return row;
       });
 
-      const [fresh] = await getDb().select().from(lot).where(eq(lot.id, parsed.data.lotId));
       return jsonOk(res, fresh);
     } catch (err) {
       // Failure path — record as 'failure' status and clear processing lock
@@ -146,34 +157,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const costCents = computeCostCents(usage.inputTokens, usage.outputTokens);
       const errorMsg = err instanceof Error ? err.message.slice(0, 500) : 'Unknown AI error';
 
-      await asActor(userId, async (tx) => {
+      const fresh = await asActor(userId, async (tx) => {
         await tx.update(lot).set({
           lastAiRunStatus: 'failure',
           lastAiRunError: errorMsg,
           aiProcessingStartedAt: null,
           updatedAt: new Date(),
         }).where(eq(lot.id, parsed.data.lotId));
-
-        await tx.execute(sql`
-          UPDATE system_settings SET
-            ai_cost_mtd_cents = CASE
-              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-                THEN ${costCents}
-              ELSE ai_cost_mtd_cents + ${costCents}
-            END,
-            ai_cost_mtd_started_at = CASE
-              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
-                THEN NOW()
-              ELSE ai_cost_mtd_started_at
-            END,
-            ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${costCents},
-            ai_run_count_lifetime = ai_run_count_lifetime + 1,
-            updated_at = NOW()
-           WHERE id = 1
-        `);
+        await bumpAiCounters(tx, costCents);
+        const [row] = await tx.select().from(lot).where(eq(lot.id, parsed.data.lotId));
+        return row;
       });
 
-      const [fresh] = await getDb().select().from(lot).where(eq(lot.id, parsed.data.lotId));
       return jsonOk(res, fresh);
     }
   } catch (err) {

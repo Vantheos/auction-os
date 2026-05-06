@@ -120,7 +120,7 @@ describe('POST /api/ai/run', () => {
     expect(res.status).toBe(403);
   });
 
-  it('failure path: AI throws → status=failure, lock cleared, counter increments', async () => {
+  it('failure path: AI throws → status=failure, lock cleared, run count up, cost stays 0', async () => {
     const { l } = await seed();
     vi.mocked(runAiForLot).mockRejectedValueOnce(new Error('Anthropic API exploded'));
     const res = await call(l.id);
@@ -130,6 +130,10 @@ describe('POST /api/ai/run', () => {
     expect(res.body.aiProcessingStartedAt).toBeNull();
     const [s] = await testDb.select().from(systemSettings);
     expect(s.aiRunCountLifetime).toBe(1);
+    // Plain Error throws don't carry SDK usage data, so cost contribution is 0.
+    // Pins the asymmetric behavior (count up, cost flat) the spec calls for.
+    expect(s.aiCostMtdCents).toBe(0);
+    expect(s.aiCostLifetimeCents).toBe(0);
   });
 
   it('rejects 404 for unknown lot', async () => {
