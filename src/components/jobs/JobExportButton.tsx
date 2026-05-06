@@ -49,9 +49,17 @@ export function JobExportButton({
   const inProgress = phase.kind === 'starting' || phase.kind === 'batch';
 
   if (phase.kind === 'error') {
+    // failedBatchNum is set only when /batch failed mid-export (ctxRef has
+    // the plan; resume from that batch). For /start failures (NO_LOTS,
+    // SELLER_CODE_REQUIRED, etc.) failedBatchNum is null and ctxRef was
+    // never populated — retryFromBatch would no-op. Re-call start() instead
+    // so the full flow re-runs and the error toast useEffect re-fires.
+    const onRetry = phase.failedBatchNum != null
+      ? () => retryFromBatch()
+      : () => start(job.id);
     return (
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="destructive" onClick={() => retryFromBatch()}>
+        <Button size="sm" variant="destructive" onClick={onRetry}>
           {phase.failedBatchNum ? `Retry batch ${phase.failedBatchNum}` : 'Retry export'}
         </Button>
         <Button size="sm" variant="ghost" onClick={reset}>Cancel</Button>

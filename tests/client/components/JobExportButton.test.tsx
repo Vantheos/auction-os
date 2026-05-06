@@ -126,6 +126,34 @@ describe('JobExportButton — interactive flow', () => {
     });
   });
 
+  it('clicking Retry export after /start failure triggers a new /start call', async () => {
+    let startCallCount = 0;
+    mockApi({
+      'POST /jobs/job-1/export-af360/start': () => {
+        startCallCount++;
+        throw new Error('NO_LOTS');
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+
+    // First export attempt → /start fails → button shows "Retry export"
+    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Retry export/i })).toBeInTheDocument();
+    });
+    expect(startCallCount).toBe(1);
+
+    // Click Retry → should fire a fresh /start call (NOT a no-op
+    // retryFromBatch with empty ctxRef)
+    await user.click(screen.getByRole('button', { name: /Retry export/i }));
+
+    await waitFor(() => expect(startCallCount).toBe(2));
+    // Still in error state since /start fails again — Retry button stays
+    expect(screen.getByRole('button', { name: /Retry export/i })).toBeInTheDocument();
+  });
+
   it('shows "Export complete" after done', async () => {
     mockApi({
       'POST /jobs/job-1/export-af360/start': () => ({
