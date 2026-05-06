@@ -1,0 +1,103 @@
+// src/lib/ai/compose.ts
+// Pure composition functions for AI output. No I/O. Used by the AI
+// run code path after Anthropic responds.
+
+import type { LotDTO } from '../../../shared/types';
+
+const TITLE_MAX_CHARS = 50;
+const DESCRIPTION_MAX_CHARS = 500;
+const ELLIPSIS = '…';
+
+export type TitleComposeInput = {
+  brand: string | null;
+  briefDescription: string | null;
+  price: number | null;
+  quantity: number; // NOT NULL post-migration 0012; default 1
+  specialNotesCategory: LotDTO['specialNotesCategory'];
+};
+
+/**
+ * Composes the lot title per the format spec:
+ *   $<price>- <quantity>x <brand> <brief description>[ <special note>]
+ *
+ * Hard cap: 50 chars total.
+ *
+ * Truncation order when over: brief_description first, then brand.
+ * Fixed parts (price chunk, quantity chunk, special-note suffix) are
+ * never truncated. When AI returns null for a slot, that slot is
+ * skipped (or in price's case, substituted with $$$).
+ *
+ * Returns null only when literally nothing meaningful can be composed
+ * (all of brand, briefDescription, AND price are null).
+ */
+export function composeTitle(input: TitleComposeInput): string | null {
+  // Empty case: nothing useful from AI
+  if (input.brand === null && input.briefDescription === null && input.price === null) {
+    return null;
+  }
+
+  // Build fixed left chunk
+  const priceStr = input.price === null
+    ? '$$$'
+    : `$${formatPrice(input.price)}`;
+  const fixedLeft = `${priceStr}- ${input.quantity}x `;
+
+  // Build fixed right chunk (special-note suffix)
+  let fixedRight = '';
+  if (input.specialNotesCategory === 'TOOL ONLY') fixedRight = ' TOOL ONLY';
+  else if (input.specialNotesCategory === 'READ') fixedRight = ' READ';
+  // CLOTHING and None: no title suffix
+
+  // Compute available space for brand + brief description
+  const fixedLen = fixedLeft.length + fixedRight.length;
+  const availForVariable = TITLE_MAX_CHARS - fixedLen;
+
+  // If fixed parts alone exceed the cap, truncate the variable region to 0
+  // and accept the result (will exceed 50 — but spec calls fixed parts
+  // never-truncated; this is the rare-case escape valve).
+  if (availForVariable <= 0) {
+    return (fixedLeft + fixedRight).trim();
+  }
+
+  // Build the variable middle: "<brand> <brief>" with each part skipped
+  // if null. Whitespace handling: a single trailing space after fixedLeft
+  // already covers the gap if both brand and brief are null.
+  const brandPart = input.brand ?? '';
+  const briefPart = input.briefDescription ?? '';
+
+  // Truncate brief first
+  let composedMiddle: string;
+  if (brandPart === '' && briefPart === '') {
+    composedMiddle = '';
+  } else if (brandPart === '') {
+    composedMiddle = briefPart.slice(0, availForVariable);
+  } else if (briefPart === '') {
+    composedMiddle = brandPart.slice(0, availForVariable);
+  } else {
+    // Both present: try full, then truncate brief, then truncate brand
+    const full = `${brandPart} ${briefPart}`;
+    if (full.length <= availForVariable) {
+      composedMiddle = full;
+    } else {
+      // Drop chars from brief first; keep "brand " prefix intact
+      const brandPrefix = `${brandPart} `;
+      const briefBudget = availForVariable - brandPrefix.length;
+      if (briefBudget > 0) {
+        composedMiddle = brandPrefix + briefPart.slice(0, briefBudget);
+      } else {
+        // Brand alone exceeds — truncate brand from right, drop brief entirely
+        composedMiddle = brandPart.slice(0, availForVariable);
+      }
+    }
+  }
+
+  // Trim trailing space if middle is empty (avoids "$120- 3x  TOOL ONLY")
+  const result = (fixedLeft + composedMiddle + fixedRight);
+  return result.replace(/\s{2,}/g, ' ').replace(/\s+ TOOL ONLY/, ' TOOL ONLY').replace(/\s+ READ/, ' READ').trimEnd();
+}
+
+function formatPrice(value: number): string {
+  // Drop trailing .00 for cleaner display: 120.00 → "120", 8.99 → "8.99"
+  const rounded = Math.round(value * 100) / 100;
+  return rounded % 1 === 0 ? String(Math.trunc(rounded)) : rounded.toFixed(2);
+}
