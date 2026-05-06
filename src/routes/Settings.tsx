@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
+import { useAiBacklog } from '@/hooks/useAiBacklog';
 import { useToast } from '@/components/ui/toast';
 import { AuctionPlatformsPanel } from '@/components/settings/AuctionPlatformsPanel';
+import { AiCostPanel } from '@/components/settings/AiCostPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +33,11 @@ export function Settings() {
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-xl font-semibold text-text">Settings</h1>
       <LabelPrinterPanel initial={settingsQ.data} />
-      <AISchedulePanel initial={settingsQ.data} />
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-text">AI</h2>
+        <AISchedulePanel initial={settingsQ.data} />
+        <AiCostPanel settings={settingsQ.data} />
+      </section>
       <AuctionPlatformsPanel />
     </div>
   );
@@ -90,6 +96,7 @@ function LabelPrinterPanel({ initial }: { initial: SystemSettingsDTO }) {
 
 function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
   const update = useUpdateSystemSettings();
+  const backlog = useAiBacklog();
   const { toast } = useToast();
   const [enabled, setEnabled] = useState(initial.aiScheduleEnabled);
   const [intervalHours, setIntervalHours] = useState(initial.aiScheduleIntervalHours);
@@ -117,7 +124,7 @@ function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
   return (
     <section className="rounded-lg border border-border bg-surfaceSolid p-4 space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-text">AI schedule</h2>
+        <h3 className="text-sm font-semibold text-text">Schedule</h3>
         <p className="text-sm text-textDim mt-1">
           When the AI subsystem is enabled, lots awaiting generation are batch-processed at this interval, anchored to the configured time of day. Phase 6 reads these values; until then, saving here just persists the configuration.
         </p>
@@ -148,7 +155,10 @@ function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => backlog.mutate()} disabled={backlog.isPending}>
+          {backlog.isPending ? 'Running…' : 'Run Now'}
+        </Button>
         <Button onClick={onSave} disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save changes'}</Button>
       </div>
     </section>

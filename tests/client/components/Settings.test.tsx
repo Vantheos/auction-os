@@ -122,3 +122,61 @@ describe('Settings → AI Schedule panel', () => {
     expect(timeInput.disabled).toBe(false);
   });
 });
+
+describe('Settings → AI section structure', () => {
+  it('renders the outer "AI" section heading', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings() });
+    renderWithProviders(<Settings />);
+    expect(await screen.findByRole('heading', { level: 2, name: /^AI$/ })).toBeInTheDocument();
+  });
+
+  it('renders the Schedule sub-card heading (h3)', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings() });
+    renderWithProviders(<Settings />);
+    expect(await screen.findByRole('heading', { level: 3, name: /Schedule/i })).toBeInTheDocument();
+  });
+
+  it('renders the Cost sub-card with values from the server response', async () => {
+    mockApi({
+      'GET /system-settings': () => makeSettings({
+        aiCostMtdCents: 4567,                 // $45.67 MTD
+        aiCostLifetimeCents: 1000,            // 1000c / 4 runs = 250c = $2.500 avg
+        aiRunCountLifetime: 4,
+      }),
+    });
+    renderWithProviders(<Settings />);
+    expect(await screen.findByRole('heading', { level: 3, name: /Cost/i })).toBeInTheDocument();
+    expect(screen.getByText('$45.67')).toBeInTheDocument();
+    expect(screen.getByText('$2.500')).toBeInTheDocument();
+  });
+
+  it('renders the Run Now button', async () => {
+    mockApi({ 'GET /system-settings': () => makeSettings() });
+    renderWithProviders(<Settings />);
+    expect(await screen.findByRole('button', { name: 'Run Now' })).toBeInTheDocument();
+  });
+
+  it('Run Now button is disabled while the backlog mutation is in flight', async () => {
+    // Hold the backlog response open so isPending stays true after click;
+    // we resolve the deferred at the end so the test doesn't leak.
+    let resolveBacklog!: (v: unknown) => void;
+    const pending = new Promise((r) => { resolveBacklog = r; });
+    mockApi({
+      'GET /system-settings': () => makeSettings(),
+      'POST /ai/backlog': () => pending,
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<Settings />, { withToaster: true });
+
+    const runNow = await screen.findByRole('button', { name: 'Run Now' });
+    await user.click(runNow);
+
+    // After click, the button text flips to "Running…" and is disabled.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Running…/ })).toBeDisabled();
+    });
+
+    resolveBacklog({ processed: 0, remaining: 0, errors: 0 });
+  });
+});
