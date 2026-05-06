@@ -101,3 +101,46 @@ function formatPrice(value: number): string {
   const rounded = Math.round(value * 100) / 100;
   return rounded % 1 === 0 ? String(Math.trunc(rounded)) : rounded.toFixed(2);
 }
+
+export type DescriptionComposeInput = {
+  body: string | null;
+  specialNotesCategory: LotDTO['specialNotesCategory'];
+  specialNotesText: string | null; // size when category=CLOTHING
+  untested: boolean;
+};
+
+/**
+ * Composes the lot description per the format spec:
+ *   <body>[ CLOTHING - <size>][ UNTESTED]
+ *
+ * Hard cap: 500 chars total. Truncates body from the right with an
+ * ellipsis if needed, preserving suffixes intact.
+ *
+ * Returns null when body is null or empty (suffixes alone are not a
+ * description).
+ */
+export function composeDescription(input: DescriptionComposeInput): string | null {
+  const body = input.body?.trim();
+  if (!body) return null;
+
+  // Build suffixes
+  let suffix = '';
+  if (input.specialNotesCategory === 'CLOTHING' && input.specialNotesText) {
+    suffix += ` CLOTHING - ${input.specialNotesText}`;
+  }
+  if (input.untested) {
+    suffix += ' UNTESTED';
+  }
+
+  const full = body + suffix;
+  if (full.length <= DESCRIPTION_MAX_CHARS) return full;
+
+  // Need to truncate body. Reserve room for ellipsis + suffix.
+  const bodyBudget = DESCRIPTION_MAX_CHARS - suffix.length - ELLIPSIS.length;
+  if (bodyBudget <= 0) {
+    // Defensive: suffix alone exceeds cap (shouldn't happen with sane sizes,
+    // but handle gracefully). Return suffix-only string trimmed to cap.
+    return (body.slice(0, DESCRIPTION_MAX_CHARS - suffix.length) + suffix).slice(0, DESCRIPTION_MAX_CHARS);
+  }
+  return body.slice(0, bodyBudget) + ELLIPSIS + suffix;
+}
