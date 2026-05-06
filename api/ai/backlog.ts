@@ -10,12 +10,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { eq, sql, and } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { requireCronAuth } from '../_lib/cron-auth.js';
-import { asActor, getDb } from '../_lib/db.js';
+import { getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
-import { bumpAiCounters } from '../_lib/ai-counters.js';
+import { finalizeLotRun } from '../_lib/ai-finalize.js';
 import { PER_LOT_STALE_THRESHOLD_SQL } from '../_lib/ai-thresholds.js';
-import { lot, lotPhoto, systemSettings } from '../../db/schema.js';
+import { lotPhoto, systemSettings } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
 import { computeCostCents } from '../../src/lib/ai/model.js';
 import {
@@ -185,60 +185,36 @@ async function processOne(row: EligibleRow, operatorUserId: string | null): Prom
       descriptionBody: result.output.description_body,
       price: result.output.price,
     });
-    const lotStatus = mapStatus(fieldStatuses);
-    const errorString = buildErrorString(fieldStatuses);
 
-    const newTitle = composeTitle({
-      brand: result.output.brand,
-      briefDescription: result.output.brief_description,
-      price: result.output.price,
-      quantity: row.quantity,
-      specialNotesCategory: row.special_notes_category,
-    });
-    const newDescription = composeDescription({
-      body: result.output.description_body,
-      specialNotesCategory: row.special_notes_category,
-      specialNotesText: row.special_notes_text,
-      untested: row.untested,
-    });
-    const newPriceStr = result.output.price !== null ? result.output.price.toFixed(2) : null;
-
-    const writeFn = async (tx: Parameters<Parameters<typeof asActor>[1]>[0]) => {
-      await tx.update(lot).set({
-        title: newTitle,
-        description: newDescription,
-        price: newPriceStr,
-        lastAiRunStatus: lotStatus,
-        lastAiRunError: errorString,
-        aiProcessingStartedAt: null,
-        updatedAt: new Date(),
-      }).where(eq(lot.id, row.id));
-      await bumpAiCounters(tx, result.costCents);
-    };
-
-    if (operatorUserId) {
-      await asActor(operatorUserId, writeFn);
-    } else {
-      // System-driven (cron): write directly without asActor wrapper
-      await getDb().transaction(writeFn);
-    }
+    await finalizeLotRun(row.id, operatorUserId, {
+      title: composeTitle({
+        brand: result.output.brand,
+        briefDescription: result.output.brief_description,
+        price: result.output.price,
+        quantity: row.quantity,
+        specialNotesCategory: row.special_notes_category,
+      }),
+      description: composeDescription({
+        body: result.output.description_body,
+        specialNotesCategory: row.special_notes_category,
+        specialNotesText: row.special_notes_text,
+        untested: row.untested,
+      }),
+      price: result.output.price !== null ? result.output.price.toFixed(2) : null,
+      lastAiRunStatus: mapStatus(fieldStatuses),
+      lastAiRunError: buildErrorString(fieldStatuses),
+    }, result.costCents);
   } catch (err) {
     const usage = tryExtractUsageFromError(err);
     const costCents = computeCostCents(usage.inputTokens, usage.outputTokens);
     const errorMsg = err instanceof Error ? err.message.slice(0, 500) : 'Unknown AI error';
 
-    const writeFn = async (tx: Parameters<Parameters<typeof asActor>[1]>[0]) => {
-      await tx.update(lot).set({
-        lastAiRunStatus: 'failure',
-        lastAiRunError: errorMsg,
-        aiProcessingStartedAt: null,
-        updatedAt: new Date(),
-      }).where(eq(lot.id, row.id));
-      await bumpAiCounters(tx, costCents);
-    };
-
-    if (operatorUserId) await asActor(operatorUserId, writeFn);
-    else await getDb().transaction(writeFn);
+    // Failure path omits title/description/price so we don't clobber
+    // any operator-entered values that may have existed before the run.
+    await finalizeLotRun(row.id, operatorUserId, {
+      lastAiRunStatus: 'failure',
+      lastAiRunError: errorMsg,
+    }, costCents);
 
     throw err; // propagate so outer Promise.allSettled tracks as error
   }

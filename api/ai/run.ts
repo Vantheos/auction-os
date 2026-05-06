@@ -10,10 +10,10 @@ import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
-import { asActor, getDb } from '../_lib/db.js';
+import { getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { bulkSignReadUrls } from '../_lib/storage.js';
-import { bumpAiCounters } from '../_lib/ai-counters.js';
+import { finalizeLotRun } from '../_lib/ai-finalize.js';
 import { PER_LOT_STALE_THRESHOLD_SQL } from '../_lib/ai-thresholds.js';
 import { lot, lotPhoto } from '../../db/schema.js';
 import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
@@ -90,41 +90,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         descriptionBody: result.output.description_body,
         price: result.output.price,
       });
-      const lotStatus = mapStatus(fieldStatuses);
-      const errorString = buildErrorString(fieldStatuses);
 
-      const newTitle = composeTitle({
-        brand: result.output.brand,
-        briefDescription: result.output.brief_description,
-        price: result.output.price,
-        quantity: current.quantity,
-        specialNotesCategory: current.specialNotesCategory,
-      });
-      const newDescription = composeDescription({
-        body: result.output.description_body,
-        specialNotesCategory: current.specialNotesCategory,
-        specialNotesText: current.specialNotesText,
-        untested: current.untested,
-      });
-      const newPriceStr = result.output.price !== null ? result.output.price.toFixed(2) : null;
-
-      // Atomic update: lot + system_settings counters + final read in one
-      // transaction, so the response row is read-after-write safe regardless
-      // of connection-pool config.
-      const fresh = await asActor(userId, async (tx) => {
-        await tx.update(lot).set({
-          title: newTitle,
-          description: newDescription,
-          price: newPriceStr,
-          lastAiRunStatus: lotStatus,
-          lastAiRunError: errorString,
-          aiProcessingStartedAt: null,
-          updatedAt: new Date(),
-        }).where(eq(lot.id, parsed.data.lotId));
-        await bumpAiCounters(tx, result.costCents);
-        const [row] = await tx.select().from(lot).where(eq(lot.id, parsed.data.lotId));
-        return row;
-      });
+      const fresh = await finalizeLotRun(parsed.data.lotId, userId, {
+        title: composeTitle({
+          brand: result.output.brand,
+          briefDescription: result.output.brief_description,
+          price: result.output.price,
+          quantity: current.quantity,
+          specialNotesCategory: current.specialNotesCategory,
+        }),
+        description: composeDescription({
+          body: result.output.description_body,
+          specialNotesCategory: current.specialNotesCategory,
+          specialNotesText: current.specialNotesText,
+          untested: current.untested,
+        }),
+        price: result.output.price !== null ? result.output.price.toFixed(2) : null,
+        lastAiRunStatus: mapStatus(fieldStatuses),
+        lastAiRunError: buildErrorString(fieldStatuses),
+      }, result.costCents);
 
       return jsonOk(res, fresh);
     } catch (err) {
@@ -133,17 +117,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const costCents = computeCostCents(usage.inputTokens, usage.outputTokens);
       const errorMsg = err instanceof Error ? err.message.slice(0, 500) : 'Unknown AI error';
 
-      const fresh = await asActor(userId, async (tx) => {
-        await tx.update(lot).set({
-          lastAiRunStatus: 'failure',
-          lastAiRunError: errorMsg,
-          aiProcessingStartedAt: null,
-          updatedAt: new Date(),
-        }).where(eq(lot.id, parsed.data.lotId));
-        await bumpAiCounters(tx, costCents);
-        const [row] = await tx.select().from(lot).where(eq(lot.id, parsed.data.lotId));
-        return row;
-      });
+      // Failure path omits title/description/price so we don't clobber
+      // any operator-entered values that may have existed before the run.
+      const fresh = await finalizeLotRun(parsed.data.lotId, userId, {
+        lastAiRunStatus: 'failure',
+        lastAiRunError: errorMsg,
+      }, costCents);
 
       return jsonOk(res, fresh);
     }
