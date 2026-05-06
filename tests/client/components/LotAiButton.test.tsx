@@ -1,6 +1,6 @@
 // tests/client/components/LotAiButton.test.tsx
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../helpers/render-with-providers';
 import { mockApi, resetMockApi } from '../../helpers/mock-api';
@@ -81,8 +81,6 @@ describe('LotAiButton', () => {
     });
     renderWithProviders(<LotAiButton lot={baseLot} />);
     await user.click(screen.getByRole('button', { name: /Run AI/i }));
-    // Click is async; wait one tick for the mutation to fire
-    await new Promise((r) => setTimeout(r, 0));
-    expect(called).toBe(true);
+    await waitFor(() => expect(called).toBe(true));
   });
 });

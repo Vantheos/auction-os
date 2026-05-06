@@ -23,6 +23,11 @@ export function useAiRun() {
     onSuccess: (lot) => {
       qc.invalidateQueries({ queryKey: ['lot', lot.id] });
       qc.invalidateQueries({ queryKey: ['lots-infinite'] });
+      // /api/ai/run mutates the AI cost counters on every call (success and
+      // failure). Settings → AI → Cost reads ['system-settings']; without
+      // invalidating it here, that panel shows stale MTD + average until
+      // the next manual refetch.
+      qc.invalidateQueries({ queryKey: ['system-settings'] });
       const status = lot.lastAiRunStatus;
       if (status === 'success') toast({ title: 'AI generation complete', variant: 'success' });
       else if (status === 'partial') toast({ title: 'AI generation: partial result', description: lot.lastAiRunError ?? '', variant: 'warning' });

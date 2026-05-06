@@ -18,19 +18,22 @@ beforeEach(() => resetMockApi());
 const LOT_ID = '11111111-1111-1111-1111-111111111111';
 
 describe('useAiRun', () => {
-  it('invalidates ["lot", id] and ["lots-infinite"] on success', async () => {
+  it('invalidates ["lot", id], ["lots-infinite"], and ["system-settings"] on success', async () => {
     mockApi({
       'POST /ai/run': () => ({ id: LOT_ID, lastAiRunStatus: 'success', lastAiRunError: null }),
     });
     const { result, queryClient } = renderHookWithProviders(() => useAiRun());
     queryClient.setQueryData(['lot', LOT_ID], { id: LOT_ID });
     queryClient.setQueryData(['lots-infinite'], { pages: [] });
+    queryClient.setQueryData(['system-settings'], { id: 1 });
 
     act(() => { result.current.mutate({ lotId: LOT_ID }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(queryClient.getQueryState(['lot', LOT_ID])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(['lots-infinite'])?.isInvalidated).toBe(true);
+    // /api/ai/run mutates AI cost counters on every call.
+    expect(queryClient.getQueryState(['system-settings'])?.isInvalidated).toBe(true);
   });
 
   it('exposes the server error on HTTP failure', async () => {
