@@ -21,7 +21,8 @@
     "seed:admin": "tsx scripts/seed-admin.ts",
     "seed:test-lots": "tsx scripts/seed-test-lots.ts",
     "seed:export-stress": "tsx scripts/seed-export-stress.ts",
-    "probe:preview": "tsx scripts/probe-deploy.ts"
+    "probe:preview": "tsx scripts/probe-deploy.ts",
+    "probe:ai": "tsx scripts/probe-ai.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.0",
