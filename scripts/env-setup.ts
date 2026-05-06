@@ -95,6 +95,12 @@ for (const scope of ['preview', 'development'] as Scope[]) {
   vercelEnvSet('VITE_SUPABASE_ANON_KEY', setup.DEV_SUPABASE_ANON_KEY!, scope, PROJECT_ID);
 }
 
+// Phase 6: ANTHROPIC_API_KEY is a single shared secret (not per-env), so the
+// same value goes to all three Vercel scopes.
+for (const scope of ['production', 'preview', 'development'] as Scope[]) {
+  vercelEnvSet('ANTHROPIC_API_KEY', setup.ANTHROPIC_API_KEY!, scope, PROJECT_ID);
+}
+
 console.log('\nWriting .env (local dev → Dev Supabase) and .env.test (→ Test Supabase)...\n');
 
 const envLocal = [
@@ -104,6 +110,7 @@ const envLocal = [
   `SUPABASE_SERVICE_ROLE_KEY=${setup.DEV_SUPABASE_SERVICE_ROLE_KEY}`,
   `DATABASE_URL=${setup.DEV_DATABASE_URL}`,
   `CRON_SECRET=${setup.DEV_CRON_SECRET}`,
+  `ANTHROPIC_API_KEY=${setup.ANTHROPIC_API_KEY}`,
   `VITE_SUPABASE_URL=${setup.DEV_SUPABASE_URL}`,
   `VITE_SUPABASE_ANON_KEY=${setup.DEV_SUPABASE_ANON_KEY}`,
   `VITE_API_BASE_URL=/api`,
@@ -118,6 +125,7 @@ const envTest = [
   `SUPABASE_SERVICE_ROLE_KEY=${setup.TEST_SUPABASE_SERVICE_ROLE_KEY}`,
   `DATABASE_URL=${setup.TEST_DATABASE_URL}`,
   `CRON_SECRET=${setup.TEST_CRON_SECRET}`,
+  `ANTHROPIC_API_KEY=${setup.ANTHROPIC_API_KEY}`,
   '',
 ].join('\n');
 writeFileSync('.env.test', envTest);
