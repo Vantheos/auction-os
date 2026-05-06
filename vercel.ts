@@ -62,5 +62,9 @@ export const config: VercelConfig = {
     // Phase 5: daily cleanup of AF360 export zips in Vercel Blob older than
     // 24h. Runs at 04:00 UTC (off-hours; matches the orphan-lots pattern).
     { path: '/api/cron/cleanup-export-blobs', schedule: '0 4 * * *' },
+    // Phase 6 — AI backlog runner. Vercel cron fires every 15 min;
+    // the endpoint reads system_settings to decide whether to actually
+    // process or no-op (drain-eagerly schedule semantics).
+    { path: '/api/ai/backlog?source=cron', schedule: '*/15 * * * *' },
   ],
 };
