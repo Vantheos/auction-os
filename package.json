@@ -24,6 +24,7 @@
     "probe:preview": "tsx scripts/probe-deploy.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@hookform/resolvers": "^5.2.2",
     "@supabase/supabase-js": "^2.45.0",
