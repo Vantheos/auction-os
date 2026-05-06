@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { StatePill } from '@/components/ui/pill';
 import { LotEditForm, type LotFormValues } from './LotEditForm';
+import { LotAiButton } from './LotAiButton';
 import { ChangeStateMenu } from './ChangeStateMenu';
 import { MoveLotDialog } from './MoveLotDialog';
 import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot } from '@/hooks/useLotMutations';
@@ -31,8 +32,15 @@ type Props = {
 // on the auction platform. To edit a sold lot, transition it to unassigned first.
 const FROZEN_STATES: LotState[] = ['sold', 'picked-up', 'not-sellable'];
 
+// Phase 6: while AI generation is in flight, fields are read-only so the
+// operator can't race the AI write. Mirrors the staleness check inside
+// LotAiButton (5 min ttl on ai_processing_started_at).
+const AI_PROCESSING_TTL_MS = 5 * 60 * 1000;
+
 export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onDirtyChange }: Props) {
   const isFrozen = FROZEN_STATES.includes(lot.state);
+  const isAiProcessing = lot.aiProcessingStartedAt !== null
+    && Date.now() - new Date(lot.aiProcessingStartedAt).getTime() < AI_PROCESSING_TTL_MS;
   const [moveOpen, setMoveOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ to: LotState } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -100,10 +108,11 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
           {photos.data?.[0] && <div className="size-full bg-cover bg-center" />}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xl font-semibold text-text">Lot {lot.lotNumber ?? '—'}</h2>
             <StatePill state={lot.state} />
             {isFrozen && <span className="text-xs px-2 py-0.5 rounded-md bg-state-picked-up-bg text-state-picked-up">🔒 Read-only</span>}
+            <div className="ml-auto"><LotAiButton lot={lot} /></div>
           </div>
           <div className="text-sm text-textDim mt-1">
             {lot.customerName ?? 'Unassigned customer'} · <span className="font-mono text-xs">{lot.jobNumber ?? '—'}</span>
@@ -166,7 +175,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
           <dt className="text-textDim">Untested</dt><dd className="text-text">{lot.untested ? 'Yes' : 'No'}</dd>
         </dl>
       ) : (
-        canEdit && <LotEditForm lot={lot} onSubmit={handleSave} busy={updateLot.isPending} onDirtyChange={onDirtyChange} />
+        canEdit && <LotEditForm lot={lot} onSubmit={handleSave} busy={updateLot.isPending} onDirtyChange={onDirtyChange} disabled={isAiProcessing} />
       )}
 
       <div className="flex flex-wrap gap-2 pt-3 border-t border-border">

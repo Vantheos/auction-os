@@ -30,9 +30,14 @@ type Props = {
   // Notify parent when dirty state changes. Used by Inventory to gate the
   // close action with an "unsaved changes" confirm dialog.
   onDirtyChange?: (dirty: boolean) => void;
+  // Phase 6: when AI generation is in flight on this lot, disable all
+  // editable inputs so the operator can't race the AI write. Save button
+  // is also disabled. The dialog close + state-change controls remain
+  // enabled (handled by parent LotDetail).
+  disabled?: boolean;
 };
 
-export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
+export function LotEditForm({ lot, onSubmit, busy, onDirtyChange, disabled }: Props) {
   const { register, handleSubmit, watch, reset, formState: { isDirty, errors } } = useForm<LotFormValues>({
     resolver: zodResolver(Schema),
     defaultValues: {
@@ -98,10 +103,10 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label htmlFor="quantity">Quantity</Label>
-          <Input id="quantity" type="number" min={1} {...register('quantity', { valueAsNumber: true })} />
+          <Input id="quantity" type="number" min={1} disabled={disabled} {...register('quantity', { valueAsNumber: true })} />
         </div>
         <label className="flex items-center gap-2 text-sm pt-6">
-          <input type="checkbox" {...register('untested')} className="size-4" />
+          <input type="checkbox" disabled={disabled} {...register('untested')} className="size-4" />
           Untested
         </label>
       </div>
@@ -109,7 +114,7 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
       {/* Special notes — required, full-width per design spec */}
       <div className="space-y-1">
         <Label htmlFor="specialNotesCategory">Special notes</Label>
-        <select id="specialNotesCategory" {...register('specialNotesCategory')}
+        <select id="specialNotesCategory" disabled={disabled} {...register('specialNotesCategory')}
           className="w-full h-9 rounded-md border border-borderStrong bg-surfaceSolid px-2 text-sm">
           <option>None</option><option>TOOL ONLY</option><option>READ</option><option>CLOTHING</option>
         </select>
@@ -119,7 +124,7 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
       {category === 'CLOTHING' && (
         <div className="space-y-1">
           <Label htmlFor="specialNotesText">Size</Label>
-          <Input id="specialNotesText" {...register('specialNotesText')} />
+          <Input id="specialNotesText" disabled={disabled} {...register('specialNotesText')} />
         </div>
       )}
 
@@ -139,37 +144,37 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange }: Props) {
         <div className="space-y-3 p-3 rounded-md border border-border bg-surfaceSolid">
           <div className="space-y-1">
             <Label htmlFor="title">Title <span className="text-textDim">(max 50 chars)</span></Label>
-            <Input id="title" maxLength={50} placeholder="AI will fill" {...register('title')} />
+            <Input id="title" maxLength={50} placeholder="AI will fill" disabled={disabled} {...register('title')} />
             {errors.title && <p className="text-xs text-danger">{errors.title.message}</p>}
           </div>
 
           <div className="space-y-1">
             <Label htmlFor="description">Description</Label>
-            <textarea id="description" rows={4} placeholder="AI will fill" {...register('description')}
+            <textarea id="description" rows={4} placeholder="AI will fill" disabled={disabled} {...register('description')}
               className="w-full rounded-md border border-borderStrong bg-surfaceSolid px-3 py-2 text-sm" />
           </div>
 
           <div className="space-y-1">
             <Label htmlFor="price">Price</Label>
-            <Input id="price" placeholder="45.00" {...register('price')} />
+            <Input id="price" placeholder="45.00" disabled={disabled} {...register('price')} />
             {errors.price && <p className="text-xs text-danger">{errors.price.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="ref1">Ref 1</Label>
-              <Input id="ref1" {...register('ref1')} />
+              <Input id="ref1" disabled={disabled} {...register('ref1')} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="ref2">Ref 2</Label>
-              <Input id="ref2" {...register('ref2')} />
+              <Input id="ref2" disabled={disabled} {...register('ref2')} />
             </div>
           </div>
         </div>
       )}
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || disabled}>
           {busy ? 'Saving…' : 'Save changes'}
         </Button>
       </div>
