@@ -3,7 +3,7 @@
 // Anthropic call and cost calculation. Update rates when Anthropic
 // publishes pricing changes.
 
-export const AI_MODEL = 'claude-sonnet-4-6';
+export const AI_MODEL = 'claude-sonnet-4-6' as const;
 
 export const AI_RATES = {
   inputCentsPerMillion: 300,    // $3.00 per million input tokens

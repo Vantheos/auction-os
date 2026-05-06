@@ -12,10 +12,10 @@ describe('computeCostCents', () => {
     expect(computeCostCents(5000, 200)).toBe(2);
   });
 
-  it('rounds half-cent down per Math.round banker behavior', () => {
-    // 1666 * 300 / 1M = 0.4998, 0 → rounds to 0
+  it('rounds to nearest cent (round-half-away-from-zero per Math.round)', () => {
+    // 1666 * 300 / 1M = 0.4998 → rounds down to 0
     expect(computeCostCents(1666, 0)).toBe(0);
-    // 1667 * 300 / 1M = 0.5001, 0 → rounds to 1
+    // 1667 * 300 / 1M = 0.5001 → rounds up to 1
     expect(computeCostCents(1667, 0)).toBe(1);
   });
 

@@ -91,9 +91,11 @@ export function composeTitle(input: TitleComposeInput): string | null {
     }
   }
 
-  // Trim trailing space if middle is empty (avoids "$120- 3x  TOOL ONLY")
+  // Belt-and-suspenders: collapse double-spaces that occur when the middle is
+  // empty (e.g. fixedLeft's trailing space adjoining fixedRight's leading
+  // space), then trim a trailing space if no fixedRight was appended.
   const result = (fixedLeft + composedMiddle + fixedRight);
-  return result.replace(/\s{2,}/g, ' ').replace(/\s+ TOOL ONLY/, ' TOOL ONLY').replace(/\s+ READ/, ' READ').trimEnd();
+  return result.replace(/\s{2,}/g, ' ').trimEnd();
 }
 
 function formatPrice(value: number): string {
