@@ -1,0 +1,184 @@
+// api/ai/run.ts
+// POST /api/ai/run — manual single-lot AI generation trigger.
+// Body: { lotId: string }
+// Auth: admin or office (warehouse cannot trigger AI per v1 §2 matrix).
+// Rejects: 422 LOT_NOT_ELIGIBLE if status non-null or wrong state;
+//          423 LOT_AI_IN_PROGRESS if processing lock active.
+
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { z } from 'zod';
+import { eq, sql, and } from 'drizzle-orm';
+import { AuthError, requireAuth } from '../_lib/auth.js';
+import { readJson, EmptyBodyError } from '../_lib/body.js';
+import { asActor, getDb } from '../_lib/db.js';
+import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
+import { bulkSignReadUrls } from '../_lib/storage.js';
+import { lot, lotPhoto } from '../../db/schema.js';
+import { runAiForLot, tryExtractUsageFromError } from '../../src/lib/ai/anthropic.js';
+import { computeCostCents } from '../../src/lib/ai/model.js';
+import {
+  composeTitle, composeDescription, determineFieldStatus, mapStatus, buildErrorString,
+} from '../../src/lib/ai/compose.js';
+
+const Body = z.object({ lotId: z.string().uuid() });
+const FIVE_MIN = sql`interval '5 minutes'`;
+
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  try {
+    if (req.method !== 'POST') return methodNotAllowed(res);
+    const { userId } = await requireAuth(req, 'admin', 'office');
+
+    let body: unknown;
+    try { body = await readJson(req); }
+    catch (e) {
+      if (e instanceof EmptyBodyError) return jsonError(res, 400, 'INVALID_BODY', 'Empty body');
+      return jsonError(res, 400, 'INVALID_BODY', 'Invalid JSON');
+    }
+    const parsed = Body.safeParse(body);
+    if (!parsed.success) return jsonError(res, 400, 'INVALID_BODY', parsed.error.issues[0].message);
+
+    const db = getDb();
+    const [current] = await db.select().from(lot).where(eq(lot.id, parsed.data.lotId));
+    if (!current) return jsonError(res, 404, 'NOT_FOUND', 'Lot not found');
+
+    if (current.lastAiRunStatus !== null) {
+      return jsonError(res, 422, 'LOT_NOT_ELIGIBLE', 'Lot has already been processed by AI');
+    }
+    if (current.state !== 'assigned' && current.state !== 'unassigned') {
+      return jsonError(res, 422, 'LOT_NOT_ELIGIBLE', `Lot in state "${current.state}" cannot be processed`);
+    }
+
+    // Per-lot atomic claim
+    const claimed = await db.execute<{ id: string }>(sql`
+      UPDATE lot SET ai_processing_started_at = NOW()
+       WHERE id = ${parsed.data.lotId}
+         AND (ai_processing_started_at IS NULL
+              OR ai_processing_started_at < NOW() - ${FIVE_MIN})
+       RETURNING id
+    `);
+    if (claimed.length === 0) {
+      return jsonError(res, 423, 'LOT_AI_IN_PROGRESS', 'AI is currently generating content for this lot');
+    }
+
+    try {
+      // Sign photo URLs (1568 px, contain)
+      const photos = await db.select({ path: lotPhoto.storagePath })
+        .from(lotPhoto)
+        .where(and(eq(lotPhoto.lotId, parsed.data.lotId), eq(lotPhoto.status, 'uploaded')));
+      const signed = await bulkSignReadUrls(
+        photos.map((p) => p.path),
+        { width: 1568, quality: 80, resize: 'contain' },
+      );
+      const photoUrls = photos.map((p) => signed.get(p.path)).filter((u): u is string => !!u);
+
+      const result = await runAiForLot({
+        photoUrls,
+        operatorFields: {
+          quantity: current.quantity,
+          specialNotesCategory: current.specialNotesCategory,
+          specialNotesText: current.specialNotesText,
+          untested: current.untested,
+          ref1: current.ref1,
+          ref2: current.ref2,
+        },
+      });
+
+      const fieldStatuses = determineFieldStatus({
+        brand: result.output.brand,
+        briefDescription: result.output.brief_description,
+        descriptionBody: result.output.description_body,
+        price: result.output.price,
+      });
+      const lotStatus = mapStatus(fieldStatuses);
+      const errorString = buildErrorString(fieldStatuses);
+
+      const newTitle = composeTitle({
+        brand: result.output.brand,
+        briefDescription: result.output.brief_description,
+        price: result.output.price,
+        quantity: current.quantity,
+        specialNotesCategory: current.specialNotesCategory,
+      });
+      const newDescription = composeDescription({
+        body: result.output.description_body,
+        specialNotesCategory: current.specialNotesCategory,
+        specialNotesText: current.specialNotesText,
+        untested: current.untested,
+      });
+      const newPriceStr = result.output.price !== null ? result.output.price.toFixed(2) : null;
+
+      // Atomic update: lot + system_settings counters in one transaction
+      await asActor(userId, async (tx) => {
+        await tx.update(lot).set({
+          title: newTitle,
+          description: newDescription,
+          price: newPriceStr,
+          lastAiRunStatus: lotStatus,
+          lastAiRunError: errorString,
+          aiProcessingStartedAt: null,
+          updatedAt: new Date(),
+        }).where(eq(lot.id, parsed.data.lotId));
+
+        await tx.execute(sql`
+          UPDATE system_settings SET
+            ai_cost_mtd_cents = CASE
+              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+                THEN ${result.costCents}
+              ELSE ai_cost_mtd_cents + ${result.costCents}
+            END,
+            ai_cost_mtd_started_at = CASE
+              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+                THEN NOW()
+              ELSE ai_cost_mtd_started_at
+            END,
+            ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${result.costCents},
+            ai_run_count_lifetime = ai_run_count_lifetime + 1,
+            updated_at = NOW()
+           WHERE id = 1
+        `);
+      });
+
+      const [fresh] = await getDb().select().from(lot).where(eq(lot.id, parsed.data.lotId));
+      return jsonOk(res, fresh);
+    } catch (err) {
+      // Failure path — record as 'failure' status and clear processing lock
+      const usage = tryExtractUsageFromError(err);
+      const costCents = computeCostCents(usage.inputTokens, usage.outputTokens);
+      const errorMsg = err instanceof Error ? err.message.slice(0, 500) : 'Unknown AI error';
+
+      await asActor(userId, async (tx) => {
+        await tx.update(lot).set({
+          lastAiRunStatus: 'failure',
+          lastAiRunError: errorMsg,
+          aiProcessingStartedAt: null,
+          updatedAt: new Date(),
+        }).where(eq(lot.id, parsed.data.lotId));
+
+        await tx.execute(sql`
+          UPDATE system_settings SET
+            ai_cost_mtd_cents = CASE
+              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+                THEN ${costCents}
+              ELSE ai_cost_mtd_cents + ${costCents}
+            END,
+            ai_cost_mtd_started_at = CASE
+              WHEN date_trunc('month', ai_cost_mtd_started_at) < date_trunc('month', NOW())
+                THEN NOW()
+              ELSE ai_cost_mtd_started_at
+            END,
+            ai_cost_lifetime_cents = ai_cost_lifetime_cents + ${costCents},
+            ai_run_count_lifetime = ai_run_count_lifetime + 1,
+            updated_at = NOW()
+           WHERE id = 1
+        `);
+      });
+
+      const [fresh] = await getDb().select().from(lot).where(eq(lot.id, parsed.data.lotId));
+      return jsonOk(res, fresh);
+    }
+  } catch (err) {
+    if (err instanceof AuthError) return jsonError(res, err.status, err.code, err.message);
+    console.error(err);
+    return jsonError(res, 500, 'INTERNAL', 'Internal server error');
+  }
+}
