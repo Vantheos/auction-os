@@ -61,7 +61,9 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
     },
   ];
 
-  let lastErr: unknown;
+  // First attempt + one retry on transient errors. The catch block always
+  // throws (immediately on non-transient or after second attempt), so the
+  // loop never falls through.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const message = await getClient().messages.parse({
@@ -86,12 +88,12 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
         costCents: computeCostCents(inputTokens, outputTokens),
       };
     } catch (err) {
-      lastErr = err;
       if (!isTransient(err) || attempt >= 1) throw err;
       await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
     }
   }
-  throw lastErr;
+  // Unreachable — every loop iteration either returns or throws.
+  throw new Error('runAiForLot: retry loop exited without resolution');
 }
 
 export function isTransient(err: unknown): boolean {

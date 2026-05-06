@@ -41,8 +41,11 @@ export const SUCCESS_FIXTURE = mockAiRunResult({
 // Convenience: invoke at top of a test file.
 //   import { installAnthropicMock } from '../helpers/mock-anthropic';
 //   installAnthropicMock();
+//
+// Uses the `@/` Vite alias (configured in vitest.config.ts → resolve.alias)
+// so this works from any test file regardless of nesting depth.
 export function installAnthropicMock() {
-  vi.mock('../../src/lib/ai/anthropic', () => ({
+  vi.mock('@/lib/ai/anthropic', () => ({
     runAiForLot: vi.fn(),
     isTransient: (err: unknown) => {
       const status = (err as { status?: number })?.status;
