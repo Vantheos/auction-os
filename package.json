@@ -20,6 +20,7 @@
     "supabase:reset": "supabase db reset",
     "seed:admin": "tsx scripts/seed-admin.ts",
     "seed:test-lots": "tsx scripts/seed-test-lots.ts",
+    "seed:export-stress": "tsx scripts/seed-export-stress.ts",
     "probe:preview": "tsx scripts/probe-deploy.ts"
   },
   "dependencies": {
