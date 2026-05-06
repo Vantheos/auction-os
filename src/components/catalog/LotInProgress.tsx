@@ -112,7 +112,7 @@ export function LotInProgress({ onEndSession }: Props) {
         title: lotQ.data.title ?? '',
         description: lotQ.data.description ?? '',
         price: lotQ.data.price ?? '',
-        quantity: lotQ.data.quantity ?? 1,
+        quantity: lotQ.data.quantity,
         ref1: lotQ.data.ref1 ?? '',
         ref2: lotQ.data.ref2 ?? '',
         specialNotesCategory: lotQ.data.specialNotesCategory,

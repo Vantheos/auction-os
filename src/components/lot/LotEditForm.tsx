@@ -44,7 +44,7 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange, disabled }: Pr
       title: lot.title ?? '',
       description: lot.description ?? '',
       price: lot.price ?? '',
-      quantity: lot.quantity ?? 1,
+      quantity: lot.quantity,
       ref1: lot.ref1 ?? '',
       ref2: lot.ref2 ?? '',
       specialNotesCategory: lot.specialNotesCategory,

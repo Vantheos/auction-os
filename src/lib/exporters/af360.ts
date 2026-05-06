@@ -113,7 +113,7 @@ export const AF360_HIBID = {
       ctx.lot.lotNumber == null ? '' : String(ctx.lot.lotNumber),
     Title: (ctx: ExportContext) => truncate(ctx.lot.title ?? '', TITLE_MAX),
     Description: (ctx: ExportContext) => stripNewlines(ctx.lot.description ?? ''),
-    Quantity: (ctx: ExportContext) => String(ctx.lot.quantity ?? 1),
+    Quantity: (ctx: ExportContext) => String(ctx.lot.quantity),
     SellerCode: (ctx: ExportContext) => ctx.customer.sellerCode ?? '',
     StartBid: (ctx: ExportContext) => formatCurrency(ctx.job.startBid),
     Shippable: (ctx: ExportContext) => formatBoolean(ctx.job.shippable),

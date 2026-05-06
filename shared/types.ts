@@ -123,7 +123,7 @@ export type LotDTO = {
   customerName: string | null;
   jobNumber: string | null;
   lotNumber: number | null;
-  quantity: number | null;
+  quantity: number;                 // NOT NULL DEFAULT 1 since migration 0012 (Phase 6)
   title: string | null;
   description: string | null;
   price: string | null;             // numeric serialized as string

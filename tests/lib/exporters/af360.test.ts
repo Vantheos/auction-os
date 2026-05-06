@@ -214,16 +214,11 @@ describe('buildAF360Csv', () => {
     expect(csv).not.toContain('A'.repeat(51));
   });
 
-  it('defaults quantity to 1 when null', () => {
-    const csv = buildAF360Csv([ctx({ quantity: null })]);
-    // CSV row: 1,Vintage Oak Dining Table,...,1,SMTH001,5.00,false
-    // Quantity column is index 3 — confirm "1" appears in that position
-    const dataRow = csv.split('\r\n')[1];
-    const cells = dataRow.split(',');
-    // Title is the 2nd cell; if it contains commas this is brittle.
-    // Use the explicit assertion against the known sample title (no commas).
-    expect(cells[3]).toBe('1');
-  });
+  // (Phase 6) The "defaults quantity to 1 when null" test was dropped:
+  // migration 0012 made lot.quantity NOT NULL DEFAULT 1, so the LotDTO
+  // type now guarantees a number and the defensive `?? 1` in the
+  // exporter became dead code. The test couldn't be expressed without
+  // a type-error or unsafe cast.
 
   it('renders empty string for null sellerCode (defensive — server pre-flight should block this)', () => {
     const csv = buildAF360Csv([ctx({}, {}, { sellerCode: null })]);
