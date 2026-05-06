@@ -19,7 +19,13 @@ import { createClient } from '@supabase/supabase-js';
 
 const args = process.argv.slice(2);
 const lotsArg = args.indexOf('--lots');
-const lotsCount = lotsArg >= 0 ? parseInt(args[lotsArg + 1], 10) : 3;
+const lotsCountRaw = lotsArg >= 0 ? parseInt(args[lotsArg + 1] ?? '', 10) : 3;
+if (!Number.isFinite(lotsCountRaw) || lotsCountRaw < 1) {
+  console.error('Usage: npm run probe:ai -- --lots <N> [--write]');
+  console.error(`Got --lots=${args[lotsArg + 1]}; expected a positive integer.`);
+  process.exit(2);
+}
+const lotsCount = lotsCountRaw;
 const shouldWrite = args.includes('--write');
 
 async function main() {
