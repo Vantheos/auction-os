@@ -1,6 +1,6 @@
 # Working state — Auction Inventory SaaS
 
-> Last updated 2026-05-03 late evening. **Phase 4 (Settings + Users + Customers/Jobs polish) signed off.** All 5 areas shipped, manual sign-off batch caught + fixed a toast-persistence bug, a disabled-user login hang, and a useSession race condition I introduced in the disabled-detection logic. 214/214 vitest suite green; lint 0/0; build clean. Branch `phase-4-settings-users` at `fc2bb25`, 7 commits ahead of `phase-3-5-test-infra`. **Next:** Phase 5 — Auction Platform Export. User will provide the first auction platform's CSV specs at planning time.
+> Last updated 2026-05-05 evening. **Phase 5 (Auction Platform Export) signed off.** All 6 areas shipped (schema migration, Customer + Job edit forms, AF360 mapping module, server endpoints + cleanup cron, client orchestration, Settings panel) plus a late-cycle Inventory-level Export button addition and removal of the legacy `/api/lots/export` placeholder. Manual sign-off batch caught + fixed a disabled-customer-can-still-create-jobs UI gap, a Vercel Blob private-store config issue (resolved via store recreate), and a Retry-after-/start-failure no-op bug. Multi-batch export verified end-to-end against a 120-lot stress fixture (2 batches: 100 + 20). 346/346 vitest suite green; lint 0/0; build clean. Branch `phase-5-auction-platform-export` at `b089f83`, 14 commits ahead of `phase-4-settings-users`. **Next:** Phase 6 — AI subsystem (Phase 3 carry-forward T-G3).
 >
 > **For the full v1 + beyond phase plan, see [`docs/roadmap.md`](docs/roadmap.md).** This file (`STATE.md`) is the live tracker for the current branch + immediate next steps; the roadmap doc is the higher-altitude view of all remaining phases through v1 cutover and into v1.5.
 
@@ -136,9 +136,57 @@ User-driven manual click-through against the preview surfaced 2 real bugs and re
 - Area 2 add-user toast set to `durationMs: 30000` after sign-off testing (originally `durationMs: 0`). 30s is plenty for password capture; doesn't survive sign-out.
 - `roleFromSession` helper added to `src/lib/auth.ts` as fallout of the race-condition fix. Useful for any future component that needs the role of a session it's already holding without subscribing again.
 
-## Next: Phase 5 — Auction Platform Export
+## Phase 5 status: ✅ signed off (2026-05-05 evening)
 
-**Spec to be drafted** via top-down discussion at the start of the next session. Captured decisions (column mapping shape Option B, default platform seeded from real specs, image upload deferred) live in [`docs/roadmap.md`](docs/roadmap.md) Phase 5 section. User will provide the first auction platform's CSV specs at planning time.
+**Spec:** [`docs/superpowers/specs/2026-05-04-phase-5-design.md`](docs/superpowers/specs/2026-05-04-phase-5-design.md)
+**Plan:** [`docs/superpowers/plans/2026-05-04-phase-5.md`](docs/superpowers/plans/2026-05-04-phase-5.md)
+**AF360 source spec:** [`docs/auction-platform/AF360_HiBid_Lot_Import_Spec.md`](docs/auction-platform/AF360_HiBid_Lot_Import_Spec.md)
+**Branch:** `phase-5-auction-platform-export` at `b089f83`, 14 commits ahead of `phase-4-settings-users`.
+**Actual effort:** Multi-session over ~2 days. Estimate was ~6.25 days; came in faster because the spec/plan were tight.
+
+| Item | Status |
+|---|---|
+| Vitest suite | ✅ 346 tests passing (was 214 after Phase 4; net +132 in Phase 5: 45 AF360 mapping, 28 Customer schema, 21 Job schema, 25 server endpoints + cron, 10 client orchestration, 4 Settings panel, 4 Inventory filter slot, –6 from removed legacy export) |
+| Migration applied to Dev + Test | ✅ `0011_phase_5_auction_platform_export.sql` (customer.seller_code, customer.disabled_at, job.start_bid, job.shippable) |
+| Area A — Schema migration + AF360 mapping module + foundations | ✅ commit `5ef1e38` |
+| Area B — Customer schema integration (server, edit dialog, disable/re-enable) | ✅ commit `fdbc82b` |
+| Area C — Job schema integration (server, edit dialog, export defaults) | ✅ commit `50bd108` |
+| Area D — Server export endpoints (start + batch) + cleanup cron | ✅ commit `4773ce8` |
+| Area E — Client export orchestration + JobExportButton + CustomerDetail wiring | ✅ commit `a41156b` |
+| Area F — Settings → Auction Platforms read-only panel | ✅ commit `e41aa9a` |
+| Late: Inventory-level Export button when Job filtered (user request) | ✅ commit `88e911c` |
+| Late: legacy `/api/lots/export` + `ExportCsvDialog` removed (per spec, deferred during impl) | ✅ commit `b089f83` |
+| Multi-batch export stress fixture (`seed:export-stress`) | ✅ commit `d5132b1` — 120 lots × 1-3 photos verified 2-batch download end-to-end |
+| Vercel Blob store created (public access) | ✅ via `vercel blob create-store auction-os-exports --access public` |
+| Lint | ✅ 0 errors, 0 warnings |
+| Build | ✅ clean, ~5.6s |
+| Manual sign-off click-through | ✅ all spec §6 acceptance items pass; multi-batch end-to-end verified |
+
+## Phase 5 manual sign-off bug fix batch
+
+User-driven manual click-through against the preview surfaced 3 issues. All resolved on `phase-5-auction-platform-export`.
+
+| # | Issue | Resolution | Commit |
+|---|---|---|---|
+| 1 | Disabled customer hidden from cataloging picker (Phase B), but admin could still create new jobs for them via the Customer detail page — disable status wasn't checked on the New job button. | `New job` dialog trigger gated on `customer.disabledAt`; button rendered disabled with tooltip when customer is disabled. Existing jobs remain visible/editable so admin can still manage in-flight work; only the create surface is closed. | `1ac6729` |
+| 2 | Export batch endpoint returned 500 `BlobError: Cannot use public access on a private store`. The Vercel Blob store created via Dashboard was set to private; my code passed `access: 'public'`. | No code change. Reconfigured the blob store from private to public via Vercel CLI: `vercel blob delete-store <id>` then `vercel blob create-store auction-os-exports --access public`. The CLI re-injected `BLOB_READ_WRITE_TOKEN` into the project. | (CLI action, not a commit) |
+| 3 | Clicking Retry after a `/start` failure (NO_LOTS, SELLER_CODE_REQUIRED) produced no new toast — the button just sat there. Cause: the button always called `retryFromBatch()`, which is correctly defensive (bails when `ctxRef.current` is null); on `/start` failures `ctxRef` was never set, so the call was a no-op and the toast useEffect didn't re-fire. | Branch on `phase.failedBatchNum`: when set (a `/batch` failure), call `retryFromBatch()`; when null (a `/start` failure), call `start(job.id)` to re-run the full flow. Hook stays defensive; button dispatches the correct function. | `f6696cf` |
+
+**Spec deviations / scope changes captured during execution:**
+- **Inventory-level Export to AF360 button** — added late at user request. Not in the original spec. Reuses the existing `JobExportButton` via an `actions` slot on `InventoryFilters`. Same full-Job semantics; doesn't narrow on additional Inventory filters.
+- **`scripts/apply-migration.ts`** added as a workaround for `drizzle-kit ^0.28` crashing on the existing `state_tuple_consistent` CHECK constraint when introspecting Dev. Hand-written SQL migrations apply directly via the postgres lib.
+- **`vercel.ts` global `maxDuration: 300`** — initially tried a per-function override on the batch endpoint (`api/jobs/[id]/export-af360/batch.ts`), but Vercel's `functions` config glob scanner doesn't resolve the literal `[id]` dynamic segment in the path (verified empirically — `[id]`, `*`, and `**` all failed to match even though the default `api/**/*.ts` glob deploys it fine). Bumped the global default instead. Cost neutral on Active CPU billing.
+- **Vercel Blob store flipped to public** at sign-off. Initial Dashboard-created store was private; rationale documented in earlier session about acceptable risk for export data (UUID-gated URLs + 24h TTL + data is bound for HiBid public listing within days).
+- **Legacy `/api/lots/export` + `ExportCsvDialog` removed** per spec ("placeholder 15-column CSV deprecated and replaced entirely"). Initially deferred during Inventory-button work; cleaned up at sign-off. Net –6 tests (the dropped tests covered only the deleted endpoint).
+- **`scripts/seed-export-stress.ts`** added at the user's request for multi-batch verification. Creates an isolated `Stress Test Co / STRESS-2026-05-05` fixture with 120 lots × 1-3 photos. Idempotent. Test data lives in Dev DB until manually cleaned via Supabase Studio.
+
+**Acknowledged limitations (not blocking sign-off):**
+- Multi-batch export tested at 120 lots / 2 batches; the architecture supports the stated 1000-lot upper bound but a 1000-lot real-world stress wasn't run. State machine + per-batch logic is identical at any N, so the 2-batch test validates the architecture.
+- Progress copy "Building batch N of M..." cycles too fast on small jobs to eyeball; covered by unit tests of the hook state machine.
+
+## Next: Phase 6 — AI subsystem
+
+Phase 3 carry-forward **T-G3**. Per-lot title / description / reference-price generation; manual-run button on lot detail; scheduled cron reads from `system_settings.aiSchedule*` (configured in Phase 4); cost tracking. Per `docs/roadmap.md` Phase 6 outline. Spec to be drafted at the start of the next session.
 
 ## Phase 2 status: ✅ signed off (2026-05-01)
 
@@ -167,6 +215,7 @@ User-driven manual click-through against the preview surfaced 2 real bugs and re
 | `phase-3-mobile-cataloging` | `7d15a35` (signed off; 38 commits ahead of phase-2) | same |
 | `phase-3-5-test-infra` | `7218165` (signed off; 11 commits ahead of phase-3) | same |
 | `phase-4-settings-users` | `fc2bb25` (signed off; 7 commits ahead of phase-3-5) | same |
+| `phase-5-auction-platform-export` | `b089f83` (signed off; 14 commits ahead of phase-4) | same |
 
 `main` unchanged from original Phase 1 deploy point. Per branch strategy memory rule, we never push to `main` until v1 cutover.
 
@@ -179,8 +228,10 @@ User-driven manual click-through against the preview surfaced 2 real bugs and re
 - Project: `vantheos-4047s-projects/auction-os`
 - GitHub integration: connected to `Vantheos/auction-os`
 - Production branch: `main`
-- Preview: any unassigned branch (currently `phase-3-mobile-cataloging`)
-- Env vars: 18 across production/preview/development scopes
+- Preview: any unassigned branch (currently `phase-5-auction-platform-export`)
+- Env vars: 18+ across production/preview/development scopes
+- **Vercel Blob store** (added 2026-05-04 Phase 5): `auction-os-exports` (public access, iad1). `BLOB_READ_WRITE_TOKEN` auto-injected into all environments. Used by AF360 export pipeline; daily cleanup cron sweeps objects > 24h.
+- **Function `maxDuration`** (Phase 5): bumped to 300s globally (was 60s) to accommodate the AF360 batch export endpoint. Active CPU billing means no cost change for endpoints that finish quickly.
 - **Cache headers** (added 2026-05-02): HTML no-cache/must-revalidate; `/assets/(.*)` immutable max-age=31536000
 
 ## Phase 8 — v1 cutover checklist (a.k.a. "what must happen before Prod is real")

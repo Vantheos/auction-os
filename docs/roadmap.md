@@ -21,6 +21,7 @@
 | 3 | Mobile cataloging + photo pipeline + login routing + role gating + cleanup-orphan-lots cron | ✅ | `phase-3-mobile-cataloging` @ `7d15a35` |
 | 3.5 | Client test infrastructure — RTL + happy-dom + canonical patterns + 19-item sign-off bug backfill | ✅ | `phase-3-5-test-infra` @ `f189cc6` |
 | 4 | Settings + Users + Customers/Jobs polish — `/users` admin UI, `disabled_at` JWT gate, AI Schedule panel + integer-hours schema, customer search + whole-row click | ✅ | `phase-4-settings-users` @ `fc2bb25` |
+| 5 | Auction Platform Export — AF360 / HiBid pipeline (CSV + batched image zips via Vercel Blob), Customer + Job edit forms, Customer disable/re-enable, Inventory-level Export entry point | ✅ | `phase-5-auction-platform-export` @ `b089f83` |
 
 ## v1 — remaining
 
@@ -60,48 +61,37 @@ discoverability bump.
 
 **T-G4** (Phase 3 carry-forward) is fully addressed by this phase.
 
-### Phase 5 — Auction Platform Export ⬜ (next)
+### Phase 5 — Auction Platform Export ✅
 
-Ships the AF360 / HiBid CSV + batched image zip export pipeline.
-Customer → Job → "Export to AF360" produces 1 CSV (inline download) +
-N image zips (server-built, uploaded to Vercel Blob, downloaded
-sequentially). Bundles new Customer/Job edit forms (neither entity has
-an editable surface today) and Customer disable/re-enable.
-
-**Spec:** [`docs/superpowers/specs/2026-05-04-phase-5-design.md`](./superpowers/specs/2026-05-04-phase-5-design.md) — drafted 2026-05-04.
+**Spec:** [`docs/superpowers/specs/2026-05-04-phase-5-design.md`](./superpowers/specs/2026-05-04-phase-5-design.md) — signed off 2026-05-05.
 **Plan:** [`docs/superpowers/plans/2026-05-04-phase-5.md`](./superpowers/plans/2026-05-04-phase-5.md).
+**AF360 source spec:** [`docs/auction-platform/AF360_HiBid_Lot_Import_Spec.md`](./auction-platform/AF360_HiBid_Lot_Import_Spec.md).
 
-**Scope (locked during planning round):**
-- 7-column AF360 CSV per [`docs/auction-platform/AF360_HiBid_Lot_Import_Spec.md`](./auction-platform/AF360_HiBid_Lot_Import_Spec.md)
-- Schema additions: `customer.seller_code`, `customer.disabled_at`,
-  `job.start_bid`, `job.shippable`
-- Customer + Job edit forms built from scratch (verified 2026-05-04 —
-  no existing edit surface for either)
-- `src/lib/exporters/af360.ts` — hardcoded TS const for the platform
-  mapping (no `auction_platform` DB table; no CRUD endpoints; v1 ships
-  one platform, multi-platform is v2)
-- Two server endpoints: `POST /api/jobs/:id/export-af360/start` (returns
-  CSV inline + batch plan) and `POST .../batch` (builds + uploads one
-  100-lot batch zip to Vercel Blob)
-- Daily cleanup cron `cleanup-export-blobs` (24h TTL on Vercel Blob)
+**Branch:** `phase-5-auction-platform-export` @ `b089f83` — 14 commits ahead of `phase-4-settings-users` (7 area commits + 4 sign-off bug fixes/cleanups + 2 utility commits + 1 doc commit).
+**Actual effort:** Multi-session over ~2 days. Estimate was ~6.25 days; came in faster.
+
+**Shipped:**
+- 7-column AF360 CSV per source spec
+- Schema additions: `customer.seller_code`, `customer.disabled_at`, `job.start_bid`, `job.shippable` (migration `0011`)
+- Customer + Job edit forms built from scratch (no prior editable surface)
+- Customer disable/re-enable (mirrors Phase 4 user pattern); disabled customers hidden from cataloging picker AND from new-job creation
+- AF360 mapping module (`src/lib/exporters/af360.ts`) — hardcoded TS const, no DB table for v1
+- Server endpoints: `POST /api/jobs/:id/export-af360/start` (CSV inline + batch plan) + `POST .../batch` (per-batch zip → Vercel Blob)
+- Daily cleanup cron `cleanup-export-blobs` (24h TTL)
 - Read-only Settings → Auction Platforms panel
-- New deps: `archiver` (server zip), `@vercel/blob` (temp store)
-- Photo egress reduction: existing `width=1568, quality=80, resize=contain`
-  Supabase transform reused at export (~15× smaller than originals;
-  matches what the cataloging UI displays)
-- Replaces the placeholder 15-column hardcoded export entirely; no
-  backward-compatibility shim
+- Two entry points: per-Job button on CustomerDetail + Inventory-level button when Job filtered
+- New deps: `archiver`, `@vercel/blob`
+- New utility scripts: `apply-migration.ts` (drizzle-kit ^0.28 workaround), `seed-export-stress.ts` (multi-batch sign-off fixture)
+- Vercel Blob store `auction-os-exports` (public, iad1)
+- Legacy `/api/lots/export` + `ExportCsvDialog` removed entirely
 
-**Open carry-forwards for Phase 5 sign-off (post-implementation):**
-- **Sample CSV from current customer workflow** — user to provide as a
-  post-implementation sanity check against the generated CSV. Eyeball
-  comparison; not blocking implementation.
-- **Real-world AF360 import dry-run** — ideally the customer runs an
-  exported set through their AF360 wizards before sign-off. If
-  unavailable in the sign-off window, becomes a Phase 8 (cutover)
-  prerequisite.
+**Sign-off bugs caught + fixed:** disabled-customer-still-creates-jobs UI gap, BlobError private-store rejection (resolved via store recreate as public), Retry-after-/start-failure no-op. Multi-batch verified end-to-end against 120-lot stress fixture.
 
-### Phase 6 — AI subsystem ⬜
+**Carry-forwards / known limitations:**
+- Real-world AF360 import dry-run by the customer not done at sign-off; becomes a Phase 8 (cutover) prerequisite.
+- Multi-batch upper bound (1000+ photos) tested at 120 only; architecture accommodates the upper bound but not real-world stress-tested.
+
+### Phase 6 — AI subsystem ⬜ (next)
 
 Drives the largest remaining product surface (Phase 3 carry-forward
 **T-G3**). Per current understanding: AI is largely backend with minimal
