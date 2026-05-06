@@ -19,6 +19,9 @@ const REQUIRED_SETUP_KEYS = [
   'TEST_SUPABASE_URL', 'TEST_SUPABASE_ANON_KEY', 'TEST_SUPABASE_SERVICE_ROLE_KEY', 'TEST_DATABASE_URL',
   'PROD_SUPABASE_URL', 'PROD_SUPABASE_ANON_KEY', 'PROD_SUPABASE_SERVICE_ROLE_KEY', 'PROD_DATABASE_URL',
   'GITHUB_OWNER', 'GITHUB_REPO',
+  // Phase 6: server-side Anthropic API key for the AI subsystem. Single shared
+  // key (not per-env); used by /api/ai/* endpoints and the probe-ai script.
+  'ANTHROPIC_API_KEY',
 ];
 
 let failed = 0;
