@@ -57,13 +57,14 @@ The user runs through this during sign-off:
 4. `vercel.ts` updated with the `*/15 * * * *` cron entry; first deployed cron tick observed in Vercel logs returning 200 with `{skipped: too_soon}` or `{processed: 0}`. **PENDING — verify via Vercel logs.**
 5. Manual sign-off batch: `npm run probe:ai -- --lots 30` against ≥30 real lots in Dev with real Anthropic, output reviewed for quality (titles ≤50 chars, descriptions natural, prices reasonable). **PENDING.**
 6. Manual sign-off click-through against the deployed preview:
-   - a. Settings → AI section shows Schedule + Cost sub-cards correctly.
-   - b. Run Now button works, shows correct toast for `remaining=0` and `remaining>0`.
+   - a. Settings → AI section shows Schedule + Cost sub-cards correctly. **Schedule sub-card includes the "N lots pending AI" badge (REQ-2).**
+   - b. Run Now button works, shows correct toast for `remaining=0` and `remaining>0`. **Pending-AI badge updates after a run.**
    - c. Lot detail "Run AI" button visible only on eligible lots; runs and updates lot in place.
    - d. Lot detail "AI generating" banner appears during in-flight run; field inputs disabled; banner clears within 5s of run completion.
    - e. PATCH on a lot with active in-flight returns 423; UI handles gracefully.
-   - f. Inventory "Needs Info." filter chip toggles correctly; results match the SQL semantics.
+   - f. Inventory **two** filter chips ("Awaiting AI" + "Needs review", REQ-1) toggle independently; each result set matches its SQL semantics; both active = union.
    - g. Cost displays update after AI runs.
+   - h. **Prompt caching active (REQ-3): probe a fresh lot, then probe a second lot within 5 min — second call's `usage.cache_read_input_tokens > 0`, observable via the probe script's per-call output.**
 7. Cron trigger observed in production preview: at least one full eligible-backlog drain completing within reasonable wall time. **PENDING.**
 8. No stuck-lock observed after deliberate Anthropic 5xx via probe with mock failure: `ai_processing_started_at` and `ai_run_lock_until` clear within 5 minutes. **PENDING (worth a deliberate test).**
 9. Branch ready for promotion to next-phase parent (Phase 7); commits pushed → ✓.
@@ -89,26 +90,68 @@ The three flagged gaps are all testable with ~30 min of work:
 
 These are "lock the contract" tests for refactor safety. They were flagged because the spec's explicit test list didn't enumerate them and the implementer followed the spec literally. The user's "no deferred quality issues" rule suggests adding them. **Action: ask the user if they want these added before sign-off (recommended) or carried forward.**
 
-### v1.5 — Progress UI (defer with detail)
-**How operators see queue state today:**
-- After Run Now click: toast with "Processed N lots. M remaining."
-- Otherwise: nothing persistent. No "N lots awaiting AI" badge, no progress bar during a run, no inventory count of eligible lots.
-- Indirect: the "Needs Info." filter surfaces lots needing attention but mixes "not yet AI'd" with "AI ran but partial/failure".
+### REQUIRED Phase 6 additions — pulled forward from v1.5 per user direction (2026-05-06)
 
-**v1.5 enhancement scope:** small "N lots pending AI" badge on the Schedule sub-card next to Run Now, plus optionally a progress polling indicator during Run Now. Carried forward — defer.
+The user reviewed the v1.5 list and decided three items belong in Phase 6 itself, before sign-off. **Do these in the new session as the first work item.**
 
-### v1.5 — Prompt caching (defer with detail)
-Anthropic's prompt caching lets you mark portions of the system prompt as `cache_control: { type: 'ephemeral' }`. First call creates a cache; subsequent calls within ~5 min reuse it for ~10% of the input-token cost.
+#### REQ-1: Split the "Needs Info." filter into two distinct chips
 
-For Phase 6: the system scaffold + TITLE_RULES + DESCRIPTION_RULES + PRICE_RULES is identical across every call → mark as cacheable. Per-lot photos + operator fields are unique → not cacheable.
+Replace the single boolean `Filters.needsInfo` chip + its combined SQL clause with two separately-toggleable chips matching the existing State-chip pattern:
 
-Implementation is ~5 lines in `src/lib/ai/anthropic.ts`: change the `system: <string>` argument to `system: [{ type: 'text', text: <string>, cache_control: { type: 'ephemeral' } }]`. At our scale (~1000 lots/month), this likely cuts ~30–50% off the input-token cost. Currently projecting ~$65/month → savings of $20–30/month. Not huge, but free. Carried forward — defer.
+| Chip | Filter (server) |
+|---|---|
+| **Awaiting AI** | `last_ai_run_status IS NULL AND state IN ('assigned', 'unassigned')` — eligible for AI but not yet processed. |
+| **Needs review** | `last_ai_run_status IN ('partial', 'failure')` — AI ran but didn't fully succeed. |
+
+Operator can toggle one or both; both active = everything needing attention.
+
+**Open question for the new session to surface to the user:** the rare "AI succeeded then operator cleared a field" edge case. Either (a) leave outside both filters (recommended — it's a different conceptual state from "AI didn't succeed"), or (b) fold into "Needs review". The original combined filter caught (b).
+
+**Files to touch:**
+- `src/components/inventory/InventoryFilters.tsx` — replace single chip with two; update `Filters` type.
+- `src/hooks/useInfiniteLots.ts` — query-string passthrough for both flags.
+- `src/routes/Inventory.tsx` — `parseFiltersFromUrl` / `writeFiltersToUrl` / `activeFilterCount` updates for both flags.
+- `api/lots/index.ts` — replace the single `?needsInfo=true` SQL clause with two separate query params (e.g. `?awaitingAi=true&needsReview=true`) and the corresponding SQL clauses.
+- `tests/api/lots-needs-info.test.ts` — rename / restructure for the two-filter shape.
+- `tests/client/components/InventoryFilters-needsinfo.test.tsx` — same.
+- Spec: update §3.7 G.3 to document the split. Plan: add an entry to the deviations / amendments section if appropriate.
+
+#### REQ-2: "N lots pending AI" badge
+
+Add a small count badge to the Schedule sub-card in Settings → AI, near the Run Now button. Shows the current count of `last_ai_run_status IS NULL AND state IN ('assigned', 'unassigned')`.
+
+**Implementation approach (recommended):** extend `GET /api/system-settings` to include `aiPendingLotCount: number` in its response. The Settings panel already reads `useSystemSettings()`, so the badge value falls out for free; the cost-counter cards already follow the same pattern. The count is computed via a small `SELECT COUNT(*) FROM lot WHERE ...` joined with the singleton fetch.
+
+**Files to touch:**
+- `api/system-settings.ts` — extend GET to compute + include the count.
+- `shared/types.ts` — `SystemSettingsDTO` gains `aiPendingLotCount: number`.
+- `src/routes/Settings.tsx` — render the badge in the Schedule sub-card.
+- `tests/api/system-settings.test.ts` — extend.
+- `tests/client/components/Settings.test.tsx` — extend for badge rendering.
+- Spec: update §3.7 G.1 to document the badge. Plan: add a sub-task under Phase F.
+
+#### REQ-3: Anthropic prompt caching
+
+Mark the static system prompt portion (SCAFFOLD + TITLE_RULES + DESCRIPTION_RULES + PRICE_RULES) as ephemeral-cacheable. First call creates a cache; subsequent calls within ~5 min reuse it at ~10% of the input-token cost.
+
+**Files to touch:**
+- `src/lib/ai/anthropic.ts` — change the `system: <string>` argument shape to:
+  ```ts
+  system: [{
+    type: 'text',
+    text: SYSTEM_SCAFFOLD + '\n' + TITLE_RULES + '\n' + DESCRIPTION_RULES + '\n' + PRICE_RULES,
+    cache_control: { type: 'ephemeral' },
+  }]
+  ```
+- `src/lib/ai/model.ts` — extend `computeCostCents` to handle cache hits. Anthropic's `usage` object in the response includes `cache_creation_input_tokens` and `cache_read_input_tokens` alongside `input_tokens`. Cache reads are billed at ~10% of normal input rate. Add the rate constant (e.g., `cachedInputCentsPerMillion: 30` for Sonnet 4.6 — verify against current pricing) and update the formula to charge cache_read_input_tokens at the discounted rate.
+- `tests/lib/ai-model.test.ts` — extend with a cache-hit case.
+- Sanity-check via `npm run probe:ai -- --lots 5` — cache should activate from the second call onward; observe via the response's `usage.cache_read_input_tokens` field.
+- Spec: update §3.2 to document caching. Plan: add a sub-task under Phase B (model.ts) or C (anthropic.ts).
 
 ### v1.5 carry-forwards (deferred per user direction)
 - **Per-lot retry button** — defer.
 - **Cost spike alert** — defer.
-- **Progress UI** (above) — defer with the detail noted.
-- **Prompt caching** (above) — defer with the detail noted.
+- **Run Now progress polling indicator** (X of Y processed in real-time during a Run Now click) — defer; the post-Run-Now toast already gives operator a count.
 
 ## Other carry-forwards (already in the project's tracking)
 
@@ -120,17 +163,23 @@ These came up during code reviews and aren't blockers; left here so the next ses
 
 ## Suggested next steps for the new session
 
-In the order I'd recommend:
+The three REQ items above are the first work to do; sign-off can't complete until they ship. Recommended order:
 
-1. **Open by asking:** "Which of the user comments / questions in this handoff would you like to address first?" — let them pick.
-2. **If "test gaps" is in scope:** add the three small tests in one batch. ~30 min.
-3. **If Minor #4 is in scope:** add the comment to `scripts/probe-ai.ts` explaining the deliberate counter skip.
-4. **Otherwise:** move directly to manual sign-off:
+1. **Open by confirming approach:** "I see three required Phase 6 additions in the handoff (filter split, pending badge, prompt caching) plus the test gaps and the probe-ai comment. Recommend tackling REQ-1/2/3 first, then the test gaps, then probe-ai comment, then manual sign-off. Approve or reorder?" — let the user direct.
+2. **REQ-3 first** (smallest, lowest risk): prompt caching in `src/lib/ai/anthropic.ts` + model rate constant + test extension. ~30–45 min. Verify via `probe:ai`.
+3. **REQ-2 next:** `aiPendingLotCount` in system-settings response + Settings sub-card badge + tests. ~1 hour.
+4. **REQ-1 last** (most surface area): filter split. ~2–3 hours touching 6 files + 2 tests + spec/plan updates.
+5. **After REQs:** the three test gaps (composeTitle double-space collapse, audit attribution split, Run Now lock-held). ~30 min.
+6. **Then Minor #4:** add the comment to `scripts/probe-ai.ts` explaining the deliberate counter skip. ~5 min.
+7. **Pre-push trio + push** after each REQ to keep the branch always-shippable.
+8. **Manual sign-off:**
    - Verify Vercel cron logs (gate item 4).
    - Run `npm run probe:ai -- --lots 30` and review output (gate item 5).
-   - Manual click-through on the preview deploy (gate item 6 a–g).
-   - Check stuck-lock self-heal works as expected (gate item 8).
-5. **After sign-off completes:** add a Phase 6 section to STATE.md mirroring the Phase 5 structure (status table, sign-off bug fix batch if any, deviations captured during execution, key memories), bump `roadmap.md`, and decide whether the v1.5 carry-forwards should be a separate `phase-6.5-polish` branch or fold into Phase 7.
+   - Manual click-through on the preview deploy (gate item 6 a–g) — make sure to exercise both new filter chips and verify the badge updates after Run Now clears the queue.
+   - Check stuck-lock self-heal (gate item 8).
+9. **After sign-off completes:** add a Phase 6 section to STATE.md mirroring the Phase 5 structure (status table, sign-off bug fix batch if any, deviations captured during execution, key memories), bump `roadmap.md` to mark Phase 6 ✓, and cut `phase-7-label-printing` off `phase-6-ai-subsystem` for the next phase.
+
+Each REQ also bumps the spec + plan accordingly (the spec is supposed to mirror the actual implementation; document the additions there as deviations/amendments rather than rewriting top-down).
 
 ## Key memories to re-read at session start
 
