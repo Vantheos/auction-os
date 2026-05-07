@@ -83,4 +83,41 @@ describe('LotAiButton', () => {
     await user.click(screen.getByRole('button', { name: /Run AI/i }));
     await waitFor(() => expect(called).toBe(true));
   });
+
+  it('disabled with tooltip when title + description + price are all populated', () => {
+    renderWithProviders(<LotAiButton lot={{
+      ...baseLot, title: 'Operator title', description: 'Operator description', price: '12.50',
+    }} />);
+    const btn = screen.getByRole('button', { name: /Run AI/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'Title, description, and price are all filled. Clear one to re-run AI.');
+  });
+
+  it('enabled when one of the three is missing (title NULL)', () => {
+    renderWithProviders(<LotAiButton lot={{
+      ...baseLot, title: null, description: 'Operator description', price: '12.50',
+    }} />);
+    expect(screen.getByRole('button', { name: /Run AI/i })).not.toBeDisabled();
+  });
+
+  it('enabled when title is empty-string (treated as missing)', () => {
+    renderWithProviders(<LotAiButton lot={{
+      ...baseLot, title: '', description: 'd', price: '1.00',
+    }} />);
+    expect(screen.getByRole('button', { name: /Run AI/i })).not.toBeDisabled();
+  });
+
+  it('enabled when title is whitespace-only (treated as missing)', () => {
+    renderWithProviders(<LotAiButton lot={{
+      ...baseLot, title: '   ', description: 'd', price: '1.00',
+    }} />);
+    expect(screen.getByRole('button', { name: /Run AI/i })).not.toBeDisabled();
+  });
+
+  it('enabled when price is NULL even if title + description are filled', () => {
+    renderWithProviders(<LotAiButton lot={{
+      ...baseLot, title: 't', description: 'd', price: null,
+    }} />);
+    expect(screen.getByRole('button', { name: /Run AI/i })).not.toBeDisabled();
+  });
 });

@@ -50,10 +50,22 @@ export function LotAiButton({ lot }: Props) {
   if (lot.lastAiRunStatus !== null) return null;
   if (lot.state !== 'assigned' && lot.state !== 'unassigned') return null;
 
+  // Operator-completed: every user-facing field is filled. AI has nothing
+  // to add (status-aware finalize would no-op anyway, but the call would
+  // still spend tokens and wait time). Stay visible so the button is
+  // discoverable, but disable with a tooltip explaining how to re-enable.
+  // Same definition of "filled" used by the cron eligibility skip in
+  // /api/ai/backlog and the pending-AI badge.
+  const allFieldsFilled =
+    !!lot.title && lot.title.trim() !== ''
+    && !!lot.description && lot.description.trim() !== ''
+    && lot.price !== null;
+
   return (
     <Button
       onClick={() => aiRun.mutate({ lotId: lot.id })}
-      disabled={aiRun.isPending}
+      disabled={aiRun.isPending || allFieldsFilled}
+      title={allFieldsFilled ? 'Title, description, and price are all filled. Clear one to re-run AI.' : undefined}
       variant="default"
     >
       {aiRun.isPending ? 'Running AI…' : 'Run AI'}
