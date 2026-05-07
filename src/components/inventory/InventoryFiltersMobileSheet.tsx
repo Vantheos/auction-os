@@ -114,6 +114,33 @@ function SheetBodyInner({ initial, onApply, onClose }: { initial: Filters; onApp
               })}
             </div>
           </Field>
+
+          <Field label="AI">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, awaitingAi: !draft.awaitingAi })}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  draft.awaitingAi
+                    ? 'bg-info-bg border-brand text-brand'
+                    : 'bg-surfaceSolid border-borderStrong text-textDim'
+                }`}
+              >
+                Awaiting AI
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, needsReview: !draft.needsReview })}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  draft.needsReview
+                    ? 'bg-warning-bg border-warning text-warning'
+                    : 'bg-surfaceSolid border-borderStrong text-textDim'
+                }`}
+              >
+                Needs review
+              </button>
+            </div>
+          </Field>
         </SheetBody>
 
         <SheetFooter>
