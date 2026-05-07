@@ -51,6 +51,13 @@ async function seed() {
     jobId: j.id, lotNumber: 16, state: 'sold', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
     title: null, description: null, price: null, lastAiRunStatus: 'success',
   });
+  // Lot 17: status=null but operator filled all fields at catalog time —
+  // neither chip (AI won't run on it; not failed; nothing to review).
+  // Lives in the unfiltered Inventory list only.
+  await testDb.insert(lot).values({
+    jobId: j.id, lotNumber: 17, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+    title: 'Operator title', description: 'Operator description', price: '12.50',
+  });
 }
 
 async function get(qs: string) {
@@ -64,11 +71,27 @@ async function get(qs: string) {
 beforeEach(async () => { await truncateAll(); await seed(); });
 
 describe('GET /api/lots — Awaiting AI / Needs review filters (REQ-1)', () => {
-  it('?awaitingAi=true returns only lots whose AI has not run yet', async () => {
+  it('?awaitingAi=true returns only lots AI will pick up (status NULL + at least one field empty)', async () => {
     const res = await get('awaitingAi=true');
     expect(res.status).toBe(200);
     const lotNumbers = res.body.lots.map((l: any) => l.lotNumber).sort();
+    // Lot 11 (all fields null, status null) is in. Lot 17 (status null but
+    // all fields populated by operator at catalog time) is NOT — AI won't
+    // pick it up via the eligibility skip in /api/ai/backlog.
     expect(lotNumbers).toEqual([11]);
+  });
+
+  it('?awaitingAi=true excludes status-NULL lots whose title/description/price are all populated', async () => {
+    const res = await get('awaitingAi=true');
+    const lotNumbers = res.body.lots.map((l: any) => l.lotNumber);
+    expect(lotNumbers).not.toContain(17);
+  });
+
+  it('operator-completed status-NULL lots appear in NEITHER chip', async () => {
+    const awaiting = await get('awaitingAi=true');
+    const review = await get('needsReview=true');
+    expect(awaiting.body.lots.map((l: any) => l.lotNumber)).not.toContain(17);
+    expect(review.body.lots.map((l: any) => l.lotNumber)).not.toContain(17);
   });
 
   it('?needsReview=true returns lots with partial/failure status OR success-with-empty-fields', async () => {
@@ -92,7 +115,7 @@ describe('GET /api/lots — Awaiting AI / Needs review filters (REQ-1)', () => {
 
   it('returns all lots when neither flag is set', async () => {
     const res = await get('');
-    expect(res.body.lots).toHaveLength(7);
+    expect(res.body.lots).toHaveLength(8);
   });
 
   it('combines with state filter (AND semantics)', async () => {

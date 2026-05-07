@@ -99,10 +99,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           conditions.push(aiClauses.length === 1 ? aiClauses[0] : or(...aiClauses)!);
         }
       }
-      // Awaiting AI: status NULL AND state allows AI processing.
+      // Awaiting AI: status NULL AND state allows AI processing AND at
+      // least one of title / description / price is empty. Mirrors the
+      // eligibility query in /api/ai/backlog and the pending-AI badge in
+      // /api/system-settings — all three define "awaiting AI" the same
+      // way, so an operator-completed lot (all three fields filled at
+      // catalog time, AI never ran) doesn't show up here. Empty = NULL
+      // or '' for text; NULL only for price.
       const awaitingAiClause = and(
         isNull(lot.lastAiRunStatus),
         inArray(lot.state, ['assigned', 'unassigned'] as const),
+        or(
+          isNull(lot.title),
+          sql`${lot.title} = ''`,
+          isNull(lot.description),
+          sql`${lot.description} = ''`,
+          isNull(lot.price),
+        )!,
       )!;
       // Needs review: AI ran but didn't fully succeed (partial/failure),
       // OR AI ran successfully but a required user-facing field is now

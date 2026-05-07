@@ -33,7 +33,7 @@ Each item lists what to do, where to do it, and what "pass" looks like. If somet
 
 ### A.4 Inventory filter chips (REQ-1) — non-AI plumbing
 - [ ] Open **Inventory**. The filter row shows two new chips: **Awaiting AI** and **Needs review** — alongside the State chips. The legacy single "Needs Info." chip is gone.
-- [ ] Click **Awaiting AI**. URL gains `?awaitingAi=true`. List narrows to lots with `lastAiRunStatus IS NULL` and state in (assigned, unassigned). Lot count updates.
+- [ ] Click **Awaiting AI**. URL gains `?awaitingAi=true`. List narrows to lots that AI will actually pick up: `lastAiRunStatus IS NULL`, state in (assigned, unassigned), AND at least one of title / description / price is empty. A status=NULL lot whose three fields were all filled by the operator at catalog time is **not** shown — it lives in the unfiltered list only. Lot count matches the pending-AI badge in Settings.
 - [ ] Click **Awaiting AI** again to clear. URL drops `awaitingAi`. List restores.
 - [ ] Click **Needs review**. URL gains `?needsReview=true`. Should currently show 0 lots if no AI has run yet (correct — needs-review only catches lots whose AI ran-and-didn't-fully-succeed). After running probe in Section B, recheck.
 - [ ] Activate **both** chips together. URL has both flags. List = union (everything needing attention). Active-filter badge in the page header counts both flags (filter count goes up by 2).

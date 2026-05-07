@@ -595,19 +595,21 @@ Hook follows the existing `useLotMutations.ts` pattern — same invalidation, sa
 #### G.3 — Inventory "Awaiting AI" + "Needs review" filters
 
 > **Amendment 2026-05-06 (REQ-1):** the original single "Needs Info." chip was split into two independent chips. The legacy `?needsInfo=true` query param is preserved server-side as a compatibility union (matches lots in either new bucket).
+>
+> **Amendment 2026-05-07 (Awaiting AI alignment):** the Awaiting AI clause now also requires at least one of `title` / `description` / `price` to be empty, mirroring the eligibility query in `/api/ai/backlog` and the `aiPendingLotCount` badge in `/api/system-settings`. A lot whose AI never ran but whose three user-facing fields were filled by the operator at catalog time is no longer shown in the chip — AI won't pick it up via the eligibility skip, so listing it here would be misleading.
 
 Two filter chips, each toggled independently via `InventoryFilters.tsx`:
 
 | Chip | `Filters` field | Server query param | SQL clause |
 |---|---|---|---|
-| **Awaiting AI** | `awaitingAi?: boolean` | `?awaitingAi=true` | `last_ai_run_status IS NULL AND state IN ('assigned','unassigned')` |
+| **Awaiting AI** | `awaitingAi?: boolean` | `?awaitingAi=true` | `last_ai_run_status IS NULL AND state IN ('assigned','unassigned') AND (title IS NULL OR title = '' OR description IS NULL OR description = '' OR price IS NULL)` |
 | **Needs review** | `needsReview?: boolean` | `?needsReview=true` | `last_ai_run_status IN ('partial','failure') OR (last_ai_run_status IS NOT NULL AND state IN ('assigned','unassigned') AND (title IS NULL OR title = '' OR description IS NULL OR description = '' OR price IS NULL))` |
 
 Both flags active = SQL `OR` of the two clauses (everything needing attention).
 
-**Empty-fields rule.** "Needs review" treats a lot as needing attention if any of `title`, `description`, or `price` is empty AFTER a completed AI run — typically because the operator manually cleared the field. Empty = `NULL` or `''` for text columns; `NULL` only for `price` (the numeric `0` is a valid operator decision, not "missing"). The empty-fields branch is gated by `last_ai_run_status IS NOT NULL` so a status=NULL lot stays exclusively in the Awaiting AI bucket and the two queues remain disjoint.
+**Empty-fields rule.** Both chips share the same definition of "empty": `NULL` or `''` for text columns; `NULL` only for `price` (the numeric `0` is a valid operator decision, not "missing"). The state-restriction (`assigned`/`unassigned`) keeps sold/picked-up/not-sellable lots out of either queue — those are conceptually done.
 
-The state-restriction (`assigned`/`unassigned`) on the empty-fields branch keeps sold/picked-up/not-sellable lots out of the queue — those are conceptually done; cleared fields don't drag them back into review.
+**Disjointness.** The Needs review empty-fields branch is gated by `last_ai_run_status IS NOT NULL`. Combined with Awaiting AI's `IS NULL` requirement, the two chips are guaranteed disjoint (a lot can never appear in both). A status=NULL lot whose three fields are all filled is in **neither** chip — AI won't run on it, nothing has failed, nothing to review.
 
 **URL handling** in `Inventory.tsx`: `parseFiltersFromUrl` reads both flags from the query string. `writeFiltersToUrl` writes both AND deletes the legacy `?needsInfo` param so old bookmarks resolve cleanly to the new chip set. `activeFilterCount` counts each flag independently.
 
