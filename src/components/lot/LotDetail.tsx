@@ -110,7 +110,9 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
     <div className="space-y-4">
       <div className="flex items-start gap-3 pb-3 border-b border-border">
         <div className="size-16 rounded-md bg-surfaceAlt border border-border flex-shrink-0 overflow-hidden">
-          {photos.data?.[0] && <div className="size-full bg-cover bg-center" />}
+          {photos.data?.[0]?.signedUrl ? (
+            <img src={photos.data[0].signedUrl} alt="Lot cover" className="size-full object-cover" />
+          ) : null}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
