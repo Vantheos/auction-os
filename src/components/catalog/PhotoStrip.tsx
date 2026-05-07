@@ -1,15 +1,25 @@
 // src/components/catalog/PhotoStrip.tsx
-// Thumbnail strip for the lot-in-progress screen. Renders captured photos
-// (server rows + queue entries with local blob URLs for not-yet-uploaded
-// captures), plus a "+" tile to add more (max 12 per spec §6.1).
+// Thumbnail strip for the lot-in-progress screen and the lot detail
+// modal. Renders captured photos (server rows + queue entries with local
+// blob URLs for not-yet-uploaded captures), plus a "+" tile to add more
+// (max 12 per spec §6.1).
 //
 // Tap a thumbnail → opens the full-screen Photo Manager.
+//
+// Layout: fixed-size thumbnails with horizontal scroll. Arrow buttons
+// appear at the edges when content overflows the visible area; mobile
+// users can swipe natively. This keeps thumbnails legible regardless of
+// photo count (12 max) and viewport.
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUploadQueue } from '@/hooks/useUploadQueue';
 import { useLotPhotos } from '@/hooks/useLots';
 
 const MAX_PHOTOS = 12;
+// Each thumbnail: 80px (w-20). Scroll on overflow.
+const THUMB_PX = 80;
+// Click-arrow scroll delta — three thumbnails plus their gap (1.5 = 6px).
+const ARROW_SCROLL_DELTA = THUMB_PX * 3 + 6 * 3;
 
 type CombinedPhoto = {
   id: string;
@@ -75,6 +85,36 @@ export function PhotoStrip({ lotId, onCapture, capturing, onTapThumb }: {
     onTapThumb(photoId);
   };
 
+  // Scroll-state tracking for the arrow visibility. canScrollLeft/Right
+  // gate whether the chevron buttons render so we don't show "previous"
+  // when already at the start. Initial check + scroll + resize listeners
+  // keep them in sync as the strip mounts, scrolls, or the viewport
+  // changes (e.g., mobile rotation, modal open/close).
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const update = () => {
+      setCanScrollLeft(el.scrollLeft > 1);
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [combined.length, canAdd]);
+
+  const scrollBy = (delta: number) => {
+    stripRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  };
+
   return (
     <div className="space-y-2">
       {/* Capture CTA — gradient when no photos, compact when adding more */}
@@ -100,46 +140,76 @@ export function PhotoStrip({ lotId, onCapture, capturing, onTapThumb }: {
         </button>
       )}
 
-      {/* Thumbnail row */}
+      {/* Thumbnail row — fixed-size tiles with horizontal scroll */}
       {combined.length > 0 && (
-        <div className="flex gap-1.5">
-          {combined.map((p, idx) => (
+        <div className="relative">
+          <div
+            ref={stripRef}
+            className="flex gap-1.5 overflow-x-auto scroll-smooth pb-1 -mx-0.5 px-0.5"
+            // Hide native scrollbar — arrow buttons + swipe are the
+            // navigation affordances.
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {combined.map((p, idx) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleTap(p.id)}
+                className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden relative border ${
+                  idx === 0 ? 'border-2 border-brand' : 'border-border'
+                }`}
+              >
+                {p.src ? (
+                  <img src={p.src} alt={`Photo ${idx + 1}`} className="size-full object-cover" />
+                ) : (
+                  <div className="size-full bg-surfaceAlt flex items-center justify-center text-textFaint text-xs">
+                    #{idx + 1}
+                  </div>
+                )}
+                {idx === 0 && (
+                  <span className="absolute bottom-0.5 left-0.5 text-[8px] font-bold tracking-wider uppercase bg-brand text-white px-1 py-0.5 rounded">
+                    Cover
+                  </span>
+                )}
+                {p.status === 'pending' && (
+                  <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-warning animate-pulse" />
+                )}
+                {p.status === 'failed' && (
+                  <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-state-not-sellable" />
+                )}
+              </button>
+            ))}
+            {/* "+" tile when we can still add more */}
+            {canAdd && (
+              <button
+                type="button"
+                onClick={onCapture}
+                className="flex-shrink-0 w-20 h-20 rounded-md border-2 border-dashed border-borderStrong bg-transparent flex items-center justify-center text-textFaint hover:bg-surfaceAlt"
+                aria-label="Add photo"
+              >
+                +
+              </button>
+            )}
+          </div>
+
+          {canScrollLeft && (
             <button
-              key={p.id}
               type="button"
-              onClick={() => handleTap(p.id)}
-              className={`flex-1 aspect-square rounded-md overflow-hidden relative border ${
-                idx === 0 ? 'border-2 border-brand' : 'border-border'
-              }`}
+              onClick={() => scrollBy(-ARROW_SCROLL_DELTA)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full bg-surfaceSolid/95 border border-border shadow flex items-center justify-center text-text hover:bg-surfaceSolid"
+              aria-label="Scroll thumbnails left"
             >
-              {p.src ? (
-                <img src={p.src} alt={`Photo ${idx + 1}`} className="size-full object-cover" />
-              ) : (
-                <div className="size-full bg-surfaceAlt flex items-center justify-center text-textFaint text-xs">
-                  #{idx + 1}
-                </div>
-              )}
-              {idx === 0 && (
-                <span className="absolute bottom-0.5 left-0.5 text-[8px] font-bold tracking-wider uppercase bg-brand text-white px-1 py-0.5 rounded">
-                  Cover
-                </span>
-              )}
-              {p.status === 'pending' && (
-                <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-warning animate-pulse" />
-              )}
-              {p.status === 'failed' && (
-                <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-state-not-sellable" />
-              )}
+              <ChevronIcon dir="left" />
             </button>
-          ))}
-          {/* "+" tile when we can still add more */}
-          {canAdd && (
+          )}
+          {canScrollRight && (
             <button
               type="button"
-              onClick={onCapture}
-              className="flex-1 aspect-square rounded-md border-2 border-dashed border-borderStrong bg-transparent flex items-center justify-center text-textFaint hover:bg-surfaceAlt"
+              onClick={() => scrollBy(ARROW_SCROLL_DELTA)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 size-8 rounded-full bg-surfaceSolid/95 border border-border shadow flex items-center justify-center text-text hover:bg-surfaceSolid"
+              aria-label="Scroll thumbnails right"
             >
-              +
+              <ChevronIcon dir="right" />
             </button>
           )}
         </div>
@@ -185,6 +255,14 @@ function CameraIcon({ size = 20 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 5h2l1-1.5h4L11 5h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
       <circle cx="8" cy="9" r="2.5" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {dir === 'left' ? <polyline points="10,3 5,8 10,13" /> : <polyline points="6,3 11,8 6,13" />}
     </svg>
   );
 }
