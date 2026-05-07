@@ -73,6 +73,57 @@ describe('GET /api/jobs?customerId=...', () => {
     expect(res.status).toBe(200);
     expect(res.body.jobs).toHaveLength(2);
   });
+
+  it('each job in the list includes lot counts powering the AF360 gate', async () => {
+    // Job A: 2 fully ready + 1 missing-title-assigned + 1 sold (still complete) + 1 assigned-NULL-price
+    // Job B: empty (all counts zero)
+    const a = (await callIndex('/api/jobs', 'POST', { customerId, jobNumber: 'A' }, 'admin', ADMIN)).body;
+    await callIndex('/api/jobs', 'POST', { customerId, jobNumber: 'B' }, 'admin', ADMIN);
+    await testDb.insert(lot).values([
+      { jobId: a.id, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'A', description: 'a', price: '1.00' },
+      { jobId: a.id, lotNumber: 2, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'B', description: 'b', price: '2.00' },
+      { jobId: a.id, lotNumber: 3, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: null, description: 'c', price: '3.00' },
+      { jobId: a.id, lotNumber: 4, state: 'sold', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'D', description: 'd', price: '4.00' },
+      { jobId: a.id, lotNumber: 5, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'E', description: 'e', price: null },
+    ]);
+    const res = await callIndex(`/api/jobs?customerId=${customerId}`, 'GET', null, 'admin', ADMIN);
+    const byNumber = Object.fromEntries(res.body.jobs.map((j: any) => [j.jobNumber, j]));
+    expect(byNumber.A).toMatchObject({
+      totalLotCount: 5,
+      assignedLotCount: 4,
+      exportReadyLotCount: 2,
+    });
+    expect(byNumber.B).toMatchObject({
+      totalLotCount: 0,
+      assignedLotCount: 0,
+      exportReadyLotCount: 0,
+    });
+  });
+
+  it('counts are scoped per job — lots in a sibling customer\'s job do not leak in', async () => {
+    const a = (await callIndex('/api/jobs', 'POST', { customerId, jobNumber: 'A' }, 'admin', ADMIN)).body;
+    const [otherCustomer] = await testDb.insert(customerTable).values({ name: 'Other' }).returning();
+    const otherJob = (await callIndex('/api/jobs', 'POST', { customerId: otherCustomer.id, jobNumber: 'OTHER' }, 'admin', ADMIN)).body;
+    await testDb.insert(lot).values([
+      { jobId: a.id, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'A', description: 'a', price: '1.00' },
+      { jobId: otherJob.id, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'X', description: 'x', price: '9.00' },
+    ]);
+    const res = await callIndex(`/api/jobs?customerId=${customerId}`, 'GET', null, 'admin', ADMIN);
+    expect(res.body.jobs).toHaveLength(1);
+    expect(res.body.jobs[0]).toMatchObject({
+      jobNumber: 'A',
+      totalLotCount: 1,
+      assignedLotCount: 1,
+      exportReadyLotCount: 1,
+    });
+  });
 });
 
 describe('GET /api/jobs/:id — lot counts', () => {

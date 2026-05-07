@@ -1,7 +1,7 @@
 // api/jobs/index.ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
@@ -26,9 +26,47 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       await requireAuth(req);
       const customerId = url.searchParams.get('customerId');
       const db = getDb();
-      const rows = customerId
-        ? await db.select().from(job).where(eq(job.customerId, customerId))
-        : await db.select().from(job);
+      // LEFT JOIN + GROUP BY to compute per-job lot counts in a single
+      // round-trip (avoiding N+1 on the customer detail page). Aliases
+      // are quoted so Postgres preserves camelCase in the result keys.
+      // assignedLotCount / totalLotCount / exportReadyLotCount mirror
+      // GET /api/jobs/:id and feed the AF360 export button gate, which
+      // surfaces in the customer's job list as well as Inventory.
+      const rows = await db.execute<{
+        id: string;
+        customerId: string;
+        jobNumber: string;
+        closedAt: Date | null;
+        startBid: string;
+        shippable: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        assignedLotCount: number;
+        totalLotCount: number;
+        exportReadyLotCount: number;
+      }>(sql`
+        SELECT j.id,
+               j.customer_id          AS "customerId",
+               j.job_number           AS "jobNumber",
+               j.closed_at            AS "closedAt",
+               j.start_bid            AS "startBid",
+               j.shippable,
+               j.created_at           AS "createdAt",
+               j.updated_at           AS "updatedAt",
+               COALESCE(SUM(CASE WHEN l.state = 'assigned' THEN 1 ELSE 0 END), 0)::int AS "assignedLotCount",
+               COUNT(l.id)::int       AS "totalLotCount",
+               COALESCE(SUM(CASE
+                 WHEN l.state = 'assigned'
+                  AND l.title IS NOT NULL AND l.title <> ''
+                  AND l.description IS NOT NULL AND l.description <> ''
+                  AND l.price IS NOT NULL
+                 THEN 1 ELSE 0 END), 0)::int AS "exportReadyLotCount"
+          FROM job j
+          LEFT JOIN lot l ON l.job_id = j.id
+         ${customerId ? sql`WHERE j.customer_id = ${customerId}` : sql``}
+         GROUP BY j.id
+         ORDER BY j.created_at DESC
+      `);
       return jsonOk(res, { jobs: rows });
     }
 
