@@ -1,5 +1,4 @@
 // src/components/inventory/InventoryTable.tsx
-import { Link } from 'react-router-dom';
 import { Checkbox } from '@/components/ui/checkbox';
 import { StatePill, AiStatusPill } from '@/components/ui/pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -72,9 +71,21 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen, 
                 <div className="text-xs text-textDim font-mono">{l.jobNumber ?? '—'} · #{l.lotNumber ?? '—'}</div>
               </TableCell>
               <TableCell className="font-medium text-text">
-                <Link to={`/inventory?openLot=${l.id}`} data-stop-row-click className="hover:text-brand">
+                {/*
+                 * Button instead of <Link>: the link form hardcoded
+                 * `/inventory?openLot=...` and wiped any active filter
+                 * params (customerId, jobId, awaitingAi, etc.). The
+                 * button routes through the parent's onOpen → setOpenLot
+                 * which preserves the existing URLSearchParams.
+                 */}
+                <button
+                  type="button"
+                  data-stop-row-click
+                  onClick={() => onOpen(l.id)}
+                  className="text-left hover:text-brand"
+                >
                   {l.title ?? <span className="text-textFaint italic">Untitled</span>}
-                </Link>
+                </button>
               </TableCell>
               <TableCell><StatePill state={l.state} /></TableCell>
               <TableCell><AiStatusPill status={l.lastAiRunStatus ?? 'not-run'} /></TableCell>
