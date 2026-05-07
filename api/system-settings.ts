@@ -27,11 +27,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const db = getDb();
       const [row] = await db.select().from(systemSettings).where(eq(systemSettings.id, 1));
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'system_settings singleton missing');
+      // Mirrors the eligibility filter in /api/ai/backlog so the badge shows
+      // exactly what AI will pick up next: status NULL, eligible state,
+      // AND at least one of title / description / price still empty (a
+      // fully operator-completed lot is intentionally excluded — AI won't
+      // run on it and shouldn't show as pending).
       const [{ pending }] = await db.execute<{ pending: number }>(sql`
         SELECT COUNT(*)::int AS pending
           FROM lot
          WHERE last_ai_run_status IS NULL
            AND state IN ('assigned', 'unassigned')
+           AND (title IS NULL OR title = ''
+                OR description IS NULL OR description = ''
+                OR price IS NULL)
       `);
       return jsonOk(res, { ...row, aiPendingLotCount: pending });
     }

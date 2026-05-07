@@ -152,4 +152,39 @@ describe('POST /api/ai/run', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('preserves operator-entered title when AI runs (status-aware finalize)', async () => {
+    const { l } = await seed();
+    await testDb.execute(sql`UPDATE lot SET title = 'Operator title — keep me' WHERE id = ${l.id}`);
+    vi.mocked(runAiForLot).mockResolvedValueOnce(SUCCESS_FIXTURE);
+    const res = await call(l.id);
+    expect(res.status).toBe(200);
+    // Operator's title preserved; description and price filled by AI.
+    expect(res.body.title).toBe('Operator title — keep me');
+    expect(res.body.description).toContain('Heavy-duty adjustable wrench set');
+    expect(res.body.price).toBe('120.00');
+    expect(res.body.lastAiRunStatus).toBe('success');
+  });
+
+  it('preserves operator-entered description and price when AI runs', async () => {
+    const { l } = await seed();
+    await testDb.execute(sql`
+      UPDATE lot
+         SET description = 'Operator description', price = '99.00'
+       WHERE id = ${l.id}
+    `);
+    vi.mocked(runAiForLot).mockResolvedValueOnce(SUCCESS_FIXTURE);
+    const res = await call(l.id);
+    expect(res.body.title).toBe('$120- 1x Stanley FATMAX Adjustable Wrench Set');
+    expect(res.body.description).toBe('Operator description');
+    expect(res.body.price).toBe('99.00');
+  });
+
+  it('treats empty-string title as missing and lets AI fill it', async () => {
+    const { l } = await seed();
+    await testDb.execute(sql`UPDATE lot SET title = '' WHERE id = ${l.id}`);
+    vi.mocked(runAiForLot).mockResolvedValueOnce(SUCCESS_FIXTURE);
+    const res = await call(l.id);
+    expect(res.body.title).toBe('$120- 1x Stanley FATMAX Adjustable Wrench Set');
+  });
 });

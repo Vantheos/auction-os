@@ -153,6 +153,32 @@ describe('POST /api/ai/backlog (cron source)', () => {
     expect(res.body.remaining).toBe(0);
   });
 
+  it('skips lots whose title + description + price are all already populated (operator-completed)', async () => {
+    // Lot 1: fully filled by operator before AI ran. Should be skipped.
+    // Lot 2: missing description. Should be picked up.
+    // Lot 3: empty-string title. Should be picked up (empty = missing).
+    // Lot 4: price=NULL only. Should be picked up.
+    await testDb.insert(systemSettings).values({ id: 1 }).onConflictDoNothing();
+    await testDb.insert(appUser).values({ id: ADMIN, role: 'admin', displayName: 'A' }).onConflictDoNothing();
+    const [c] = await testDb.insert(customer).values({ name: 'Skip' }).returning();
+    const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'SKIP-001' }).returning();
+    await testDb.insert(lot).values([
+      { jobId: j.id, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'T', description: 'D', price: '5.00' },
+      { jobId: j.id, lotNumber: 2, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'T', description: null, price: '5.00' },
+      { jobId: j.id, lotNumber: 3, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: '', description: 'D', price: '5.00' },
+      { jobId: j.id, lotNumber: 4, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+        title: 'T', description: 'D', price: null },
+    ]);
+    vi.mocked(runAiForLot).mockResolvedValue(SUCCESS_FIXTURE);
+    const res = await callCron();
+    expect(res.status).toBe(200);
+    expect(res.body.processed).toBe(3);
+    expect(res.body.remaining).toBe(0);
+  });
+
   it('processes eligible backlog up to cap', async () => {
     // Seed CAP+5 lots so there's a meaningful "remaining" no matter what
     // the cap value is set to — the assertion derives both numbers from

@@ -90,7 +90,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     let errors = 0;
 
     try {
-      // Fetch eligible lots up to cap
+      // Fetch eligible lots up to cap. Eligibility excludes lots that an
+      // operator has already filled by hand (title + description + price
+      // all populated) — running AI on them would otherwise overwrite the
+      // operator's entries and waste an Anthropic call. Empty = NULL or ''
+      // for text; NULL only for price (zero is a valid operator decision).
       const eligible = await db.execute<{
         id: string;
         quantity: number;
@@ -105,6 +109,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           FROM lot l
          WHERE l.last_ai_run_status IS NULL
            AND l.state IN ('assigned', 'unassigned')
+           AND (l.title IS NULL OR l.title = ''
+                OR l.description IS NULL OR l.description = ''
+                OR l.price IS NULL)
            AND (l.ai_processing_started_at IS NULL
                 OR l.ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
          ORDER BY l.intake_timestamp ASC
@@ -118,12 +125,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         else errors++;
       }
 
-      // Compute remaining (re-query) and update ai_last_run_at if drained
+      // Compute remaining (re-query) and update ai_last_run_at if drained.
+      // Same eligibility filter as the SELECT above so the count reflects
+      // what the next tick would actually process.
       const [{ remaining }] = await db.execute<{ remaining: number }>(sql`
         SELECT COUNT(*)::int AS remaining
           FROM lot
          WHERE last_ai_run_status IS NULL
            AND state IN ('assigned', 'unassigned')
+           AND (title IS NULL OR title = ''
+                OR description IS NULL OR description = ''
+                OR price IS NULL)
            AND (ai_processing_started_at IS NULL
                 OR ai_processing_started_at < NOW() - ${PER_LOT_STALE_THRESHOLD_SQL})
       `);

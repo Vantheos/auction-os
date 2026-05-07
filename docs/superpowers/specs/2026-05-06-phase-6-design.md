@@ -390,6 +390,10 @@ After composition, the run handler determines per-field success and the lot-leve
 
 ### 3.4 Area D — Backlog runner (cron + Run Now)
 
+> **Amendment 2026-05-06 (operator-entry preservation):** the eligibility query for cron + Run Now skips lots where `title`, `description`, AND `price` are all populated — running AI on a hand-completed lot would otherwise overwrite the operator's entries and waste an Anthropic call. Empty = `NULL` or `''` for text columns; `NULL` only for `price` (zero is a valid operator decision). Per-lot Run AI (§3.5) does NOT add this skip — operator click is honored.
+>
+> Independently, `finalizeLotRun` (the shared write path) is now **status-aware**: it SELECTs `title` / `description` / `price` from the current row inside the transaction and only writes each AI-output field if the existing value is empty. This preserves operator entries even on the partial-completion case (operator filled title only; AI fills description + price; AI's title is discarded). The `aiPendingLotCount` badge in `GET /api/system-settings` mirrors the same eligibility filter so the UI count matches what AI will actually pick up.
+
 **One handler, two callers.** The handler does the work; the cron path adds the schedule check, the Run Now path skips it.
 
 #### Endpoint: `POST /api/ai/backlog`
@@ -427,6 +431,9 @@ Native `(req, res)` handler. Auth: requires `requireCronAuth` if called via the 
      FROM lot l
     WHERE l.last_ai_run_status IS NULL
       AND l.state IN ('assigned', 'unassigned')
+      AND (l.title IS NULL OR l.title = ''
+           OR l.description IS NULL OR l.description = ''
+           OR l.price IS NULL)
       AND (l.ai_processing_started_at IS NULL
            OR l.ai_processing_started_at < NOW() - INTERVAL '5 minutes')
     ORDER BY l.intake_timestamp ASC
