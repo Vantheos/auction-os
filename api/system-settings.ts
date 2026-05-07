@@ -4,9 +4,28 @@ import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
 import { AuthError, requireAuth } from './_lib/auth.js';
 import { readJson, EmptyBodyError } from './_lib/body.js';
-import { asActor, getDb } from './_lib/db.js';
+import { asActor, getDb, type Database, type Transaction } from './_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from './_lib/responses.js';
 import { systemSettings } from '../db/schema.js';
+
+// Mirrors the eligibility filter in /api/ai/backlog so the badge shows
+// exactly what AI will pick up next: status NULL, eligible state, AND at
+// least one of title / description / price still empty. Shared between
+// GET and PATCH so the response shape stays consistent — the client
+// hook does setQueryData with the PATCH response, and a missing field
+// would render as "undefined lots pending AI".
+async function fetchAiPendingLotCount(db: Database | Transaction): Promise<number> {
+  const [{ pending }] = await db.execute<{ pending: number }>(sql`
+    SELECT COUNT(*)::int AS pending
+      FROM lot
+     WHERE last_ai_run_status IS NULL
+       AND state IN ('assigned', 'unassigned')
+       AND (title IS NULL OR title = ''
+            OR description IS NULL OR description = ''
+            OR price IS NULL)
+  `);
+  return pending;
+}
 
 const PatchSchema = z.object({
   labelPrinterHelperUrl: z.string().url().nullable().optional(),
@@ -27,21 +46,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const db = getDb();
       const [row] = await db.select().from(systemSettings).where(eq(systemSettings.id, 1));
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'system_settings singleton missing');
-      // Mirrors the eligibility filter in /api/ai/backlog so the badge shows
-      // exactly what AI will pick up next: status NULL, eligible state,
-      // AND at least one of title / description / price still empty (a
-      // fully operator-completed lot is intentionally excluded — AI won't
-      // run on it and shouldn't show as pending).
-      const [{ pending }] = await db.execute<{ pending: number }>(sql`
-        SELECT COUNT(*)::int AS pending
-          FROM lot
-         WHERE last_ai_run_status IS NULL
-           AND state IN ('assigned', 'unassigned')
-           AND (title IS NULL OR title = ''
-                OR description IS NULL OR description = ''
-                OR price IS NULL)
-      `);
-      return jsonOk(res, { ...row, aiPendingLotCount: pending });
+      const aiPendingLotCount = await fetchAiPendingLotCount(db);
+      return jsonOk(res, { ...row, aiPendingLotCount });
     }
 
     if (req.method === 'PATCH') {
@@ -60,7 +66,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           .set({ ...parsed.data, updatedAt: new Date() })
           .where(eq(systemSettings.id, 1))
           .returning();
-        return row;
+        const aiPendingLotCount = await fetchAiPendingLotCount(tx);
+        return { ...row, aiPendingLotCount };
       });
       return jsonOk(res, updated);
     }

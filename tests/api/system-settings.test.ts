@@ -108,6 +108,22 @@ describe('PATCH /api/system-settings', () => {
     expect(res.body.aiScheduleTimeOfDay).toMatch(/^09:00(:00)?$/);
   });
 
+  it('PATCH response includes aiPendingLotCount (matches GET shape)', async () => {
+    // Without this, the client cache replaces a populated GET response
+    // with a PATCH response that has no count, and the badge renders
+    // "undefined lots pending AI". GET and PATCH must return the same
+    // shape so setQueryData on the success path is safe.
+    const [c] = await testDb.insert(customer).values({ name: 'Y' }).returning();
+    const [j] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J-2' }).returning();
+    await testDb.insert(lot).values([
+      { jobId: null,  lotNumber: null, state: 'unassigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId: j.id,  lotNumber: 1,    state: 'assigned',   source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+    ]);
+    const res = await call('PATCH', { aiScheduleIntervalHours: 12 });
+    expect(res.status).toBe(200);
+    expect(res.body.aiPendingLotCount).toBe(2);
+  });
+
   it('rejects malformed aiScheduleTimeOfDay', async () => {
     const res = await call('PATCH', { aiScheduleTimeOfDay: 'not-a-time' });
     expect(res.status).toBe(400);
