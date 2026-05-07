@@ -43,11 +43,19 @@ const EMPTY_FIELDS: FormFields = {
 
 const AUTOSAVE_MS = 1500;
 
+// Supabase Storage's photo bucket policy allows JPG and PNG only. Blocking
+// other formats (webp, heic, gif, etc.) up front means the operator gets a
+// clear inline error instead of a silent terminal-failure entry stuck in
+// the upload queue. Camera capture on phones produces JPG; desktop file
+// pickers can hand back anything via accept="image/*".
+const ALLOWED_PHOTO_MIME = new Set(['image/jpeg', 'image/png']);
+
 type Props = {
   onEndSession: () => void;
+  onLotSaved: () => void;
 };
 
-export function LotInProgress({ onEndSession }: Props) {
+export function LotInProgress({ onEndSession, onLotSaved }: Props) {
   const { customerId, jobId, lotId, lotNumber, advance, captureFirst, isCapturingFirst, discardCurrent } = useCatalogSession();
   const lotQ = useLot(lotId ?? undefined);
   const { mirror, loaded: mirrorLoaded, saveFields: saveMirror, clear: clearMirror } = useFormMirror(lotId);
@@ -168,6 +176,16 @@ export function LotInProgress({ onEndSession }: Props) {
 
   // Photo capture handler — first photo creates the lot row + photo row + queues the upload
   const handleBlob = useCallback(async (blob: Blob) => {
+    // Reject unsupported formats up front so we don't create an orphan
+    // lot/lot_photo row that's doomed to a terminal upload failure.
+    if (!ALLOWED_PHOTO_MIME.has(blob.type)) {
+      toast({
+        title: 'Photo format not supported',
+        description: `${blob.type || 'unknown format'} can’t be uploaded. Use JPG or PNG.`,
+        variant: 'danger',
+      });
+      return;
+    }
     try {
       if (!lotId) {
         await captureFirst(blob);
@@ -215,7 +233,11 @@ export function LotInProgress({ onEndSession }: Props) {
     void clearMirror();
     advance();
     setFields(EMPTY_FIELDS);
-  }, [lotId, flushAutosave, clearMirror, advance]);
+    // Bump the parent's session counter so EndSessionConfirm reports the
+    // accurate "you've cataloged N lots" number. Counts completed-and-
+    // advanced-past lots, not the current in-progress one.
+    onLotSaved();
+  }, [lotId, flushAutosave, clearMirror, advance, onLotSaved]);
 
   if (!jobId) {
     return <div className="p-4 text-sm text-danger">No job in session.</div>;

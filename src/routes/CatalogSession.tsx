@@ -19,7 +19,10 @@ export function CatalogSession() {
   const { customerId, jobId, lotId, endSession } = useCatalogSession();
   const [endOpen, setEndOpen] = useState(false);
   const [savedSplash, setSavedSplash] = useState<{ saved: number; next: number } | null>(null);
-  const [savedCount] = useState(0);
+  // Count of lots completed (advanced past) in this session. Bumped by
+  // LotInProgress on Next. The current in-progress lot — if any — is
+  // surfaced separately by EndSessionConfirm via hasInProgressLot.
+  const [savedCount, setSavedCount] = useState(0);
   const [busy, setBusy] = useState(false);
 
   if (!customerId || !jobId) {
@@ -44,7 +47,7 @@ export function CatalogSession() {
 
   return (
     <div className="relative">
-      <LotInProgress onEndSession={handleEnd} />
+      <LotInProgress onEndSession={handleEnd} onLotSaved={() => setSavedCount((c) => c + 1)} />
       <EndSessionConfirm
         open={endOpen}
         hasInProgressLot={!!lotId}
