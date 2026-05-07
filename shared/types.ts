@@ -34,6 +34,11 @@ export type JobDTO = {
   // Drizzle/Postgres for the CSV pipeline.
   startBid: string;
   shippable: boolean;
+  // Count of lots in 'assigned' state for this job. Computed server-side
+  // by GET /api/jobs/:id and used by the AF360 export button to disable
+  // when there's nothing to export. Optional because the list endpoint
+  // doesn't compute it (would be N+1 on the jobs list page).
+  assignedLotCount?: number;
   createdAt: string;
   updatedAt: string;
 };

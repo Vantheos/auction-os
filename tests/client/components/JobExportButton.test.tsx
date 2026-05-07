@@ -55,10 +55,10 @@ const job: JobDTO = {
   updatedAt: '2026-05-04T12:00:00.000Z',
 };
 
-function Harness() {
+function Harness({ job: jobOverride }: { job?: JobDTO } = {}) {
   return (
     <ToastProvider>
-      <JobExportButton job={job} customer={customer} />
+      <JobExportButton job={jobOverride ?? job} customer={customer} />
     </ToastProvider>
   );
 }
@@ -80,6 +80,27 @@ describe('JobExportButton — visibility', () => {
     mockRole.value = 'warehouse';
     const { container } = renderWithProviders(<Harness />);
     expect(container.querySelector('button')).toBeNull();
+  });
+});
+
+describe('JobExportButton — assigned-lot gate', () => {
+  it('disabled when assignedLotCount is 0', () => {
+    renderWithProviders(<Harness job={{ ...job, assignedLotCount: 0 }} />);
+    const btn = screen.getByRole('button', { name: /Export to AF360/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', 'No lots in assigned state for this job');
+  });
+
+  it('enabled when assignedLotCount > 0', () => {
+    renderWithProviders(<Harness job={{ ...job, assignedLotCount: 3 }} />);
+    expect(screen.getByRole('button', { name: /Export to AF360/i })).not.toBeDisabled();
+  });
+
+  it('enabled when assignedLotCount is undefined (legacy DTO shape)', () => {
+    // Stale caches or other endpoints that don't compute the count must not
+    // accidentally lock out the export — undefined means "unknown."
+    renderWithProviders(<Harness job={{ ...job, assignedLotCount: undefined }} />);
+    expect(screen.getByRole('button', { name: /Export to AF360/i })).not.toBeDisabled();
   });
 });
 

@@ -1,7 +1,7 @@
 // api/jobs/[id].ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
@@ -32,9 +32,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (req.method === 'GET') {
       await requireAuth(req);
-      const [row] = await getDb().select().from(job).where(eq(job.id, id));
+      const db = getDb();
+      const [row] = await db.select().from(job).where(eq(job.id, id));
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'Job not found');
-      return jsonOk(res, row);
+      // Count of lots in 'assigned' state for this job — used by the
+      // AF360 export button to disable when there's nothing to export.
+      const [{ assigned }] = await db.execute<{ assigned: number }>(sql`
+        SELECT COUNT(*)::int AS assigned
+          FROM lot
+         WHERE job_id = ${id} AND state = 'assigned'
+      `);
+      return jsonOk(res, { ...row, assignedLotCount: assigned });
     }
 
     if (req.method === 'PATCH') {

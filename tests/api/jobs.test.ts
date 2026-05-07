@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { callHandler, type CallResult } from '../helpers/call-handler';
-import { appUser, customer as customerTable } from '../../db/schema';
+import { appUser, customer as customerTable, lot } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 import indexHandler from '../../api/jobs/index';
 import idHandler from '../../api/jobs/[id]';
 
@@ -72,6 +73,50 @@ describe('GET /api/jobs?customerId=...', () => {
     const res = await callIndex(`/api/jobs?customerId=${customerId}`, 'GET', null, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(200);
     expect(res.body.jobs).toHaveLength(2);
+  });
+});
+
+describe('GET /api/jobs/:id — assignedLotCount', () => {
+  let customerId: string;
+  let jobId: string;
+  beforeEach(async () => {
+    await truncateAll();
+    customerId = await seedUsersAndCustomer();
+    const created = (await callIndex('/api/jobs', 'POST', { customerId, jobNumber: 'EXPORT-1' }, 'admin', ADMIN)).body;
+    jobId = created.id;
+  });
+
+  it('returns assignedLotCount = 0 when the job has no lots', async () => {
+    const res = await callId(jobId, 'GET', null, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    expect(res.body.assignedLotCount).toBe(0);
+  });
+
+  it('counts only lots in assigned state for this job', async () => {
+    // 2 assigned (the count) + 1 sold + 1 picked-up + 1 belonging to another job
+    await testDb.insert(lot).values([
+      { jobId, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId, lotNumber: 2, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId, lotNumber: 3, state: 'sold', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+      { jobId, lotNumber: 4, state: 'picked-up', source: 'imported', intakeOperatorId: ADMIN, quantity: 1 },
+    ]);
+    const otherJob = (await callIndex('/api/jobs', 'POST', { customerId, jobNumber: 'EXPORT-2' }, 'admin', ADMIN)).body;
+    await testDb.insert(lot).values({
+      jobId: otherJob.id, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+    });
+
+    const res = await callId(jobId, 'GET', null, 'admin', ADMIN);
+    expect(res.body.assignedLotCount).toBe(2);
+  });
+
+  it('decrements assignedLotCount when an assigned lot becomes sold', async () => {
+    const [l] = await testDb.insert(lot).values({
+      jobId, lotNumber: 1, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN, quantity: 1,
+    }).returning();
+    expect((await callId(jobId, 'GET', null, 'admin', ADMIN)).body.assignedLotCount).toBe(1);
+
+    await testDb.update(lot).set({ state: 'sold' }).where(eq(lot.id, l.id));
+    expect((await callId(jobId, 'GET', null, 'admin', ADMIN)).body.assignedLotCount).toBe(0);
   });
 });
 

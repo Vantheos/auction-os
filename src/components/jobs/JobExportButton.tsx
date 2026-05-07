@@ -87,8 +87,20 @@ export function JobExportButton({
     );
   }
 
+  // Disable if the job has no assigned lots — there's nothing to export.
+  // The endpoint already errors with NO_LOTS, but the UX is cleaner to
+  // surface the empty state up front. assignedLotCount may be undefined
+  // when a stale JobDTO is in cache (legacy shape); treat undefined as
+  // "unknown, allow click" so we don't regress when caches don't carry it.
+  const noEligibleLots = job.assignedLotCount !== undefined && job.assignedLotCount === 0;
+
   return (
-    <Button size="sm" onClick={() => start(job.id)} disabled={inProgress}>
+    <Button
+      size="sm"
+      onClick={() => start(job.id)}
+      disabled={inProgress || noEligibleLots}
+      title={noEligibleLots ? 'No lots in assigned state for this job' : undefined}
+    >
       Export to AF360
     </Button>
   );
