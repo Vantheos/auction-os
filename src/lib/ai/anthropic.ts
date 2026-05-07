@@ -9,7 +9,13 @@
 // AI Gateway adds latency and a dependency without unlocking value here.
 
 import Anthropic from '@anthropic-ai/sdk';
-import { z } from 'zod';
+// Anthropic SDK 0.95+'s zodOutputFormat helper imports `zod/v4` and calls
+// `z.toJSONSchema()` (a Zod 4 API that accesses `schema.def`). We must
+// hand it a Zod 4 schema or the SDK crashes with "Cannot read properties
+// of undefined reading 'def'". Importing from `zod/v4` (available in
+// 3.25+) gives us the Zod 4 API for this file only — the rest of the
+// codebase keeps `import { z } from 'zod'` (Zod 3) unchanged.
+import { z } from 'zod/v4';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { AI_MODEL, computeCostCents } from './model.js';
 import { SYSTEM_SCAFFOLD, TITLE_RULES, DESCRIPTION_RULES, PRICE_RULES } from './prompts.js';
@@ -86,7 +92,13 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
         }],
         messages: [{ role: 'user', content: userContent }],
         tools: [{ name: 'web_search', type: 'web_search_20250305' }],
-        output_config: { format: zodOutputFormat(AiOutputSchema) },
+        // SDK 0.95's zodOutputFormat .d.ts types its arg as Zod 3
+        // (`ZodType` from 'zod'), but the runtime imports `zod/v4` and
+        // calls Zod 4 APIs on the schema. We import Zod 4 above to
+        // match the runtime; the cast bridges the type system to
+        // satisfy the .d.ts. Drop the cast when the SDK ships Zod 4
+        // types upstream.
+        output_config: { format: zodOutputFormat(AiOutputSchema as unknown as Parameters<typeof zodOutputFormat>[0]) },
       }, {
         timeout: PER_CALL_TIMEOUT_MS,
       });
