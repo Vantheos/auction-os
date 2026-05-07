@@ -158,6 +158,54 @@ Includes **T-G5** (audit reporting view — audit log captured in Phase 1,
 surface it in the UI for compliance + ops review) and any other reporting
 surfaces that emerge from v1 production use.
 
+### AI improvement track ⬜ (post-v1, exploratory)
+
+Captured 2026-05-08 during Phase 6 prompt review. Anthropic doesn't offer
+fine-tuning, so the path to "AI that gets better over time" is a sequence
+of pragmatic mechanisms that approximate it. Listed in recommended order
+of adoption — each step builds on the prompt source of truth at
+[`src/lib/ai/prompts.ts`](../src/lib/ai/prompts.ts) and the call shape
+documented at [`docs/superpowers/handoffs/2026-05-08-ai-prompt-review.md`](./superpowers/handoffs/2026-05-08-ai-prompt-review.md).
+
+1. **Few-shot examples in the system prompt** (cheapest, most
+   underrated). Embed 2–4 carefully chosen example lots — operator
+   fields → ideal AI output — directly in the prompt. The AI learns
+   from concrete patterns rather than rule statements alone. Cached
+   alongside the existing prompt so per-call cost stays roughly flat
+   after the first call in a 5-min window. No schema or UI changes.
+   Trigger: pick 3–5 representative lot types where probe runs show
+   systematic AI weakness; curate exemplars for each.
+
+2. **Operator-curated exemplar mechanism** (the "customGPT analog"). Add
+   `is_training_exemplar` to the `lot` table; operators flag lots they
+   manually corrected to a state worth referencing. The AI runner pulls
+   N most-recent (or stratified) exemplars at runtime and embeds them
+   in the system prompt block. Operators iterate the exemplar pool
+   without code deploys. Engineering: ~1–2 days (column + UI toggle +
+   query in the runner + prompt-builder tweak).
+
+3. **Retrieval-augmented exemplars** (RAG — strongest, heaviest). Same
+   idea as (2) but exemplars are retrieved via vector similarity to the
+   current lot rather than just "newest N." Quality scales with the
+   exemplar pool size. Requires an embedding provider (OpenAI / Voyage /
+   self-hosted), a vector store (pgvector on the existing Postgres),
+   embedding generation at exemplar tag time, and a similarity query at
+   AI run time. Engineering: ~1–2 weeks plus a third-party dependency.
+   Defer until volume + experience justify.
+
+4. **Feedback-loop analytics** (always-on background signal). Diff
+   AI-generated values against operator edits via the existing audit
+   log. Aggregate over time to surface systematic biases ("AI overstates
+   condition," "AI consistently misidentifies brass as bronze"). Feed
+   findings into prompt refinements and exemplar curation for (1) and
+   (2). Engineering: minimal — extend an audit-log query; periodic
+   manual review.
+
+Defer (3) and (4) until production volume + operator-edit history make
+them worth the wiring. Start with (1) once prompts have been observed
+against real probe runs; add (2) when the exemplar pool would be
+populated by genuine operator corrections rather than synthetic seeds.
+
 ## Eliminated
 
 - **T-G6 — First-run / empty-states polish:** Skipped entirely. Practical
