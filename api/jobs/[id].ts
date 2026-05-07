@@ -35,14 +35,33 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const db = getDb();
       const [row] = await db.select().from(job).where(eq(job.id, id));
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'Job not found');
-      // Count of lots in 'assigned' state for this job — used by the
-      // AF360 export button to disable when there's nothing to export.
-      const [{ assigned }] = await db.execute<{ assigned: number }>(sql`
-        SELECT COUNT(*)::int AS assigned
+      // Counts powering the AF360 export button gate. The button enables
+      // only when total > 0 AND ready === total — i.e., every lot in the
+      // job is assigned AND has title/description/price filled. Anything
+      // else (lots in non-assigned state, lots missing data) keeps it
+      // disabled. assignedLotCount is kept for backward-compat with any
+      // legacy consumers but new gating logic should use the two new counts.
+      const [{ total, assigned, ready }] = await db.execute<{
+        total: number; assigned: number; ready: number;
+      }>(sql`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE state = 'assigned')::int AS assigned,
+          COUNT(*) FILTER (
+            WHERE state = 'assigned'
+              AND title IS NOT NULL AND title <> ''
+              AND description IS NOT NULL AND description <> ''
+              AND price IS NOT NULL
+          )::int AS ready
           FROM lot
-         WHERE job_id = ${id} AND state = 'assigned'
+         WHERE job_id = ${id}
       `);
-      return jsonOk(res, { ...row, assignedLotCount: assigned });
+      return jsonOk(res, {
+        ...row,
+        assignedLotCount: assigned,
+        totalLotCount: total,
+        exportReadyLotCount: ready,
+      });
     }
 
     if (req.method === 'PATCH') {

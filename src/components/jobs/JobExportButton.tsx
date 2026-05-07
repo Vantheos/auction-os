@@ -87,19 +87,32 @@ export function JobExportButton({
     );
   }
 
-  // Disable if the job has no assigned lots — there's nothing to export.
-  // The endpoint already errors with NO_LOTS, but the UX is cleaner to
-  // surface the empty state up front. assignedLotCount may be undefined
-  // when a stale JobDTO is in cache (legacy shape); treat undefined as
-  // "unknown, allow click" so we don't regress when caches don't carry it.
-  const noEligibleLots = job.assignedLotCount !== undefined && job.assignedLotCount === 0;
+  // Strict gate: enable only when every lot in the job is in 'assigned'
+  // state AND has title + description + price populated. Partial-export is
+  // a poor fit since we don't track which lots have already been exported
+  // — re-running the export on a partially-cataloged or partially-sold
+  // job creates listing duplicates and confusion. A job mid-cataloging
+  // (some lots not yet assigned) or post-auction (some lots sold) keeps
+  // the button disabled with an explanatory tooltip.
+  //
+  // totalLotCount/exportReadyLotCount may be undefined when a stale
+  // JobDTO is in cache (legacy shape); treat undefined as "unknown,
+  // allow click" so we don't regress when caches don't carry the counts.
+  const total = job.totalLotCount;
+  const ready = job.exportReadyLotCount;
+  const notReady =
+    total !== undefined && ready !== undefined && (total === 0 || ready !== total);
 
   return (
     <Button
       size="sm"
       onClick={() => start(job.id)}
-      disabled={inProgress || noEligibleLots}
-      title={noEligibleLots ? 'No lots in assigned state for this job' : undefined}
+      disabled={inProgress || notReady}
+      title={
+        notReady
+          ? 'Job has lots that are not assigned or are missing title/description/price'
+          : undefined
+      }
     >
       Export to AF360
     </Button>

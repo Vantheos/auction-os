@@ -83,23 +83,37 @@ describe('JobExportButton — visibility', () => {
   });
 });
 
-describe('JobExportButton — assigned-lot gate', () => {
-  it('disabled when assignedLotCount is 0', () => {
-    renderWithProviders(<Harness job={{ ...job, assignedLotCount: 0 }} />);
+describe('JobExportButton — strict export-ready gate', () => {
+  const TOOLTIP = 'Job has lots that are not assigned or are missing title/description/price';
+
+  it('disabled when totalLotCount is 0 (empty job)', () => {
+    renderWithProviders(<Harness job={{ ...job, totalLotCount: 0, exportReadyLotCount: 0 }} />);
     const btn = screen.getByRole('button', { name: /Export to AF360/i });
     expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute('title', 'No lots in assigned state for this job');
+    expect(btn).toHaveAttribute('title', TOOLTIP);
   });
 
-  it('enabled when assignedLotCount > 0', () => {
-    renderWithProviders(<Harness job={{ ...job, assignedLotCount: 3 }} />);
+  it('disabled when some lots are not yet ready (exportReady < total)', () => {
+    renderWithProviders(<Harness job={{ ...job, totalLotCount: 5, exportReadyLotCount: 3 }} />);
+    const btn = screen.getByRole('button', { name: /Export to AF360/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('title', TOOLTIP);
+  });
+
+  it('disabled when any lot is in a non-assigned state (sold/picked-up reduces ready below total)', () => {
+    renderWithProviders(<Harness job={{ ...job, totalLotCount: 4, exportReadyLotCount: 3 }} />);
+    expect(screen.getByRole('button', { name: /Export to AF360/i })).toBeDisabled();
+  });
+
+  it('enabled only when every lot is assigned + complete (exportReady === total)', () => {
+    renderWithProviders(<Harness job={{ ...job, totalLotCount: 5, exportReadyLotCount: 5 }} />);
     expect(screen.getByRole('button', { name: /Export to AF360/i })).not.toBeDisabled();
   });
 
-  it('enabled when assignedLotCount is undefined (legacy DTO shape)', () => {
-    // Stale caches or other endpoints that don't compute the count must not
+  it('enabled when counts are undefined (legacy DTO shape — fail open)', () => {
+    // Stale caches or other endpoints that don't compute the counts must not
     // accidentally lock out the export — undefined means "unknown."
-    renderWithProviders(<Harness job={{ ...job, assignedLotCount: undefined }} />);
+    renderWithProviders(<Harness job={{ ...job, totalLotCount: undefined, exportReadyLotCount: undefined }} />);
     expect(screen.getByRole('button', { name: /Export to AF360/i })).not.toBeDisabled();
   });
 });
