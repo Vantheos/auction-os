@@ -40,6 +40,11 @@ Each item lists what to do, where to do it, and what "pass" looks like. If somet
 - [ ] **Clear filters** button resets both AI chips and any state chips. URL drops all flags.
 - [ ] **Legacy URL still works:** paste `?needsInfo=true` directly into the address bar; the list filters as the union of both new chips. After your next interaction (e.g. clicking a chip), the URL writer drops `needsInfo` and writes the new flags. Bookmarked links remain functional.
 
+### A.4b AF360 export button — assigned-lot gate (Phase 6 fix)
+- [ ] Open **Inventory**, filter to a customer + a job that has lots **only in non-assigned states** (sold / picked-up / not-sellable). The **Export to AF360** button is **disabled**, with hover tooltip `No lots in assigned state for this job`.
+- [ ] Switch to a job that has at least one assigned lot. Button becomes **enabled** and clickable.
+- [ ] Move a lot's state from `assigned` → `sold` so the count drops to 0; reload the page (or the job DTO query refreshes). Button transitions to disabled.
+
 ### A.5 Lot detail — Run AI button visibility (no execution)
 - [ ] Open a lot whose `lastAiRunStatus` is NULL and state is assigned/unassigned. The **Run AI** button is visible (admin/office roles only).
 - [ ] Open a lot whose `lastAiRunStatus = 'success'`. The button is **hidden** (no re-runs allowed).
@@ -103,6 +108,15 @@ Each item lists what to do, where to do it, and what "pass" looks like. If somet
   - Price: a number, not implausibly off (e.g., a $5 wrench shouldn't get a $500 reference)
 - [ ] Note any lot whose output is wrong or weird; capture the lot ID for prompt-tuning iteration.
 - [ ] **Cost counters NOT bumped.** Confirm `system_settings.ai_cost_lifetime_cents` and `ai_run_count_lifetime` are unchanged after this probe (they should be — probe deliberately skips counters per the inline comment in `scripts/probe-ai.ts`).
+
+### B.2b Operator-entry preservation (status-aware finalize)
+> Verifies the Phase 6 fix: AI fills empty fields but preserves operator entries.
+
+- [ ] Pick a lot with `lastAiRunStatus = NULL` and state assigned/unassigned. In the lot detail modal, manually enter a **title** and **save**. Leave description and price blank.
+- [ ] Click **Run AI**. Wait for the run to complete.
+- [ ] After the run: title is **unchanged** (still your manual entry); description and price are filled by AI; `lastAiRunStatus = 'success'`.
+- [ ] Repeat with a second lot, this time entering only **price**. AI should fill title + description and leave price untouched.
+- [ ] Repeat with a third lot, entering **all three** fields manually. The lot should NOT appear in the **Awaiting AI** filter chip nor in the pending-AI badge — it's no longer eligible (eligibility skip). Confirm the **Run Now** in Settings does not pick it up either; only the per-lot **Run AI** button on lot detail can still trigger AI for it (and even then, all three fields are preserved, so the AI call is wasted spend — flag this if the operator clicks it).
 
 ### B.3 Single-lot Run AI button
 - [ ] In the preview, open a fresh eligible lot (status NULL, state assigned/unassigned) and click **Run AI**.
