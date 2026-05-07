@@ -156,7 +156,7 @@ export function LotEditForm({ lot, onSubmit, busy, onDirtyChange, disabled }: Pr
 
           <div className="space-y-1">
             <Label htmlFor="price">Price</Label>
-            <Input id="price" placeholder="45.00" disabled={disabled} {...register('price')} />
+            <Input id="price" placeholder="AI will fill" disabled={disabled} {...register('price')} />
             {errors.price && <p className="text-xs text-danger">{errors.price.message}</p>}
           </div>
 
