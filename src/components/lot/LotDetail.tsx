@@ -7,7 +7,7 @@ import { LotEditForm, type LotFormValues } from './LotEditForm';
 import { LotAiButton } from './LotAiButton';
 import { ChangeStateMenu } from './ChangeStateMenu';
 import { MoveLotDialog } from './MoveLotDialog';
-import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot } from '@/hooks/useLotMutations';
+import { useUpdateLot, useChangeLotState, useMoveLot, useDeleteLot, useResetAi } from '@/hooks/useLotMutations';
 import { useLabelPrint } from '@/hooks/useLabelPrint';
 import { useLotPhotos } from '@/hooks/useLots';
 import { useCapturePhoto } from '@/hooks/useCatalogSession';
@@ -58,6 +58,7 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
   const changeState = useChangeLotState();
   const moveLot = useMoveLot();
   const deleteLot = useDeleteLot();
+  const resetAi = useResetAi();
   const printLabel = useLabelPrint();
 
   const errorToast = (title: string) => (err: unknown) =>
@@ -193,6 +194,33 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
           <Button variant="outline" onClick={() => setMoveOpen(true)}>Assign to Job</Button>
         )}
         <ChangeStateMenu current={lot.state} role={role} onPick={handlePickState} disabled={changeState.isPending} />
+        {/*
+         * Reset AI — clears lastAiRunStatus / lastAiRunError /
+         * aiProcessingStartedAt so the lot becomes eligible for AI again.
+         * Only meaningful when status is non-NULL (something to reset).
+         * Hidden from warehouse role; disabled while a lock is fresh
+         * (in-flight AI call) since clearing it would race the finalize
+         * write. Status-aware finalize prevents AI from clobbering
+         * operator-entered fields, so re-running a 'success' lot via
+         * reset is safe but explicit.
+         */}
+        {(role === 'admin' || role === 'office') && lot.lastAiRunStatus !== null && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              resetAi.mutate(lot.id, {
+                onSuccess: () => toast({ title: 'AI status reset', variant: 'success' }),
+                onError: errorToast('Could not reset AI'),
+              });
+            }}
+            disabled={resetAi.isPending || isAiProcessing}
+            title={isAiProcessing
+              ? 'AI is currently running on this lot; wait for it to complete'
+              : 'Clear AI status so this lot can be processed again'}
+          >
+            {resetAi.isPending ? 'Resetting…' : 'Reset AI'}
+          </Button>
+        )}
         {canDelete && (
           <Button variant="destructive" onClick={() => setConfirmDelete(true)}>Delete</Button>
         )}

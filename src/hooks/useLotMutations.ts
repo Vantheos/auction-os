@@ -78,3 +78,17 @@ export function useDeleteLot() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['lots-infinite'] }),
   });
 }
+
+export function useResetAi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<LotDTO>(`/lots/${id}/ai-reset`, { method: 'POST' }),
+    onSettled: (_data, _err, id) => {
+      qc.invalidateQueries({ queryKey: ['lot', id] });
+      qc.invalidateQueries({ queryKey: ['lots-infinite'] });
+      // Pending-AI badge count includes this lot once status flips to NULL
+      // and at least one of title/description/price is empty.
+      qc.invalidateQueries({ queryKey: ['system-settings'] });
+    },
+  });
+}

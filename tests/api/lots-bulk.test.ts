@@ -157,6 +157,86 @@ describe('POST /api/lots/bulk — move', () => {
   });
 });
 
+describe('POST /api/lots/bulk — reset-ai', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('clears lastAiRunStatus, lastAiRunError, and aiProcessingStartedAt for each lot', async () => {
+    const { lotIds } = await seed3Lots();
+    // Set status + error + lock on the first two; leave the third as default (NULL)
+    await testDb.update(lot)
+      .set({ lastAiRunStatus: 'failure', lastAiRunError: 'boom', aiProcessingStartedAt: new Date(Date.now() - 10 * 60 * 1000) })
+      .where(eq(lot.id, lotIds[0]));
+    await testDb.update(lot)
+      .set({ lastAiRunStatus: 'success', lastAiRunError: null })
+      .where(eq(lot.id, lotIds[1]));
+
+    const res = await call({ action: 'reset-ai', lotIds });
+    expect(res.status).toBe(200);
+    expect(res.body.results).toHaveLength(3);
+    expect(res.body.results.every((r: any) => r.ok)).toBe(true);
+
+    const rows = await testDb.select().from(lot);
+    expect(rows.every((r) => r.lastAiRunStatus === null)).toBe(true);
+    expect(rows.every((r) => r.lastAiRunError === null)).toBe(true);
+    expect(rows.every((r) => r.aiProcessingStartedAt === null)).toBe(true);
+  });
+
+  it('refuses lots with a fresh in-flight AI lock (<5 min)', async () => {
+    const { lotIds } = await seed3Lots();
+    await testDb.update(lot)
+      .set({ lastAiRunStatus: null, aiProcessingStartedAt: new Date() })
+      .where(eq(lot.id, lotIds[0]));
+
+    const res = await call({ action: 'reset-ai', lotIds: [lotIds[0]] });
+    expect(res.body.results).toHaveLength(1);
+    expect(res.body.results[0]).toMatchObject({
+      id: lotIds[0],
+      ok: false,
+      error: { code: 'LOT_AI_IN_PROGRESS' },
+    });
+
+    const [row] = await testDb.select().from(lot).where(eq(lot.id, lotIds[0]));
+    // Lock is preserved — no clobbering an in-flight AI call
+    expect(row.aiProcessingStartedAt).not.toBeNull();
+  });
+
+  it('clears stuck (>5 min) locks on otherwise-eligible lots', async () => {
+    const { lotIds } = await seed3Lots();
+    await testDb.update(lot)
+      .set({ lastAiRunStatus: 'failure', aiProcessingStartedAt: new Date(Date.now() - 6 * 60 * 1000) })
+      .where(eq(lot.id, lotIds[0]));
+
+    const res = await call({ action: 'reset-ai', lotIds: [lotIds[0]] });
+    expect(res.body.results[0].ok).toBe(true);
+
+    const [row] = await testDb.select().from(lot).where(eq(lot.id, lotIds[0]));
+    expect(row.aiProcessingStartedAt).toBeNull();
+    expect(row.lastAiRunStatus).toBeNull();
+  });
+
+  it('returns NOT_FOUND for missing lot ids in a mixed batch', async () => {
+    const { lotIds } = await seed3Lots();
+    const ghost = '00000000-0000-0000-0000-000000000099';
+    const res = await call({ action: 'reset-ai', lotIds: [...lotIds, ghost] });
+    expect(res.body.results).toHaveLength(4);
+    const ghostResult = res.body.results.find((r: any) => r.id === ghost);
+    expect(ghostResult).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
+  });
+
+  it('warehouse cannot bulk reset-ai (admin/office only)', async () => {
+    const WAREHOUSE = '00000000-0000-0000-0000-000000000003';
+    await testDb.insert(appUser).values({ id: WAREHOUSE, role: 'warehouse', displayName: 'W' }).onConflictDoNothing();
+    const { lotIds } = await seed3Lots();
+    const token = await mintTestJwt({ userId: WAREHOUSE, role: 'warehouse' });
+    const res = await callHandler<any>(handler, {
+      method: 'POST', url: '/api/lots/bulk',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: { action: 'reset-ai', lotIds },
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('POST /api/lots/bulk — validation', () => {
   beforeEach(async () => { await truncateAll(); });
 

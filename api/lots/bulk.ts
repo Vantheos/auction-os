@@ -13,10 +13,15 @@ import { pgCodeOf, PG_UNIQUE_VIOLATION, PG_FK_VIOLATION } from '../_lib/pg-error
 const VALID_STATES: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
 
 const Schema = z.object({
-  action: z.enum(['change-state', 'move', 'delete']),
+  action: z.enum(['change-state', 'move', 'delete', 'reset-ai']),
   lotIds: z.array(z.string().uuid()).min(1).max(500),
   params: z.record(z.unknown()).optional(),
 });
+
+// Mirrors the per-lot stale threshold used by /api/ai/backlog and
+// /api/ai/run. A lock is "fresh" (still presumed in-flight) within this
+// window; older locks are stuck and safe to clear.
+const PER_LOT_STALE_THRESHOLD_MS = 5 * 60 * 1000;
 
 type Result = { id: string; ok: true } | { id: string; ok: false; error: { code: string; message: string } };
 
@@ -74,6 +79,50 @@ async function applyDelete(tx: Transaction, lotIds: string[]): Promise<Result[]>
         ? { id, ok: true }
         : { id, ok: false, error: { code: 'NOT_FOUND', message: 'Lot not found' } }
     );
+  }
+  return results;
+}
+
+async function applyResetAi(tx: Transaction, lotIds: string[]): Promise<Result[]> {
+  // Reset clears lastAiRunStatus, lastAiRunError, and aiProcessingStartedAt
+  // — making the lot eligible for AI to run again (status NULL) and
+  // releasing any stuck per-lot lock. Reset is allowed for any non-NULL
+  // status; status-aware finalize already prevents the new AI run from
+  // clobbering operator-entered fields, so re-running a 'success' lot
+  // is safe but explicit.
+  //
+  // Refused when the per-lot AI lock is still fresh (<5 min) — that
+  // means an AI call is currently in flight; clearing the lock would
+  // race with the eventual finalize write.
+  const rows = await tx.select().from(lot).where(inArray(lot.id, lotIds));
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const results: Result[] = [];
+  const now = Date.now();
+
+  for (const id of lotIds) {
+    const current = byId.get(id);
+    if (!current) {
+      results.push({ id, ok: false, error: { code: 'NOT_FOUND', message: 'Lot not found' } });
+      continue;
+    }
+    if (
+      current.aiProcessingStartedAt !== null
+      && now - current.aiProcessingStartedAt.getTime() < PER_LOT_STALE_THRESHOLD_MS
+    ) {
+      results.push({
+        id,
+        ok: false,
+        error: { code: 'LOT_AI_IN_PROGRESS', message: 'AI is currently running on this lot; wait for it to complete' },
+      });
+      continue;
+    }
+    await tx.update(lot).set({
+      lastAiRunStatus: null,
+      lastAiRunError: null,
+      aiProcessingStartedAt: null,
+      updatedAt: new Date(),
+    }).where(eq(lot.id, id));
+    results.push({ id, ok: true });
   }
   return results;
 }
@@ -175,6 +224,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
             if (!dst) throw new MissingParamError('move requires params.destinationJobId');
             return applyMove(tx, parsed.data.lotIds, dst);
           }
+          case 'reset-ai':
+            return applyResetAi(tx, parsed.data.lotIds);
         }
       });
     } catch (err) {

@@ -16,6 +16,7 @@ import { LotDetail } from '@/components/lot/LotDetail';
 import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
 import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
+import { BulkResetAiDialog } from '@/components/bulk/BulkResetAiDialog';
 import { JobExportButton } from '@/components/jobs/JobExportButton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export function Inventory() {
     : null;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | null>(null);
+  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'reset-ai' | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [lotEditDirty, setLotEditDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -237,6 +238,7 @@ export function Inventory() {
             onClear={() => setSelected(new Set())}
             onMove={() => setBulkDialog('move')}
             onChangeState={() => setBulkDialog('change-state')}
+            onResetAi={() => setBulkDialog('reset-ai')}
             onDelete={() => setBulkDialog('delete')}
           />
         </div>
@@ -344,6 +346,26 @@ export function Inventory() {
           } catch (err) {
             toast({
               title: 'Bulk delete failed',
+              description: err instanceof Error ? err.message : 'Unknown error',
+              variant: 'danger',
+            });
+          }
+        }}
+      />
+      <BulkResetAiDialog
+        open={bulkDialog === 'reset-ai'}
+        onClose={() => setBulkDialog(null)}
+        count={selected.size}
+        busy={bulk.isPending}
+        onConfirm={async () => {
+          try {
+            const r = await bulk.mutateAsync({ action: 'reset-ai', lotIds: [...selected] });
+            summarizeBulk(r.results);
+            setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
+            setBulkDialog(null);
+          } catch (err) {
+            toast({
+              title: 'Bulk reset AI failed',
               description: err instanceof Error ? err.message : 'Unknown error',
               variant: 'danger',
             });

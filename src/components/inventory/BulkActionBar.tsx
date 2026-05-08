@@ -7,10 +7,11 @@ type Props = {
   onClear: () => void;
   onMove: () => void;
   onChangeState: () => void;
+  onResetAi: () => void;
   onDelete: () => void;
 };
 
-export function BulkActionBar({ count, isAdmin, onClear, onMove, onChangeState, onDelete }: Props) {
+export function BulkActionBar({ count, isAdmin, onClear, onMove, onChangeState, onResetAi, onDelete }: Props) {
   if (count === 0) return null;
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-3xl w-[calc(100%-2rem)]">
@@ -20,6 +21,7 @@ export function BulkActionBar({ count, isAdmin, onClear, onMove, onChangeState, 
         <div className="flex-1" />
         <Button size="sm" variant="outline" onClick={onMove}>Assign to Job</Button>
         <Button size="sm" variant="outline" onClick={onChangeState}>Change status</Button>
+        <Button size="sm" variant="outline" onClick={onResetAi}>Reset AI</Button>
         {isAdmin && <Button size="sm" variant="destructive" onClick={onDelete}>Delete</Button>}
       </div>
     </div>

@@ -10,7 +10,8 @@ export type BulkResult =
 export type BulkAction =
   | { action: 'change-state'; lotIds: string[]; params: { to: LotState } }
   | { action: 'move'; lotIds: string[]; params: { destinationJobId: string } }
-  | { action: 'delete'; lotIds: string[] };
+  | { action: 'delete'; lotIds: string[] }
+  | { action: 'reset-ai'; lotIds: string[] };
 
 export function useBulkLotAction() {
   const qc = useQueryClient();
@@ -20,6 +21,8 @@ export function useBulkLotAction() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['lots-infinite'] });
       qc.invalidateQueries({ queryKey: ['lot'] });
+      // Pending-AI badge changes when reset flips lot statuses to NULL.
+      qc.invalidateQueries({ queryKey: ['system-settings'] });
     },
   });
 }
