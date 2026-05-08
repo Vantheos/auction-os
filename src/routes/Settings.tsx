@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
 import { useAiBacklog } from '@/hooks/useAiBacklog';
+import { useNow } from '@/hooks/useNow';
 import { useToast } from '@/components/ui/toast';
 import { AuctionPlatformsPanel } from '@/components/settings/AuctionPlatformsPanel';
 import { AiCostPanel } from '@/components/settings/AiCostPanel';
@@ -104,6 +105,31 @@ function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
   // HH:MM. Trim the seconds for display; we round-trip back as HH:MM on save.
   const [timeOfDay, setTimeOfDay] = useState(initial.aiScheduleTimeOfDay.slice(0, 5));
 
+  // Server-side AI run lock — true while a function invocation holds the
+  // system lock. The mutation observer detaches when the user navigates
+  // away mid-run, but the lock persists; reading it here keeps the button
+  // disabled across navigation. useSystemSettings polls every 5s while
+  // this is true so the lock_until value stays fresh; useNow ticks every
+  // 5s so the > comparison auto-clears the moment the lock expires
+  // without waiting for the next refetch.
+  const lockMs = initial.aiRunLockUntil !== null
+    ? new Date(initial.aiRunLockUntil).getTime()
+    : 0;
+  const now = useNow(5000, lockMs > 0);
+  const runInProgress = lockMs > now;
+  const buttonBusy = backlog.isPending || runInProgress;
+
+  const onRunNow = () => {
+    const count = initial.aiPendingLotCount;
+    toast({
+      title: `AI run started — ${count} lot${count === 1 ? '' : 's'} queued`,
+      description: 'This may take several minutes for larger batches. The button stays disabled and the badge ticks down as lots finish.',
+      variant: 'info',
+      durationMs: 30000,
+    });
+    backlog.mutate();
+  };
+
   const onSave = async () => {
     try {
       await update.mutateAsync({
@@ -165,8 +191,8 @@ function AISchedulePanel({ initial }: { initial: SystemSettingsDTO }) {
             ? '1 lot pending AI'
             : `${initial.aiPendingLotCount} lots pending AI`}
         </span>
-        <Button variant="outline" onClick={() => backlog.mutate()} disabled={backlog.isPending}>
-          {backlog.isPending ? 'Running…' : 'Run Now'}
+        <Button variant="outline" onClick={onRunNow} disabled={buttonBusy}>
+          {buttonBusy ? 'Running…' : 'Run Now'}
         </Button>
         <Button onClick={onSave} disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save changes'}</Button>
       </div>
