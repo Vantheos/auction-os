@@ -64,10 +64,14 @@ function getClient(): Anthropic {
   if (_client) return _client;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  // maxRetries: 0 disables the SDK's internal retry (default 2) so it can't
-  // compound with our outer retry below. With both layers active a single
-  // 5xx on the Anthropic side could produce 6 HTTP attempts; we only want 2.
-  _client = new Anthropic({ apiKey, maxRetries: 0 });
+  // Use the SDK's default maxRetries (2). The SDK handles 429s correctly:
+  // it reads the `Retry-After` header and waits the requested interval
+  // before retrying. This is critical because the org has a 30K TPM rate
+  // limit on claude-sonnet-4-6 — concurrent lots can burst past it and
+  // the SDK's backoff is the only thing that drains the bucket cleanly.
+  // Setting maxRetries: 0 here once caused 8 of 11 lots to fail-fast on
+  // 429 (see commit history if regression repeats).
+  _client = new Anthropic({ apiKey });
   return _client;
 }
 
