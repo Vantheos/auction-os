@@ -174,6 +174,23 @@ Always do both. Tests use the Test DB; missing migration there shows up as "colu
 
 The user's Bash permission rule blocks unauthorized `drizzle-kit push --force` (it's a blind apply that bypasses migration review). Use `apply-migration.ts` instead.
 
+## Diagnostics
+
+### `scripts/inspect-ai-run.ts` — AI run forensics
+
+When an operator reports unexpected AI-run behavior ("only 3 of 6 lots processed", "Run Now didn't finish", "lot stuck in pending"), this script is the first stop. It reads the dev DB via `DATABASE_URL` from `.env` and prints:
+
+- `system_settings` AI snapshot — `ai_schedule_enabled`, `ai_run_lock_until` (NULL = released), `ai_drain_in_progress` (true = mid-drain), `ai_last_run_at`.
+- 10 most-recently-touched AI lots with their `last_ai_run_status`, `ai_processing_started_at`, current title.
+- `audit_log` entries on those lots in the last 24h — sequenced by timestamp, with `changed_by` (operator user-id vs NULL = system) and the new `last_ai_run_status` from each event.
+- Span and largest gap between consecutive finalize events.
+
+Run with `npx tsx scripts/inspect-ai-run.ts`.
+
+**Reading the audit log** — every Run Now lot produces TWO audit rows: a CLAIM (changed_by = NULL because [backlog.ts](../api/ai/backlog.ts)'s per-lot UPDATE bypasses `asActor`) and a FINALIZE (changed_by = operator user-id from `finalizeLotRun` → `asActor`). Don't read the NULL claim entries as "cron fired" — they're part of the normal Run Now path. True cron-driven runs would show NULL on BOTH rows.
+
+**Reading per-lot duration** — claim → finalize timestamp gap is the wall-clock time including Supabase URL signing, the Anthropic call (with up to one outer-retry on transient errors → 60s + 1.5s + 60s = ~121.5s worst case), and the finalize transaction. Per-lot durations of 100s+ usually mean the first Anthropic call timed out and the retry succeeded; durations of 200s+ mean both attempts struggled. With concurrency 3, total wall-clock ≈ ceil(N/3) × max-per-lot-duration in the slowest wave.
+
 ## Process patterns
 
 ### Read the spec, then trust the code
