@@ -1,7 +1,7 @@
 // api/lots/index.ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { and, eq, sql, inArray, desc, count, gte, lte, or, isNull } from 'drizzle-orm';
+import { and, eq, sql, inArray, desc, count, gte, lte, or, isNull, ilike } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
@@ -79,6 +79,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const awaitingAi = url.searchParams.get('awaitingAi') === 'true';
       const needsReview = url.searchParams.get('needsReview') === 'true';
       const legacyNeedsInfo = url.searchParams.get('needsInfo') === 'true';
+      // Free-text search across title + description, case-insensitive ILIKE
+      // OR'd. Whitespace-only is treated as no filter. SQL wildcards (% _)
+      // pass through and broaden the match — acceptable behavior for an
+      // operator-facing search; revisit if it causes confusion.
+      const search = (url.searchParams.get('search') ?? '').trim() || null;
       const limitRaw = parseInt(url.searchParams.get('limit') ?? '50', 10);
       const offsetRaw = parseInt(url.searchParams.get('offset') ?? '0', 10);
       const limit = Number.isFinite(limitRaw) && limitRaw >= 0 ? Math.min(limitRaw, 200) : 50;
@@ -149,6 +154,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       if (dateFrom) conditions.push(gte(lot.createdAt, dateFrom));
       if (dateTo) conditions.push(lte(lot.createdAt, dateTo));
+      if (search) {
+        conditions.push(or(
+          ilike(lot.title, `%${search}%`),
+          ilike(lot.description, `%${search}%`),
+        )!);
+      }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 

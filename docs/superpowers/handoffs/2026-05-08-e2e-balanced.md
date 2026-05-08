@@ -24,37 +24,37 @@ Default role for Sections A, B, and M is **Admin** unless stated otherwise.
 ## Before you start
 
 ### Environment preflight
-- [ ] Latest preview deploy ready: `vercel ls auction-os --scope vantheos-4047s-projects | head -3` shows the most recent commit on the working branch (not stale).
-- [ ] `ANTHROPIC_API_KEY` and `CRON_SECRET` set in Vercel preview env (`vercel env ls preview | grep -E "ANTHROPIC|CRON"`).
-- [ ] Both Dev and Test DBs at the same migration head (most recent applied migration matches `supabase/migrations/`).
+- [x] Latest preview deploy ready: `vercel ls auction-os --scope vantheos-4047s-projects | head -3` shows the most recent commit on the working branch (not stale).
+- [x] `ANTHROPIC_API_KEY` and `CRON_SECRET` set in Vercel preview env (`vercel env ls preview | grep -E "ANTHROPIC|CRON"`).
+- [x] Both Dev and Test DBs at the same migration head (most recent applied migration matches `supabase/migrations/`).
 
 ### Account preparation
-- [ ] One Admin account with a known password.
-- [ ] One Office account (create via /users if needed).
-- [ ] One Warehouse account (create via /users if needed).
-- [ ] At least one disabled user (any role) — used in A.1.
+- [x] One Admin account with a known password.
+- [x] One Office account (create via /users if needed).
+- [x] One Warehouse account (create via /users if needed).
+- [x] At least one disabled user (any role) — used in A.1.
 
 ### Test fixtures (Dev DB)
-- [ ] At least one Customer with a sellerCode set, plus one without (to test the AF360 missing-sellerCode path).
-- [ ] At least one Job with ≥3 assigned lots, all with photos.
-- [ ] At least 5 lots in `assigned`/`unassigned` state with `lastAiRunStatus IS NULL` and at least one of (title, description, price) empty — these will be your AI-eligible test set.
-- [ ] If you need fresh data: `npm run seed:test-lots` (creates "Test Estate / 2026-04-Test-001" with 6 lots).
+- [x] At least one Customer with a sellerCode set, plus one without (to test the AF360 missing-sellerCode path).
+- [x] At least one Job with ≥3 assigned lots, all with photos.
+- [x] At least 5 lots in `assigned`/`unassigned` state with `lastAiRunStatus IS NULL` and at least one of (title, description, price) empty — these will be your AI-eligible test set.
+- [x] If you need fresh data: `npm run seed:test-lots` (creates "Test Estate / 2026-04-Test-001" with 6 lots).
 
 ---
 
 ## Section A — UI + plumbing (no AI executions)
 
 ### A.1 Auth + role redirect
-- [ ] Visit /login. Sign in as Admin. Redirected to /inventory (admin home).
-- [ ] Sign out via top-right menu. Lands on /login (no `?redirect=` parameter leaking).
-- [ ] Sign in as Warehouse. Redirected to /catalog.
-- [ ] Sign out. Sign in as Office. Redirected to /inventory.
-- [ ] Sign in as the disabled user. Bounced back to /login with banner: *"This account has been disabled. Contact an admin to regain access."*
-- [ ] Direct URL test: as Warehouse, navigate to `/users` directly. Either redirected away or "not allowed" — never reach the page.
+- [x] Visit /login. Sign in as Admin. Redirected to /inventory (admin home).
+- [x] Sign out via top-right menu. Lands on /login (no `?redirect=` parameter leaking).
+- [x] Sign in as Warehouse. Redirected to /catalog.
+- [x] Sign out. Sign in as Office. Redirected to /inventory.
+- [x] Sign in as the disabled user. Bounced back to /login with banner: *"This account has been disabled. Contact an admin to regain access."*
+- [x] Direct URL test: as Warehouse, navigate to `/users` directly. Either redirected away or "not allowed" — never reach the page.
 
 ### A.2 Inventory list, filters, search
-- [ ] /inventory loads. Lots display with lot number, customer, job, state pill, title.
-- [ ] State filter chips: click `assigned` → URL gains `?state=assigned`; list narrows. Click again to clear.
+- [x] /inventory loads. Lots display with lot number, customer, job, state pill, title.
+- [x] State filter chips: click `assigned` → URL gains `?state=assigned`; list narrows. Click again to clear.
 - [ ] Search field: type a partial title. List narrows. Clear input restores.
 - [ ] Customer filter: pick a customer. URL gains `?customerId=...`. List narrows.
 - [ ] Job filter: pick a job (within the customer). URL gains `?jobId=...`.

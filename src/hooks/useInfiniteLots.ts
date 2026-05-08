@@ -18,6 +18,9 @@ export type InfiniteLotFilters = {
   // /lots GET endpoint. See InventoryFilters for semantics.
   awaitingAi?: boolean;
   needsReview?: boolean;
+  // Free-text substring search; matches title OR description (ILIKE).
+  // Already trimmed by the consumer; empty/undefined means no filter.
+  search?: string;
 };
 
 function toQueryString(f: InfiniteLotFilters, offset: number): string {
@@ -27,6 +30,7 @@ function toQueryString(f: InfiniteLotFilters, offset: number): string {
   if (f.state) for (const s of f.state) p.append('state', s);
   if (f.awaitingAi) p.set('awaitingAi', 'true');
   if (f.needsReview) p.set('needsReview', 'true');
+  if (f.search) p.set('search', f.search);
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return `?${p.toString()}`;

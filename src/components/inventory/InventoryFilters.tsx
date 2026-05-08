@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useJobs } from '@/hooks/useJobs';
 import { Button } from '@/components/ui/button';
+import { SearchInput } from './SearchInput';
 import type { LotState } from '@shared/types';
 
 const STATES: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
@@ -20,6 +21,9 @@ export type Filters = {
   // Both active = union (everything needing attention).
   awaitingAi?: boolean;
   needsReview?: boolean;
+  // Free-text substring match across title + description, ILIKE OR'd.
+  // Trimmed before commit; empty/undefined = no filter.
+  search?: string;
 };
 
 type Props = {
@@ -36,11 +40,18 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
   const toggle = (s: LotState) =>
     onChange({ ...filters, state: filters.state.includes(s) ? filters.state.filter((x) => x !== s) : [...filters.state, s] });
 
-  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0 || filters.awaitingAi || filters.needsReview;
+  const hasAny = filters.customerId || filters.jobId || filters.state.length > 0
+    || filters.awaitingAi || filters.needsReview || !!filters.search;
   const clear = () => onChange({ state: [] });
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-border bg-surface">
+    <div className="flex flex-col gap-2 p-3 rounded-lg border border-border bg-surface">
+      <SearchInput
+        value={filters.search ?? ''}
+        onCommit={(v) => onChange({ ...filters, search: v || undefined })}
+        className="w-full md:max-w-md"
+      />
+      <div className="flex flex-wrap items-center gap-2">
       <select value={filters.customerId ?? ''}
         onChange={(e) => onChange({ ...filters, customerId: e.target.value || undefined, jobId: undefined })}
         className="h-8 rounded-md border border-borderStrong bg-surfaceSolid px-2 text-sm">
@@ -58,7 +69,6 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
       )}
 
       <div className="flex items-center gap-1 ml-2">
-        <span className="text-xs text-textDim mr-1">State:</span>
         {STATES.map((s) => {
           const active = filters.state.includes(s);
           return (
@@ -85,6 +95,7 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
       {hasAny && <Button size="sm" variant="ghost" onClick={clear}>Clear filters</Button>}
 
       {actions && <div className="ml-auto">{actions}</div>}
+      </div>
     </div>
   );
 }

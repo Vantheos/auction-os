@@ -11,6 +11,7 @@ import { InventoryFilters, type Filters } from '@/components/inventory/Inventory
 import { InventoryTable } from '@/components/inventory/InventoryTable';
 import { InventoryMobile } from '@/components/inventory/InventoryMobile';
 import { InventoryFiltersMobileSheet } from '@/components/inventory/InventoryFiltersMobileSheet';
+import { SearchInput } from '@/components/inventory/SearchInput';
 import { BulkActionBar } from '@/components/inventory/BulkActionBar';
 import { LotDetail } from '@/components/lot/LotDetail';
 import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
@@ -25,19 +26,21 @@ import type { CustomerDTO, JobDTO, LotState } from '@shared/types';
 const STATES_VALID: LotState[] = ['assigned', 'unassigned', 'sold', 'picked-up', 'not-sellable'];
 
 function parseFiltersFromUrl(params: URLSearchParams): Filters {
+  const search = (params.get('search') ?? '').trim();
   return {
     customerId: params.get('customerId') ?? undefined,
     jobId: params.get('jobId') ?? undefined,
     state: params.getAll('state').filter((s): s is LotState => STATES_VALID.includes(s as LotState)),
     awaitingAi: params.get('awaitingAi') === 'true' ? true : undefined,
     needsReview: params.get('needsReview') === 'true' ? true : undefined,
+    search: search || undefined,
   };
 }
 
 function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams {
   const next = new URLSearchParams(params);
   next.delete('customerId'); next.delete('jobId'); next.delete('state');
-  next.delete('awaitingAi'); next.delete('needsReview');
+  next.delete('awaitingAi'); next.delete('needsReview'); next.delete('search');
   // Drop the legacy ?needsInfo URL param if present so old bookmarks
   // resolve cleanly to the new chip set on the next interaction.
   next.delete('needsInfo');
@@ -46,12 +49,13 @@ function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams
   for (const s of f.state) next.append('state', s);
   if (f.awaitingAi) next.set('awaitingAi', 'true');
   if (f.needsReview) next.set('needsReview', 'true');
+  if (f.search) next.set('search', f.search);
   return next;
 }
 
 function activeFilterCount(f: Filters): number {
   return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length
-    + (f.awaitingAi ? 1 : 0) + (f.needsReview ? 1 : 0);
+    + (f.awaitingAi ? 1 : 0) + (f.needsReview ? 1 : 0) + (f.search ? 1 : 0);
 }
 
 export function Inventory() {
@@ -186,20 +190,27 @@ export function Inventory() {
       <div className="hidden md:block">
         <InventoryFilters filters={filters} onChange={handleFilterChange} actions={exportButton} />
       </div>
-      <div className="md:hidden flex flex-wrap items-center gap-2">
-        <Button
-          variant={filterCount > 0 ? 'secondary' : 'outline'}
-          onClick={() => setFilterSheetOpen(true)}
-          className="flex-shrink-0"
-        >
-          Filter{filterCount > 0 ? <span className="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-brand text-white text-[10px] font-bold">{filterCount}</span> : null}
-        </Button>
-        {filterCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => handleFilterChange({ state: [] })}>
-            Clear
+      <div className="md:hidden flex flex-col gap-2">
+        <SearchInput
+          value={filters.search ?? ''}
+          onCommit={(v) => handleFilterChange({ ...filters, search: v || undefined })}
+          className="w-full"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={filterCount > 0 ? 'secondary' : 'outline'}
+            onClick={() => setFilterSheetOpen(true)}
+            className="flex-shrink-0"
+          >
+            Filter{filterCount > 0 ? <span className="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-brand text-white text-[10px] font-bold">{filterCount}</span> : null}
           </Button>
-        )}
-        {exportButton && <div className="ml-auto">{exportButton}</div>}
+          {filterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => handleFilterChange({ state: [] })}>
+              Clear
+            </Button>
+          )}
+          {exportButton && <div className="ml-auto">{exportButton}</div>}
+        </div>
       </div>
 
       {lotsQ.error && (
