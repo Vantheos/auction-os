@@ -216,7 +216,21 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
             variant="outline"
             onClick={() => {
               resetAi.mutate(lot.id, {
-                onSuccess: () => toast({ title: 'AI status reset', variant: 'success' }),
+                onSuccess: (updated) => {
+                  // When all 3 fields are filled, Run AI re-appears but is
+                  // disabled — explain the next step in the toast since the
+                  // disabled button's native title attribute doesn't fire on
+                  // disabled buttons in most browsers.
+                  const allFieldsFilled =
+                    !!updated.title && updated.title.trim() !== ''
+                    && !!updated.description && updated.description.trim() !== ''
+                    && updated.price !== null;
+                  toast({
+                    title: 'AI status reset',
+                    description: allFieldsFilled ? 'Clear a field to re-run AI.' : undefined,
+                    variant: 'success',
+                  });
+                },
                 onError: errorToast('Could not reset AI'),
               });
             }}
