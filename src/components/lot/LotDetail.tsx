@@ -108,7 +108,14 @@ export function LotDetail({ lot, onClose, canEdit = true, canDelete = false, onD
   };
 
   return (
-    <div className="space-y-4">
+    // min-w-0 on the dialog grid child so the implicit `auto` track
+    // doesn't size to max-content of its descendants. Without this,
+    // the photo strip's flex children (12 × 80px thumbnails with
+    // flex-shrink-0) push the track ~1000px wide and drag the
+    // dialog past its max-w-sm cap, widening every field.
+    // overflow-hidden on the same node belts-and-suspenders the clip
+    // in case any descendant adds horizontal overflow later.
+    <div className="space-y-4 min-w-0 overflow-hidden">
       <div className="flex items-start gap-3 pb-3 border-b border-border">
         <div className="size-16 rounded-md bg-surfaceAlt border border-border flex-shrink-0 overflow-hidden">
           {photos.data?.[0]?.signedUrl ? (

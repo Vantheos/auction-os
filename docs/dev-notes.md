@@ -47,6 +47,16 @@ Pre-server validation is the right layer to gate this. See [src/components/catal
 
 **Lesson before any inventory-filter change:** grep for the `Filters` type and update every component that renders a chip set. Same applies to the inventory list rendering: [InventoryTable.tsx](../src/components/inventory/InventoryTable.tsx) (desktop) vs [InventoryMobile.tsx](../src/components/inventory/InventoryMobile.tsx).
 
+### Horizontally-scrolling content inside a Dialog needs `min-w-0` on a parent
+
+Symptom: a horizontal-scroll strip (e.g., 12 fixed-width photo thumbnails with `overflow-x-auto`) renders correctly in some contexts but, when placed inside a Dialog, drags the dialog wider than its `max-w-sm` cap and forces every form field to widen with it.
+
+Cause: [`src/components/ui/dialog.tsx`](../src/components/ui/dialog.tsx) `DialogContent` uses `display: grid` with implicit `auto` tracks. CSS Grid `auto` tracks size to `max-content` of their items unless `min-width: 0` is set on the items. The strip's flex children (12 × 80px = ~1000px intrinsic) push the track wide, and the `max-w-sm` on the grid container caps the *container* but doesn't override the track's intrinsic min-width. The strip's own `overflow-x-auto` never kicks in because the strip's offered width is whatever the track grew to.
+
+Fix: add `min-w-0` to the dialog's grid child (e.g., the LotDetail root). This is the conventional break for "I can be smaller than my content" in a CSS Grid context. Belt-and-suspenders: `overflow-hidden` on the same node clips any descendant that adds horizontal overflow later. See [`LotDetail.tsx`](../src/components/lot/LotDetail.tsx) for the applied pattern (`<div className="space-y-4 min-w-0 overflow-hidden">`).
+
+**Lesson before placing a horizontal-scroll strip inside a Dialog (or any CSS Grid container with implicit tracks):** add `min-w-0` to the strip's grid-item ancestor. The strip's own `overflow-x-auto` only works once the parent's width is constrained.
+
 ### URL-param navigation must preserve filter params
 
 When you need to add a query param to the current URL (e.g., `?openLot=<id>`), DO NOT use a hardcoded `<Link to={"/inventory?openLot=..."}>` — that wipes whatever filter params are already set. Build a new URLSearchParams from the current one, mutate just the key you care about, and pass the result to `setSearchParams`.
