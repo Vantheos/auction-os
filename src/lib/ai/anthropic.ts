@@ -50,7 +50,13 @@ export type AiRunResult = {
   costCents: number;
 };
 
-const PER_CALL_TIMEOUT_MS = 60_000;
+// 180s gives web_search-heavy lots room to finish on the first try. The
+// previous 60s was too tight: legitimate calls timed out, our outer retry
+// kicked in, and the second attempt typically succeeded after 60-135s — net
+// double token cost for no information gain. Forensic data from the 6-lot
+// drain on 2026-05-08 (see scripts/inspect-ai-run.ts output) showed three
+// of six lots took 127-197s end-to-end, all retry-induced.
+const PER_CALL_TIMEOUT_MS = 180_000;
 const RETRY_BACKOFF_MS = 1_500;
 
 let _client: Anthropic | null = null;
@@ -58,7 +64,10 @@ function getClient(): Anthropic {
   if (_client) return _client;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  _client = new Anthropic({ apiKey });
+  // maxRetries: 0 disables the SDK's internal retry (default 2) so it can't
+  // compound with our outer retry below. With both layers active a single
+  // 5xx on the Anthropic side could produce 6 HTTP attempts; we only want 2.
+  _client = new Anthropic({ apiKey, maxRetries: 0 });
   return _client;
 }
 
@@ -118,6 +127,10 @@ export async function runAiForLot(input: AiRunInput): Promise<AiRunResult> {
         costCents: computeCostCents(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens),
       };
     } catch (err) {
+      // Don't retry on our own 180s timeout: a slow call won't be faster on
+      // retry, just doubles token cost. Reserve the retry for genuine
+      // transient infrastructure errors (5xx/429/408 — see isTransient).
+      if (err instanceof Anthropic.APIConnectionTimeoutError) throw err;
       if (!isTransient(err) || attempt >= 1) throw err;
       await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
     }
