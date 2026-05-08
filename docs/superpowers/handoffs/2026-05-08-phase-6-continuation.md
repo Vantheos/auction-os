@@ -42,10 +42,13 @@ points there.
 - **Spec:** [`docs/superpowers/specs/2026-05-06-phase-6-design.md`](../specs/2026-05-06-phase-6-design.md).
   Multiple amendment blocks added during this session (each dated). The
   code is authoritative when the spec disagrees.
-- **Manual test checklist:** [`docs/superpowers/handoffs/2026-05-06-phase-6-manual-test-checklist.md`](2026-05-06-phase-6-manual-test-checklist.md).
-  This is the user's primary testing reference. Updates from this session
-  are inline (filter chip wording, AF360 assigned-lot gate, operator-entry
-  preservation, etc.).
+- **End-to-end test checklists** (Phases 1–6, no cron):
+  - Balanced (~2-3 hr): [`2026-05-08-e2e-balanced.md`](2026-05-08-e2e-balanced.md)
+  - Exhaustive (~half-day): [`2026-05-08-e2e-exhaustive.md`](2026-05-08-e2e-exhaustive.md)
+  These replaced the original Phase 6 sign-off checklist (2026-05-06)
+  on 2026-05-08 once Phase 6 manual sign-off was effectively complete and
+  the user wanted full E2E coverage before Phase 7. Cron-fired tests are
+  deferred to [`prod-cutover-test-checklist.md`](prod-cutover-test-checklist.md).
 - **AI prompt review:** [`docs/superpowers/handoffs/2026-05-08-ai-prompt-review.md`](2026-05-08-ai-prompt-review.md).
   Full assembled system prompt + call shape + roadmap items 2 (context)
   and 3 (training/improvement). Prompts have been revised this session
@@ -84,10 +87,10 @@ exact messages.
 
 ### Manual click-through pass (the user is doing this)
 
-The user is working through [`2026-05-06-phase-6-manual-test-checklist.md`](2026-05-06-phase-6-manual-test-checklist.md).
-Section A items (no AI execution) and Section B items (real AI) are both
-in scope. The user reports findings as they hit them; this session's job
-is to investigate and fix what surfaces.
+The user is working through the new E2E checklists (see Authoritative
+documents above). Section A items (no AI execution) and Section B items
+(real AI) are in scope. The user reports findings as they hit them; this
+session's job is to investigate and fix what surfaces.
 
 ### Deferred to production cutover (do NOT run pre-prod)
 
