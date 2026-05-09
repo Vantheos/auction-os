@@ -170,6 +170,14 @@ npm run build && npm run lint && npm test
 
 All three must be green. **Lint warnings count as failures** — the project uses 0/0 as the bar. Common warning to silence: `react-hooks/set-state-in-effect` when the case is a legitimate synchronization (use a derived value or refactor; see above).
 
+### `unhandledRejection` listeners leak across test files in shared workers
+
+`tests/helpers/setup-client.ts` runs once per test file with fresh module isolation, but the worker **process** is shared across files. A naive `process.on('unhandledRejection', ...)` at module load adds a new handler on every file. After ~10 files Node logs `MaxListenersExceededWarning`, and a single intentional rejection (LotEditForm's `Error: boom` test, etc.) fires through every stacked handler — interacts badly with vitest's own rejection tracking and causes intermittent ~100+ test cascades that all clear on a clean re-run.
+
+Symptom: ~30-40% of `npm test` invocations fail with 100+ tests across 20+ files; re-running shows 581/581. **Don't dismiss as "flaky."**
+
+Fix is a `globalThis` symbol guard so the handler attaches exactly once per worker process — see [setup-client.ts](../tests/helpers/setup-client.ts). Apply the same pattern to any future global handler registered in test setup files.
+
 ### Migrations apply to BOTH Dev and Test DBs
 
 The `apply-migration.ts` script at [scripts/apply-migration.ts](../scripts/apply-migration.ts) is the project's hand-written-migration tool (avoids drizzle-kit's CHECK-constraint introspection bug). Apply to Dev:
