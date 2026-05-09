@@ -123,6 +123,14 @@ When writing test fixtures: an `unassigned` lot needs both `jobId: null` AND `lo
 
 ## State management patterns
 
+### Cross-instance `useState` divergence in shared hooks
+
+A custom hook called by multiple components (e.g., `useCatalogSession`) gets its own `useState` instance per call. If only ONE caller updates the state via the hook's setter, OTHER callers' instances stay at their mount-time value forever — even if they re-render for unrelated reasons.
+
+Symptom we hit: `EndSessionConfirm` received `hasInProgressLot=false` even after a real lot existed. CatalogSession.tsx and LotInProgress.tsx both called `useCatalogSession()`. LotInProgress called `setLot` from `captureFirst.onSuccess` and updated *its* useState. CatalogSession's instance, which was mounted with `?lot=null` URL, stayed at `null` because its useState didn't reinitialize when the URL later changed.
+
+**Fix pattern:** for shared state that needs to converge across hook callers, derive it from a global subscription (URL via `useSearchParams`, query cache via `useQuery`, etc.) instead of mirroring it into `useState`. The URL update fires re-renders for all subscribers; everyone reads the same source on the same render. See [useCatalogSession.ts](../src/hooks/useCatalogSession.ts) for the applied pattern.
+
 ### `useState` destructuring without setter is a silent bug
 
 `const [savedCount] = useState(0)` compiles fine but the value is fixed at the initial. Always destructure both `[value, setter]` or you'll have a state that can't update. (Caught in `CatalogSession.tsx` — the savedCount counter was permanently 0.)

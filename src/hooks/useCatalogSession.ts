@@ -1,9 +1,20 @@
 // src/hooks/useCatalogSession.ts
-// Session state for the mobile cataloging flow. Customer + job come from
-// URL params (so refreshes preserve them). The current in-progress lotId
-// is component state — it's null until the first photo is captured (which
-// is when the server creates the lot row). Advance to next lot resets
-// lotId to null; the next capture creates a new lot row.
+// Session state for the mobile cataloging flow. Customer + job + lotId
+// all come from URL params (the URL is the canonical source of truth),
+// so refreshes preserve them and any consumer that calls this hook sees
+// the same values within a single render.
+//
+// Why URL-derived lotId rather than useState seeded from URL: each
+// component that calls useCatalogSession() gets its own useState
+// instance. Earlier we kept a useState backed by URL initial value, but
+// `setLot` only updated the calling instance's state. CatalogSession.tsx
+// and LotInProgress.tsx both call this hook; only LotInProgress runs
+// the setLot path (via captureFirst), so CatalogSession's lotId stayed
+// at its mount-time value (null when starting from a fresh session).
+// That made `hasInProgressLot={!!lotId}` lie to EndSessionConfirm. Now
+// every render reads `params.get('lot')` directly; React Router's
+// useSearchParams subscription fires on URL change, so all consumers
+// converge on the same value.
 
 import { useCallback, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -32,15 +43,16 @@ export function useCatalogSession(): CatalogSession {
   const queryClient = useQueryClient();
   const customerId = params.get('customer');
   const jobId = params.get('job');
-  const lotIdFromUrl = params.get('lot');
+  // Derived from URL on every render — see file-header note. Page reload
+  // (Safari pull-to-refresh, tab close+reopen, deep link) automatically
+  // restores the in-progress lot because the URL carries it.
+  const lotId = params.get('lot');
 
-  // Initialize lotId from URL so a page reload (Safari/Chrome pull-to-refresh,
-  // accidental nav, tab close+reopen, deep link) restores the in-progress lot
-  // exactly where the user left off. The form re-hydrates from the server
-  // lot data + IDB form mirror; photos refetch via useLotPhotos.
-  // lotNumber stays null on restore — LotInProgress derives it from useLot
-  // until/unless setLot is called explicitly.
-  const [lotId, setLotIdState] = useState<string | null>(lotIdFromUrl);
+  // lotNumber is per-component-instance state — used only for the
+  // immediate display label after captureFirst returns (the URL only
+  // carries the id, not the number). LotInProgress falls back to
+  // lotQ.data?.lotNumber when this is null, so cross-instance access
+  // works through the lot query rather than this state.
   const [lotNumber, setLotNumber] = useState<number | null>(null);
 
   // Persist/clear the `lot` URL param. `replace: true` so we don't pollute
@@ -55,13 +67,11 @@ export function useCatalogSession(): CatalogSession {
   }, [setParams]);
 
   const setLot = useCallback((id: string, n: number) => {
-    setLotIdState(id);
     setLotNumber(n);
     writeLotToUrl(id);
   }, [writeLotToUrl]);
 
   const advance = useCallback(() => {
-    setLotIdState(null);
     setLotNumber(null);
     writeLotToUrl(null);
   }, [writeLotToUrl]);
@@ -75,7 +85,6 @@ export function useCatalogSession(): CatalogSession {
     }
     await clearFormMirror(lotId);
     queryClient.invalidateQueries({ queryKey: ['lots-infinite'] });
-    setLotIdState(null);
     setLotNumber(null);
     writeLotToUrl(null);
   }, [lotId, queryClient, writeLotToUrl]);
