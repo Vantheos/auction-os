@@ -41,7 +41,7 @@ export function PhotoManager({ lotId, initialFocusId, onClose, onLotDeleted }: P
 
   if (photos.length === 0) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
+      <div className="h-full flex flex-col items-center justify-center bg-text text-white p-6 gap-4">
         <div className="text-lg">No photos yet</div>
         <button
           type="button"
@@ -133,7 +133,7 @@ function PhotoManagerInner({ lotId, photos, initialFocusId, onClose, onLotDelete
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-text text-white">
+    <div className="h-full flex flex-col bg-text text-white">
       <input
         ref={inputRef}
         type="file"
@@ -154,19 +154,30 @@ function PhotoManagerInner({ lotId, photos, initialFocusId, onClose, onLotDelete
         )}
       </div>
 
-      {/* Hero with arrow controls */}
-      <div className="flex-1 flex items-center justify-center px-6 py-4 relative">
-        <div className="w-full max-w-md aspect-[4/3] rounded-md overflow-hidden bg-text/30">
-          {focused.signedUrl ? (
-            <img src={focused.signedUrl} alt={`Photo ${focusIdx + 1}`} className="size-full object-contain" />
-          ) : focused.status === 'pending' ? (
-            <div className="size-full flex items-center justify-center text-white/60">Uploading…</div>
-          ) : focused.status === 'failed' ? (
-            <div className="size-full flex items-center justify-center text-white/60">Upload failed</div>
-          ) : (
-            <div className="size-full flex items-center justify-center text-white/60">No image</div>
-          )}
-        </div>
+      {/* Hero with arrow controls. min-h-0 lets the flex item shrink
+          below its content size; without it, the image's intrinsic
+          dimensions would prevent the hero from yielding height to the
+          rest of the column. max-h-full + max-w-full + object-contain
+          on the image lets it scale to whatever real estate the hero
+          gets while preserving aspect ratio. No fixed-aspect wrapper
+          means tall portrait photos use vertical space well and wide
+          landscape photos use horizontal space — same component does
+          right thing in both inventory's modal context (constrained
+          height) and the catalog full-viewport overlay. */}
+      <div className="flex-1 min-h-0 flex items-center justify-center px-6 py-4 relative">
+        {focused.signedUrl ? (
+          <img
+            src={focused.signedUrl}
+            alt={`Photo ${focusIdx + 1}`}
+            className="max-w-full max-h-full object-contain rounded-md"
+          />
+        ) : focused.status === 'pending' ? (
+          <div className="text-white/60">Uploading…</div>
+        ) : focused.status === 'failed' ? (
+          <div className="text-white/60">Upload failed</div>
+        ) : (
+          <div className="text-white/60">No image</div>
+        )}
         {!isFirst && (
           <button
             type="button"
