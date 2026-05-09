@@ -55,38 +55,38 @@ Default role for Sections A, B, and M is **Admin** unless stated otherwise.
 ### A.2 Inventory list, filters, search
 - [x] /inventory loads. Lots display with lot number, customer, job, state pill, title.
 - [x] State filter chips: click `assigned` → URL gains `?state=assigned`; list narrows. Click again to clear.
-- [ ] Search field: type a partial title. List narrows. Clear input restores.
-- [ ] Customer filter: pick a customer. URL gains `?customerId=...`. List narrows.
-- [ ] Job filter: pick a job (within the customer). URL gains `?jobId=...`.
-- [ ] **Clear all filters** button: resets state chips, search, customer, job. URL drops all params.
-- [ ] Refresh while filters are active: filters survive (URL-driven).
+- [x] Search field: type a partial title. List narrows. Clear input restores.
+- [x] Customer filter: pick a customer. URL gains `?customerId=...`. List narrows.
+- [x] Job filter: pick a job (within the customer). URL gains `?jobId=...`.
+- [x] **Clear all filters** button: resets state chips, search, customer, job. URL drops all params.
+- [x] Refresh while filters are active: filters survive (URL-driven).
 
 ### A.3 Single-lot edit (LotDetail dialog)
-- [ ] Click any lot row. Dialog opens with form fields, photo strip, action buttons.
-- [ ] Edit the title, click Save. Toast: *"Lot updated"*. Dialog stays open; form reset to saved state.
-- [ ] Edit a field, click outside the dialog (or Escape). Unsaved-changes confirm dialog appears. Cancel → dialog stays. Discard → dialog closes, edits dropped.
-- [ ] Reopen the same lot — your saved title is there.
-- [ ] Sold/picked-up/not-sellable lot: open it. Form is read-only ("🔒 Read-only" pill); photos show as static grid; no Save / Move / Delete buttons.
+- [x] Click any lot row. Dialog opens with form fields, photo strip, action buttons.
+- [x] Edit the title, click Save. Toast: *"Lot updated"*. Dialog stays open; form reset to saved state.
+- [x] Edit a field, click outside the dialog (or Escape). Unsaved-changes confirm dialog appears. Cancel → dialog stays. Discard → dialog closes, edits dropped.
+- [x] Reopen the same lot — your saved title is there.
+- [x] Sold/picked-up/not-sellable lot: open it. Form is read-only ("🔒 Read-only" pill); photos show as static grid; no Save / Move / Delete buttons.
 
 ### A.4 Photo management
-- [ ] In the lot detail of a non-frozen lot, click a thumbnail. PhotoManager full-screen overlay appears, focused on that photo.
-- [ ] Reorder via drag (desktop). Save. Reopen — order persists.
-- [ ] Delete a photo. Confirm. Photo gone from grid.
-- [ ] If you delete the last photo of a lot, server returns an error (lot must have ≥1 photo); UI shows the error toast.
-- [ ] Close the PhotoManager. The parent lot detail dialog is still open and intact.
+- [x] In the lot detail of a non-frozen lot, click a thumbnail. PhotoManager full-screen overlay appears, focused on that photo.
+- [x] Reorder via drag (desktop). Save. Reopen — order persists.
+- [x] Delete a photo. Confirm. Photo gone from grid.
+- [x] If you delete the last photo of a lot, server returns an error (lot must have ≥1 photo); UI shows the error toast.
+- [x] Close the PhotoManager. The parent lot detail dialog is still open and intact.
 
 ### A.5 Bulk actions (admin/office only)
-- [ ] Select 2+ lots in inventory via checkboxes. Bulk action bar appears.
-- [ ] Bulk **Assign to Job** — pick a destination, optionally with reprint. All selected lots move; toast confirms.
-- [ ] Bulk **Change state** — pick a state. State machine rules apply (e.g., assigned → sold OK; unassigned → assigned blocked).
-- [ ] Bulk **Reset AI** — opens confirm dialog with count and field-preservation language. Cancel and confirm both work; on confirm, status resets, badge increments.
-- [ ] Bulk **Delete** — confirm dialog requires typed confirmation; on confirm, lots removed.
+- [x] Select 2+ lots in inventory via checkboxes. Bulk action bar appears.
+- [x] Bulk **Assign to Job** — pick a destination, optionally with reprint. All selected lots move; toast confirms.
+- [x] Bulk **Change state** — pick a state. State machine rules apply (e.g., assigned → sold OK; unassigned → assigned blocked).
+- [x] Bulk **Reset AI** — opens confirm dialog with count and field-preservation language. Cancel and confirm both work; on confirm, status resets, badge increments.
+- [x] Bulk **Delete** — confirm dialog requires typed confirmation; on confirm, lots removed.
 
 ### A.6 Single-lot mutations
-- [ ] Edit fields → Save → success toast.
-- [ ] Move to another job (single-lot **Assign to Job** button) → success toast; reprint checkbox path triggers a label render call.
-- [ ] Change state via the menu → success toast (terminal-state confirm dialog appears for sold / picked-up).
-- [ ] Delete a single lot via the **Delete** button + DELETE-typed confirmation → toast; lot gone from list.
+- [x] Edit fields → Save → success toast.
+- [x] Move to another job (single-lot **Assign to Job** button) → success toast; reprint checkbox path triggers a label render call.
+- [x] Change state via the menu → success toast (terminal-state confirm dialog appears for sold / picked-up).
+- [x] Delete a single lot via the **Delete** button + DELETE-typed confirmation → toast; lot gone from list.
 
 ### A.7 Catalog session (desktop golden path; mobile coverage in §M)
 - [ ] As Warehouse (or Admin via role-switch), open /catalog.
