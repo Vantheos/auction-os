@@ -54,6 +54,10 @@ test-results/
 # Supabase CLI
 .supabase
 
+# User guide — authored locally, not tracked. Files exist on disk for the
+# operator's own reference; everything inside the directory is ignored.
+docs/user-guide/
+
 # Claude Code: project allowlist (.claude/settings.json) is tracked;
 # user-private trust decisions live in .claude/settings.local.json and are NOT.
 # Runtime locks from the schedule/loop tooling are also local-only.
