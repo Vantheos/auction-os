@@ -44,6 +44,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         assignedLotCount: number;
         totalLotCount: number;
         exportReadyLotCount: number;
+        lotNumberGapCount: number;
       }>(sql`
         SELECT j.id,
                j.customer_id          AS "customerId",
@@ -60,7 +61,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                   AND l.title IS NOT NULL AND l.title <> ''
                   AND l.description IS NOT NULL AND l.description <> ''
                   AND l.price IS NOT NULL
-                 THEN 1 ELSE 0 END), 0)::int AS "exportReadyLotCount"
+                 THEN 1 ELSE 0 END), 0)::int AS "exportReadyLotCount",
+               -- Gap count over numbered lots: range size 10..MAX minus
+               -- present lots. Surfaces in the export-prep modal so the
+               -- operator can compact before exporting to AF360.
+               COALESCE(MAX(l.lot_number) - 9 - COUNT(l.lot_number)::int, 0)::int AS "lotNumberGapCount"
           FROM job j
           LEFT JOIN lot l ON l.job_id = j.id
          ${customerId ? sql`WHERE j.customer_id = ${customerId}` : sql``}

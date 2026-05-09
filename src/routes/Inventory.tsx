@@ -34,6 +34,7 @@ function parseFiltersFromUrl(params: URLSearchParams): Filters {
     awaitingAi: params.get('awaitingAi') === 'true' ? true : undefined,
     needsReview: params.get('needsReview') === 'true' ? true : undefined,
     search: search || undefined,
+    reprintPending: params.get('reprintPending') === 'true' ? true : undefined,
   };
 }
 
@@ -41,6 +42,7 @@ function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams
   const next = new URLSearchParams(params);
   next.delete('customerId'); next.delete('jobId'); next.delete('state');
   next.delete('awaitingAi'); next.delete('needsReview'); next.delete('search');
+  next.delete('reprintPending');
   // Drop the legacy ?needsInfo URL param if present so old bookmarks
   // resolve cleanly to the new chip set on the next interaction.
   next.delete('needsInfo');
@@ -50,12 +52,14 @@ function writeFiltersToUrl(params: URLSearchParams, f: Filters): URLSearchParams
   if (f.awaitingAi) next.set('awaitingAi', 'true');
   if (f.needsReview) next.set('needsReview', 'true');
   if (f.search) next.set('search', f.search);
+  if (f.reprintPending) next.set('reprintPending', 'true');
   return next;
 }
 
 function activeFilterCount(f: Filters): number {
   return (f.customerId ? 1 : 0) + (f.jobId ? 1 : 0) + f.state.length
-    + (f.awaitingAi ? 1 : 0) + (f.needsReview ? 1 : 0) + (f.search ? 1 : 0);
+    + (f.awaitingAi ? 1 : 0) + (f.needsReview ? 1 : 0) + (f.search ? 1 : 0)
+    + (f.reprintPending ? 1 : 0);
 }
 
 export function Inventory() {

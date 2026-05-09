@@ -85,6 +85,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // pass through and broaden the match — acceptable behavior for an
       // operator-facing search; revisit if it causes confusion.
       const search = (url.searchParams.get('search') ?? '').trim() || null;
+      // ?reprintPending=true narrows to lots with label_reprint_needed=true
+      // (set by /api/jobs/:id/compact-lots, cleared by /api/labels/render).
+      const reprintPending = url.searchParams.get('reprintPending') === 'true';
       const limitRaw = parseInt(url.searchParams.get('limit') ?? '50', 10);
       const offsetRaw = parseInt(url.searchParams.get('offset') ?? '0', 10);
       const limit = Number.isFinite(limitRaw) && limitRaw >= 0 ? Math.min(limitRaw, 200) : 50;
@@ -161,6 +164,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           ilike(lot.description, `%${search}%`),
         )!);
       }
+      if (reprintPending) conditions.push(eq(lot.labelReprintNeeded, true));
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 

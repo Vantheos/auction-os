@@ -8,7 +8,7 @@
 //   - "Export complete" shown briefly after done
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { JobExportButton } from '@/components/jobs/JobExportButton';
 import { ToastProvider } from '@/components/ui/toast';
@@ -118,6 +118,26 @@ describe('JobExportButton — strict export-ready gate', () => {
   });
 });
 
+// Job with all readiness fields set: 5 assigned, all fields filled, no
+// gaps. ExportPrepDialog will show the simple "Export to AF360" button.
+const readyJob: JobDTO = {
+  ...job,
+  totalLotCount: 5,
+  exportReadyLotCount: 5,
+  lotNumberGapCount: 0,
+};
+
+// Click-through helper: open the prep dialog, then click its Export
+// button to commit. Radix Dialog sets aria-hidden on the rest of the
+// document when open, so the outer trigger button drops out of the
+// accessibility tree once the dialog opens — `within(dialog)` scopes
+// the second query to the dialog's footer button unambiguously.
+async function clickThroughExport(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+  const dialog = await screen.findByRole('dialog');
+  await user.click(within(dialog).getByRole('button', { name: /Export to AF360/i }));
+}
+
 describe('JobExportButton — interactive flow', () => {
   it('shows error state with Retry batch button when a batch fails', async () => {
     mockApi({
@@ -136,13 +156,13 @@ describe('JobExportButton — interactive flow', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<Harness />);
-    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+    renderWithProviders(<Harness job={readyJob} />);
+    await clickThroughExport(user);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Retry batch 1/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Cancel$/i })).toBeInTheDocument();
   });
 
   it('shows generic Retry export when /start fails (no failedBatchNum)', async () => {
@@ -153,8 +173,8 @@ describe('JobExportButton — interactive flow', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<Harness />);
-    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+    renderWithProviders(<Harness job={readyJob} />);
+    await clickThroughExport(user);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Retry export/i })).toBeInTheDocument();
@@ -171,17 +191,18 @@ describe('JobExportButton — interactive flow', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<Harness />);
+    renderWithProviders(<Harness job={readyJob} />);
 
     // First export attempt → /start fails → button shows "Retry export"
-    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+    await clickThroughExport(user);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Retry export/i })).toBeInTheDocument();
     });
     expect(startCallCount).toBe(1);
 
     // Click Retry → should fire a fresh /start call (NOT a no-op
-    // retryFromBatch with empty ctxRef)
+    // retryFromBatch with empty ctxRef). Goes through start() directly,
+    // not the prep dialog.
     await user.click(screen.getByRole('button', { name: /Retry export/i }));
 
     await waitFor(() => expect(startCallCount).toBe(2));
@@ -211,11 +232,46 @@ describe('JobExportButton — interactive flow', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<Harness />);
-    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+    renderWithProviders(<Harness job={readyJob} />);
+    await clickThroughExport(user);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Export complete/i })).toBeInTheDocument();
     });
+  });
+});
+
+describe('JobExportButton — prep dialog gating', () => {
+  it('opens the prep dialog without firing the export', async () => {
+    let startCalled = false;
+    mockApi({
+      'POST /jobs/job-1/export-af360/start': () => {
+        startCalled = true;
+        return { csv: '', csvFilename: '', batchSize: 100, totalBatches: 0, totalLots: 0, batches: [], exportLabel: '' };
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<Harness job={readyJob} />);
+    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+
+    // Dialog title visible — no export request fired yet.
+    await waitFor(() => {
+      expect(screen.getByText(/Export Acme \/ JOB-001/i)).toBeInTheDocument();
+    });
+    expect(startCalled).toBe(false);
+  });
+
+  it('shows the gap warning + Compact button when lotNumberGapCount > 0', async () => {
+    const gappy: JobDTO = { ...readyJob, lotNumberGapCount: 3 };
+    const user = userEvent.setup();
+    renderWithProviders(<Harness job={gappy} />);
+    await user.click(screen.getByRole('button', { name: /Export to AF360/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 gaps in the sequence/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /Compact lot numbers/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export with gaps/i })).toBeInTheDocument();
   });
 });

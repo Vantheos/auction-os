@@ -27,6 +27,7 @@ export function makeLot(overrides: Partial<LotDTO> = {}): LotDTO {
     lastAiRunStatus: null,
     lastAiRunError: null,
     aiProcessingStartedAt: null,
+    labelReprintNeeded: false,
     intakeOperatorId: 'user-1',
     intakeTimestamp: '2026-05-01T12:00:00.000Z',
     createdAt: '2026-05-01T12:00:00.000Z',

@@ -141,6 +141,22 @@ function SheetBodyInner({ initial, onApply, onClose }: { initial: Filters; onApp
               </button>
             </div>
           </Field>
+
+          <Field label="Labels">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, reprintPending: !draft.reprintPending })}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                  draft.reprintPending
+                    ? 'bg-warning-bg border-warning text-warning'
+                    : 'bg-surfaceSolid border-borderStrong text-textDim'
+                }`}
+              >
+                Reprint pending
+              </button>
+            </div>
+          </Field>
         </SheetBody>
 
         <SheetFooter>

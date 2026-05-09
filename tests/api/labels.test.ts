@@ -39,6 +39,26 @@ describe('POST /api/labels/render', () => {
     expect(res.body.zpl).toContain('Smith Estate');
   });
 
+  it('clears label_reprint_needed when set on the rendered lot', async () => {
+    const lotId = await seed();
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotId));
+    const res = await call({ lotId });
+    expect(res.status).toBe(200);
+    const [after] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(after.labelReprintNeeded).toBe(false);
+  });
+
+  it('leaves label_reprint_needed false when already false (no spurious update)', async () => {
+    const lotId = await seed();
+    const [before] = await testDb.select({ updatedAt: lot.updatedAt }).from(lot).where(eq(lot.id, lotId));
+    const res = await call({ lotId });
+    expect(res.status).toBe(200);
+    const [after] = await testDb.select({ updatedAt: lot.updatedAt, flag: lot.labelReprintNeeded }).from(lot).where(eq(lot.id, lotId));
+    expect(after.flag).toBe(false);
+    // updated_at should be unchanged because we skipped the UPDATE.
+    expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+  });
+
   it('404 on unknown lot', async () => {
     await seed();
     const res = await call({ lotId: '00000000-0000-0000-0000-000000000099' });

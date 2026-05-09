@@ -50,6 +50,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       jobNumber: row.jobNumber,
     }, deployHost());
 
+    // Operator initiated a label render — assume they intend to print.
+    // Clear the reprint-needed flag so the pill comes off the row. If
+    // the Browser Print POST fails on the client, they'll retry; if
+    // they never finish, the flag stays cleared (operator error, not
+    // worth complicating the flow with a separate "print confirmed"
+    // round-trip).
+    if (row.lot.labelReprintNeeded) {
+      await getDb().update(lot)
+        .set({ labelReprintNeeded: false, updatedAt: new Date() })
+        .where(eq(lot.id, parsed.data.lotId));
+    }
+
     return jsonOk(res, { zpl });
   } catch (err) {
     if (err instanceof AuthError) return jsonError(res, err.status, err.code, err.message);

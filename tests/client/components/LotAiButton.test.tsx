@@ -28,7 +28,7 @@ const baseLot: LotDTO = {
   specialNotesCategory: 'None', specialNotesText: null, untested: false,
   state: 'assigned', source: 'cataloging',
   lastAiRunStatus: null, lastAiRunError: null,
-  aiProcessingStartedAt: null,
+  aiProcessingStartedAt: null, labelReprintNeeded: false,
   intakeOperatorId: 'op', intakeTimestamp: '2026-05-06T00:00:00Z',
   createdAt: '2026-05-06T00:00:00Z', updatedAt: '2026-05-06T00:00:00Z',
 };

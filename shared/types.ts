@@ -45,6 +45,11 @@ export type JobDTO = {
   assignedLotCount?: number;
   totalLotCount?: number;
   exportReadyLotCount?: number;
+  // Number of gaps in this job's lot_number sequence (positions in
+  // [10..MAX] with no lot — created by deletes / outbound moves /
+  // unassigns). 0 = sequential. Surfaces in the export-prep modal
+  // alongside a Compact action.
+  lotNumberGapCount?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -149,6 +154,7 @@ export type LotDTO = {
   lastAiRunStatus: 'success' | 'partial' | 'failure' | null;
   lastAiRunError: string | null;
   aiProcessingStartedAt: string | null;
+  labelReprintNeeded: boolean;
   intakeOperatorId: string;
   intakeTimestamp: string;
   createdAt: string;

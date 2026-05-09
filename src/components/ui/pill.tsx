@@ -59,3 +59,17 @@ export function AiStatusPill({ status, className, ...rest }: { status: AiStatus 
 export function RolePill({ role, className, ...rest }: { role: Role } & HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn(baseCls, ROLE_CLS[role], className)} {...rest}>{ROLE_LABEL[role]}</span>;
 }
+
+// Reprint-needed indicator. Set when compact-lots renumbered a lot;
+// cleared when /api/labels/render fires for the lot.
+export function ReprintPill({ className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      title="Lot number changed; physical label needs to be reprinted"
+      className={cn(baseCls, 'bg-warning-bg text-warning', className)}
+      {...rest}
+    >
+      Reprint
+    </span>
+  );
+}

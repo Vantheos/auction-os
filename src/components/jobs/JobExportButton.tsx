@@ -5,11 +5,12 @@
 // Hidden for warehouse role. Disabled while an export is in progress.
 // Surfaces step-by-step progress + per-batch retry on error.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { useRole } from '@/lib/auth';
 import { useExportJobAF360 } from '@/hooks/useExportJobAF360';
+import { ExportPrepDialog } from './ExportPrepDialog';
 import type { JobDTO, CustomerDTO } from '@shared/types';
 
 export function JobExportButton({
@@ -22,6 +23,7 @@ export function JobExportButton({
   const role = useRole();
   const { phase, start, retryFromBatch, reset } = useExportJobAF360();
   const { toast } = useToast();
+  const [prepOpen, setPrepOpen] = useState(false);
 
   // Surface success / error as toasts so the user gets feedback even if they
   // navigate away from the row's progress label.
@@ -104,18 +106,27 @@ export function JobExportButton({
     total !== undefined && ready !== undefined && (total === 0 || ready !== total);
 
   return (
-    <Button
-      size="sm"
-      onClick={() => start(job.id)}
-      disabled={inProgress || notReady}
-      title={
-        notReady
-          ? 'Job has lots that are not assigned or are missing title/description/price'
-          : undefined
-      }
-    >
-      Export to AF360
-    </Button>
+    <>
+      <Button
+        size="sm"
+        onClick={() => setPrepOpen(true)}
+        disabled={inProgress || notReady}
+        title={
+          notReady
+            ? 'Job has lots that are not assigned or are missing title/description/price'
+            : undefined
+        }
+      >
+        Export to AF360
+      </Button>
+      <ExportPrepDialog
+        open={prepOpen}
+        onClose={() => setPrepOpen(false)}
+        job={job}
+        customer={customer}
+        onConfirmExport={() => start(job.id)}
+      />
+    </>
   );
 }
 

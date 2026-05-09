@@ -7,7 +7,7 @@
 // Implementation references option-c-mobile-inventory.jsx → MobileInventoryScreen.
 
 import { Link } from 'react-router-dom';
-import { StatePill, AiStatusPill } from '@/components/ui/pill';
+import { StatePill, AiStatusPill, ReprintPill } from '@/components/ui/pill';
 import type { LotDTO } from '@shared/types';
 
 type Props = {
@@ -44,9 +44,10 @@ export function InventoryMobile({ lots, onOpen }: Props) {
             <div className="text-[13px] font-semibold text-text truncate leading-tight">
               {l.title ?? <span className="italic text-textFaint">Untitled</span>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <StatePill state={l.state} />
               <AiStatusPill status={l.lastAiRunStatus ?? 'not-run'} className="text-[10px]" />
+              {l.labelReprintNeeded && <ReprintPill className="text-[10px]" />}
             </div>
           </div>
         </button>

@@ -24,6 +24,9 @@ export type Filters = {
   // Free-text substring match across title + description, ILIKE OR'd.
   // Trimmed before commit; empty/undefined = no filter.
   search?: string;
+  // label_reprint_needed=true (set by compact-lots, cleared by label
+  // render). Surfaces lots whose physical labels are now wrong.
+  reprintPending?: boolean;
 };
 
 type Props = {
@@ -41,7 +44,8 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
     onChange({ ...filters, state: filters.state.includes(s) ? filters.state.filter((x) => x !== s) : [...filters.state, s] });
 
   const hasAny = filters.customerId || filters.jobId || filters.state.length > 0
-    || filters.awaitingAi || filters.needsReview || !!filters.search;
+    || filters.awaitingAi || filters.needsReview || !!filters.search
+    || filters.reprintPending;
   const clear = () => onChange({ state: [] });
 
   return (
@@ -91,6 +95,12 @@ export function InventoryFilters({ filters, onChange, actions }: Props) {
         className={`text-xs px-2 py-1 rounded-md border ${
           filters.needsReview ? 'bg-warning-bg border-warning text-warning' : 'border-border text-textDim hover:bg-muted'
         }`}>Needs review</button>
+
+      <button type="button"
+        onClick={() => onChange({ ...filters, reprintPending: !filters.reprintPending })}
+        className={`text-xs px-2 py-1 rounded-md border ${
+          filters.reprintPending ? 'bg-warning-bg border-warning text-warning' : 'border-border text-textDim hover:bg-muted'
+        }`}>Reprint pending</button>
 
       {hasAny && <Button size="sm" variant="ghost" onClick={clear}>Clear filters</Button>}
 

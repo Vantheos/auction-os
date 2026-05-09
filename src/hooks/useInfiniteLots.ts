@@ -21,6 +21,9 @@ export type InfiniteLotFilters = {
   // Free-text substring search; matches title OR description (ILIKE).
   // Already trimmed by the consumer; empty/undefined means no filter.
   search?: string;
+  // label_reprint_needed=true; surfaces lots whose physical labels were
+  // invalidated by a compact-lots run.
+  reprintPending?: boolean;
 };
 
 function toQueryString(f: InfiniteLotFilters, offset: number): string {
@@ -31,6 +34,7 @@ function toQueryString(f: InfiniteLotFilters, offset: number): string {
   if (f.awaitingAi) p.set('awaitingAi', 'true');
   if (f.needsReview) p.set('needsReview', 'true');
   if (f.search) p.set('search', f.search);
+  if (f.reprintPending) p.set('reprintPending', 'true');
   p.set('limit', String(PAGE_SIZE));
   p.set('offset', String(offset));
   return `?${p.toString()}`;

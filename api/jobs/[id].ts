@@ -41,26 +41,39 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // else (lots in non-assigned state, lots missing data) keeps it
       // disabled. assignedLotCount is kept for backward-compat with any
       // legacy consumers but new gating logic should use the two new counts.
-      const [{ total, assigned, ready }] = await db.execute<{
-        total: number; assigned: number; ready: number;
+      const [{ total, assigned, ready, gaps }] = await db.execute<{
+        total: number; assigned: number; ready: number; gaps: number;
       }>(sql`
+        WITH job_lots AS (
+          SELECT * FROM lot WHERE job_id = ${id}
+        ),
+        numbered AS (
+          SELECT lot_number FROM job_lots WHERE lot_number IS NOT NULL
+        )
         SELECT
-          COUNT(*)::int AS total,
-          COUNT(*) FILTER (WHERE state = 'assigned')::int AS assigned,
-          COUNT(*) FILTER (
+          (SELECT COUNT(*)::int FROM job_lots) AS total,
+          (SELECT COUNT(*)::int FROM job_lots WHERE state = 'assigned') AS assigned,
+          (SELECT COUNT(*) FILTER (
             WHERE state = 'assigned'
               AND title IS NOT NULL AND title <> ''
               AND description IS NOT NULL AND description <> ''
               AND price IS NOT NULL
-          )::int AS ready
-          FROM lot
-         WHERE job_id = ${id}
+          )::int FROM job_lots) AS ready,
+          -- Gap count = (range size 10..MAX) − (lots present in that range).
+          -- Counts deleted-out / moved-out positions in the lot_number
+          -- sequence; surfaces in the export-prep modal so the operator can
+          -- compact before exporting to AF360.
+          COALESCE(
+            (SELECT MAX(lot_number) FROM numbered) - 9 - (SELECT COUNT(*)::int FROM numbered),
+            0
+          ) AS gaps
       `);
       return jsonOk(res, {
         ...row,
         assignedLotCount: assigned,
         totalLotCount: total,
         exportReadyLotCount: ready,
+        lotNumberGapCount: gaps,
       });
     }
 

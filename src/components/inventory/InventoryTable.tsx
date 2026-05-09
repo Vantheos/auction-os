@@ -1,6 +1,6 @@
 // src/components/inventory/InventoryTable.tsx
 import { Checkbox } from '@/components/ui/checkbox';
-import { StatePill, AiStatusPill } from '@/components/ui/pill';
+import { StatePill, AiStatusPill, ReprintPill } from '@/components/ui/pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { LotDTO } from '@shared/types';
 
@@ -87,7 +87,12 @@ export function InventoryTable({ lots, selected, onSelect, onSelectAll, onOpen, 
                   {l.title ?? <span className="text-textFaint italic">Untitled</span>}
                 </button>
               </TableCell>
-              <TableCell><StatePill state={l.state} /></TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <StatePill state={l.state} />
+                  {l.labelReprintNeeded && <ReprintPill />}
+                </div>
+              </TableCell>
               <TableCell><AiStatusPill status={l.lastAiRunStatus ?? 'not-run'} /></TableCell>
             </TableRow>
           ))}

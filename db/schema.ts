@@ -80,6 +80,10 @@ export const lot = pgTable('lot', {
   lastAiRunStatus: aiRunStatusEnum('last_ai_run_status'),
   lastAiRunError: text('last_ai_run_error'),
   aiProcessingStartedAt: timestamp('ai_processing_started_at', { withTimezone: true }),
+  // Set true when compact-lot-numbers shifts this lot to fill a gap; the
+  // operator must reprint the physical label. Auto-cleared when the lot's
+  // label is rendered again via /api/labels/render.
+  labelReprintNeeded: boolean('label_reprint_needed').notNull().default(false),
   intakeOperatorId: uuid('intake_operator_id').notNull().references(() => appUser.id),
   intakeTimestamp: timestamp('intake_timestamp', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

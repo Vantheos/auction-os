@@ -72,6 +72,14 @@ When fixing a bug in a shared component, check whether the same component render
 
 ## Cross-surface consistency — server
 
+### Lot-number sequence + compact
+
+Three things to keep coherent when touching lot-number allocation or the AF360 export:
+
+- **Allocation fills the lowest gap, not just MAX+1.** All three sites (`api/lots/index.ts`, `api/lots/bulk.ts`, `api/lots/[id]/move.ts`) go through `nextLotNumberForJob(tx, jobId)` ([api/_lib/lot-numbering.ts](../api/_lib/lot-numbering.ts)), which generates `[10..MAX+1]` and picks the lowest unused slot. Empty job → 10.
+- **Compact moves the highest into the lowest gap iteratively.** [`POST /api/jobs/:id/compact-lots`](../api/jobs/[id]/compact-lots.ts) exposes `computeCompactMoves` as a pure function so the algorithm is unit-testable independently of the DB. Each iteration shrinks MAX by 1, which can eliminate "gaps" that were past the new MAX (so `[10, 12, 15]` → 1 move, not 3). Don't replace this with single-shot pairing — it's wrong when gaps cluster low.
+- **`label_reprint_needed` is set on every moved lot, cleared on `/api/labels/render`.** UI surfaces it as a `<ReprintPill>` in inventory rows + a `?reprintPending=true` filter chip. Auto-clear on render is a deliberate simplification — if Browser Print fails on the client, the operator retries. Don't gate the flag clear behind a separate "print confirmed" round-trip without a strong reason.
+
 ### "Eligibility for AI" is defined in three places
 
 These three queries must stay in sync. The current definition: `lastAiRunStatus IS NULL AND state IN ('assigned','unassigned') AND (title IS NULL OR title='' OR description IS NULL OR description='' OR price IS NULL)`.
