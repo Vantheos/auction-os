@@ -21,6 +21,20 @@ afterEach(() => {
 // Log + swallow rather than crashing the test runner. Real bugs would
 // still surface as failing assertions; this only silences the
 // process-level detector.
-process.on('unhandledRejection', (reason) => {
-  console.error('[client-test suppressed unhandledRejection]', reason);
-});
+//
+// Guard with a globalThis symbol so we attach the handler exactly once
+// per worker process. Vitest runs setupFiles per test file with fresh
+// module isolation, so without this guard, each file would add another
+// listener — after ~10 files Node logs MaxListenersExceededWarning, and
+// a single intentional rejection (e.g. the LotEditForm "boom" test)
+// fires through every stacked handler. globalThis survives module
+// re-instantiation within the worker, so the flag persists across
+// files.
+const HANDLER_INSTALLED = Symbol.for('auction-os.client-test.unhandled-rejection-handler');
+type WithFlag = typeof globalThis & { [HANDLER_INSTALLED]?: boolean };
+if (!(globalThis as WithFlag)[HANDLER_INSTALLED]) {
+  (globalThis as WithFlag)[HANDLER_INSTALLED] = true;
+  process.on('unhandledRejection', (reason) => {
+    console.error('[client-test suppressed unhandledRejection]', reason);
+  });
+}

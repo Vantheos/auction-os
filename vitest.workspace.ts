@@ -28,16 +28,14 @@ export default defineWorkspace([
       include: ['tests/client/**/*.test.{ts,tsx}'],
       environment: 'happy-dom',
       setupFiles: ['./tests/helpers/setup-client.ts'],
-      // Cap parallelism. The default thread pool spawns ~cpu_count-1
-      // workers, each running happy-dom + complex React trees + TanStack
-      // Query + timers + spies. When the suite is run back-to-back with
-      // build+lint (the pre-push trio), cumulative resource pressure has
-      // caused waitFor/findBy timeouts to cascade across files (110 and
-      // 123 failures observed in two separate trio runs, never the same
-      // tests, immediately followed by clean solo re-runs). Capping to
-      // 2 threads eliminates the cascade at a modest wall-time cost.
-      // API project stays single-fork (already serialized for shared
-      // test-DB safety).
+      // Cap parallelism at 2. The default thread pool (~cpu_count-1)
+      // and single-thread (maxThreads: 1) both showed similar cascade
+      // rates, so parallelism wasn't the root cause — the actual
+      // culprit was an unhandledRejection listener leak in
+      // setup-client.ts (now fixed via a globalThis guard). 2 is the
+      // sweet spot: real parallelism for speed, low enough that any
+      // residual contention stays bounded. API project stays
+      // single-fork (already serialized for shared test-DB safety).
       pool: 'threads',
       poolOptions: { threads: { minThreads: 1, maxThreads: 2 } },
     },
