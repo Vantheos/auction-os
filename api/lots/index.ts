@@ -8,6 +8,7 @@ import { asActor, getDb } from '../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../_lib/responses.js';
 import { pgCodeOf, PG_UNIQUE_VIOLATION } from '../_lib/pg-errors.js';
 import { signUploadUrl, bulkSignReadUrls } from '../_lib/storage.js';
+import { nextLotNumberForJob } from '../_lib/lot-numbering.js';
 import { customer, job, lot, lotPhoto } from '../../db/schema.js';
 
 async function fetchLotJoined(db: ReturnType<typeof getDb>, id: string) {
@@ -233,11 +234,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           // existing 409 LOT_NUMBER_CONFLICT path stays as defense-in-depth.
           await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${parsed.data.jobId}))`);
 
-          const [maxRow] = await tx
-            .select({ maxN: sql<number>`COALESCE(MAX(${lot.lotNumber}), 9) + 1` })
-            .from(lot)
-            .where(eq(lot.jobId, parsed.data.jobId));
-          const nextLotNumber = maxRow?.maxN ?? 10;
+          const nextLotNumber = await nextLotNumberForJob(tx, parsed.data.jobId);
 
           const [row] = await tx.insert(lot).values({
             jobId: parsed.data.jobId,

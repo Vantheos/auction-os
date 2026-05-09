@@ -25,13 +25,14 @@ export function EndSessionConfirm({ open, hasInProgressLot, savedCount, onCancel
         </DialogHeader>
         <div className="text-sm text-textDim space-y-2">
           <p>
-            You've cataloged <b className="text-text">{savedCount} lot{savedCount !== 1 ? 's' : ''}</b>{' '}
-            in this session. Saved lots stay; you'll see them in Inventory.
+            You've finished <b className="text-text">{savedCount} lot{savedCount !== 1 ? 's' : ''}</b>{' '}
+            in this session.
+            {hasInProgressLot ? ' The current lot will be saved.' : ''}
           </p>
           {hasInProgressLot && (
-            <p>
-              The current in-progress lot has not been finished. You can keep it
-              (it'll appear in Inventory with whatever fields you've filled) or discard it.
+            <p className="text-xs">
+              Choose <b>Keep &amp; end</b> to save the in-progress lot as-is,
+              or <b>Discard &amp; end</b> to drop it.
             </p>
           )}
         </div>

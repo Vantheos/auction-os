@@ -1,11 +1,12 @@
 // api/lots/[id]/move.ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../../_lib/body.js';
 import { asActor, getDb } from '../../_lib/db.js';
 import { jsonError, jsonOk, methodNotAllowed } from '../../_lib/responses.js';
+import { nextLotNumberForJob } from '../../_lib/lot-numbering.js';
 import { pgCodeOf, PG_UNIQUE_VIOLATION } from '../../_lib/pg-errors.js';
 import { customer, job, lot } from '../../../db/schema.js';
 
@@ -67,12 +68,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           throw new IllegalMoveError(current.state);
         }
         const wasUnassigned = current.state === 'unassigned';
-        // Reserve next lot_number in destination, baseline 10
-        const [maxRow] = await tx
-          .select({ maxN: sql<number>`COALESCE(MAX(${lot.lotNumber}), 9) + 1` })
-          .from(lot)
-          .where(eq(lot.jobId, parsed.data.destinationJobId));
-        const nextLotNumber = maxRow?.maxN ?? 10;
+        // Reserve next lot_number in destination — fills the lowest gap
+        // before extending past max, keeps the AF360 export sequential.
+        const nextLotNumber = await nextLotNumberForJob(tx, parsed.data.destinationJobId);
         const [updated] = await tx.update(lot).set({
           jobId: parsed.data.destinationJobId,
           lotNumber: nextLotNumber,
