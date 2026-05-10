@@ -24,9 +24,8 @@ export function BulkReprintDialog({ open, onClose, count, onConfirm, busy }: Pro
         <DialogHeader>
           <DialogTitle>Reprint labels</DialogTitle>
           <DialogDescription>
-            Reprint labels for <strong>{count}</strong> selected {count === 1 ? 'lot' : 'lots'}? The
-            print jobs will be sent one at a time. After they're sent you'll be asked to verify the
-            printed stack — Browser Print can't confirm the printer actually produced each label.
+            Reprint labels for <strong>{count}</strong> selected {count === 1 ? 'lot' : 'lots'}?
+            You'll be notified when the print request has been sent.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
