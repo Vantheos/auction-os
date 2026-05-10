@@ -107,9 +107,9 @@ only by promoting a previous deploy.
 ### P3.1 Physical Zebra ZD450 round-trip
 > Phase 7 deferral (T-G1 from Phase 3 carry-forward).
 
-- [ ] With a physical Zebra ZD450 connected via USB and Browser Print running on the workstation:
+- [ ] With a physical Zebra ZP450 connected via USB and Browser Print running on the workstation:
 - [ ] Click Reprint label on a lot. Helper relays ZPL to the printer. Label prints.
-- [ ] Verify label content: customer name, lot number, sellerCode (if applicable), barcode.
+- [ ] Verify label content matches `api/_lib/label-render.ts`: lot number (large), customer name (truncated to 20 chars), job tail (last segment after final `-`, truncated to 12 chars), and QR code linking to `{deployHost}/lot/{lot.id}`.
 
 ### P3.2 Audit-log SQL spot-check on prod
 > Phase 8 cutover step 4 (T-G2 from Phase 3 carry-forward).
