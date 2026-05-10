@@ -18,7 +18,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import { useBulkLabelPrint } from '@/hooks/useBulkLabelPrint';
 import { createTestQueryClient, renderHookWithProviders } from '../../helpers/render-with-providers';
-import { mockApi, resetMockApi, getApiCalls } from '../../helpers/mock-api';
+import { mockApi, resetMockApi, getApiCalls, type RouteCtx } from '../../helpers/mock-api';
 
 vi.mock('@/lib/api', async () => ({
   api: (await import('../../helpers/mock-api')).apiMockImpl,
@@ -65,7 +65,7 @@ afterEach(() => {
 describe('useBulkLabelPrint', () => {
   it('runs prints serially in lotId order, all succeed', async () => {
     mockApi({
-      'POST /labels/render': ({ body }) => ({ zpl: `ZPL ${(body as { lotId: string }).lotId}` }),
+      'POST /labels/render': (ctx: RouteCtx) => ({ zpl: `ZPL ${(ctx.body as { lotId: string }).lotId}` }),
     });
     fetchSpy.mockResolvedValue({ ok: true } as Response);
     const queryClient = createTestQueryClient();
@@ -116,16 +116,16 @@ describe('useBulkLabelPrint', () => {
 
     const { result } = renderHookWithProviders(() => useBulkLabelPrint(), { queryClient });
 
-    let err: Error | null = null;
+    const errors: Error[] = [];
     await act(async () => {
       try {
         await result.current.mutateAsync(['lot-1']);
       } catch (e) {
-        err = e as Error;
+        errors.push(e as Error);
       }
     });
 
-    expect(err?.message).toBe('NO_HELPER_URL');
+    expect(errors[0]?.message).toBe('NO_HELPER_URL');
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(getApiCalls().filter((c) => c.path === '/labels/render')).toHaveLength(0);
   });
