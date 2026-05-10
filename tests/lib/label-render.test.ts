@@ -36,4 +36,14 @@ describe('renderZpl', () => {
     expect(zpl).toContain('^PW406');
     expect(zpl).toContain('^LL203');
   });
+  // Pin the QR magnification choice. Phase 7 bench testing surfaced that
+  // magnification 5 (the Phase 2 default) overflowed the 1" label height
+  // when encoding the long Vercel preview URL. Magnification 3 keeps the
+  // QR within ~0.8" for URLs up to ~120 chars at Model 2 + Q error
+  // correction. If you need to bump this, re-verify against a real label
+  // print with the longest expected deploy host first.
+  it('uses QR magnification 3 to fit long URLs within the 1" label height', async () => {
+    const zpl = await renderZpl(SAMPLE, 'https://example.com');
+    expect(zpl).toContain('^BQN,2,3');
+  });
 });
