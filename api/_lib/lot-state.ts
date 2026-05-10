@@ -46,11 +46,17 @@ export function sharedLegalTransitions(states: LotState[]): LotState[] {
 // other states preserve them. Pure — callers merge into their own update
 // object so the single-lot PATCH and bulk change-state both still write
 // one statement per lot.
+//
+// Phase 7: when transitioning to a non-labelable state (jobId/lotNumber
+// nulled), the labelReprintNeeded flag is also cleared. A lot with no
+// lotNumber cannot be rendered (/api/labels/render returns 422), so the
+// flag has no actionable meaning on it. If the lot later transitions
+// back to assigned via Move, Area A re-sets the flag.
 export function stateTransitionFields(
   to: LotState,
-): { state: LotState; jobId?: null; lotNumber?: null } {
+): { state: LotState; jobId?: null; lotNumber?: null; labelReprintNeeded?: false } {
   if (to === 'unassigned' || to === 'not-sellable') {
-    return { state: to, jobId: null, lotNumber: null };
+    return { state: to, jobId: null, lotNumber: null, labelReprintNeeded: false };
   }
   return { state: to };
 }

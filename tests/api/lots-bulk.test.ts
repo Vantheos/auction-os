@@ -66,6 +66,34 @@ describe('POST /api/lots/bulk — change-state', () => {
     expect(a.lotNumber).toBeNull();
   });
 
+  it('clears labelReprintNeeded on bulk transition to unassigned/not-sellable', async () => {
+    const { lotIds } = await seed3Lots();
+    // Pre-flag both lots; the third (sold) is left alone for the partial-failure case below
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotIds[0]));
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotIds[1]));
+    const res = await call({ action: 'change-state', lotIds: lotIds.slice(0, 2), params: { to: 'not-sellable' } });
+    expect(res.status).toBe(200);
+    expect(res.body.results.every((r: any) => r.ok)).toBe(true);
+    const rows = await testDb.select().from(lot).where(eq(lot.id, lotIds[0]));
+    const rows2 = await testDb.select().from(lot).where(eq(lot.id, lotIds[1]));
+    expect(rows[0].labelReprintNeeded).toBe(false);
+    expect(rows2[0].labelReprintNeeded).toBe(false);
+  });
+
+  it('preserves labelReprintNeeded on illegally-transitioned lots in a partial failure', async () => {
+    const { lotIds } = await seed3Lots();
+    // sold → not-sellable is illegal per TRANSITIONS in lot-state.ts (sold can
+    // only go to picked-up or unassigned). Pre-flag the sold lot; verify the
+    // failed savepoint preserves its labelReprintNeeded value.
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotIds[2]));
+    const res = await call({ action: 'change-state', lotIds, params: { to: 'not-sellable' } });
+    expect(res.status).toBe(200);
+    const fail = res.body.results.filter((r: any) => !r.ok);
+    expect(fail).toHaveLength(1);
+    const [soldLot] = await testDb.select().from(lot).where(eq(lot.id, lotIds[2]));
+    expect(soldLot.labelReprintNeeded).toBe(true);
+  });
+
   it('400 on missing params.to', async () => {
     const { lotIds } = await seed3Lots();
     const res = await call({ action: 'change-state', lotIds });

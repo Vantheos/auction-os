@@ -101,6 +101,33 @@ describe('PATCH /api/lots/[id]', () => {
     expect(res.body.lotNumber).toBeNull();
   });
 
+  it('transitioning to unassigned clears labelReprintNeeded', async () => {
+    const { lotId } = await seed();
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotId));
+    const res = await call(lotId, 'PATCH', { state: 'unassigned' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const [row] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(row.labelReprintNeeded).toBe(false);
+  });
+
+  it('transitioning to not-sellable clears labelReprintNeeded', async () => {
+    const { lotId } = await seed();
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotId));
+    const res = await call(lotId, 'PATCH', { state: 'not-sellable' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const [row] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(row.labelReprintNeeded).toBe(false);
+  });
+
+  it('transitioning to sold preserves labelReprintNeeded (label still printable)', async () => {
+    const { lotId } = await seed();
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotId));
+    const res = await call(lotId, 'PATCH', { state: 'sold' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const [row] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(row.labelReprintNeeded).toBe(true);
+  });
+
   it('404 on PATCH of unknown id', async () => {
     await seed();
     const res = await call('00000000-0000-0000-0000-000000000099', 'PATCH', { title: 'X' }, 'admin', ADMIN);
