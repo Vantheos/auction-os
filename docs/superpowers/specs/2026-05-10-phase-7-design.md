@@ -92,14 +92,15 @@ Rationale: a lot with `lotNumber === null` cannot be rendered (`POST /api/labels
 
 Two parts:
 
-**D.1 — New hook `useBulkLabelPrint`** at `src/hooks/useBulkLabelPrint.ts`. Runs N print operations in series, mirrors `useLabelPrint`'s render-then-POST-to-helper pattern, but with consolidated progress feedback instead of one toast per lot.
+**D.1 — New hook `useBulkLabelPrint`** at `src/hooks/useBulkLabelPrint.ts`. Runs N print operations in series, mirrors `useLabelPrint`'s render-then-POST-to-helper pattern, but consolidates feedback into a single static toast + the verify-popup at the end (no per-lot toasts).
 
 - Input: `lotIds: string[]`.
-- Per-lot loop: call `POST /api/labels/render` → POST ZPL to `{helperUrl}/write` → record success/failure → advance progress.
-- Single in-place updating progress toast: "Printing 1 of N…" → "Printing 2 of N…" → final "Sent N print jobs" with the verify-popup as the next step.
-- Per-lot failures (Browser Print unreachable, render endpoint 5xx, etc.) are tallied; the loop continues. Final summary distinguishes "sent" (server render OK + helper POST OK) from "failed" (either side errored).
+- Before the loop: fire a single static toast `Sending {N} labels to the printer` (duration 0 — held until the loop ends). Wording is intentionally "Sending," not "Printing" — Browser Print's 200 means "ZPL accepted," not "label produced," so the toast doesn't claim per-iteration progress we can't actually verify. The toast is purely a "system is alive" signal during the ~15-second window for a 30-lot batch.
+- Per-lot loop (serial): call `POST /api/labels/render` → POST ZPL to `{helperUrl}/write` → tally success/failure → continue regardless of per-lot outcome.
+- After the loop: dismiss the static toast; resolve the mutation with `{ sentCount, failedCount }`. The caller opens `BulkPrintVerifyDialog` with those counts.
+- Per-lot failures (Browser Print unreachable, render endpoint 5xx, etc.) are tallied; the loop continues. Final tally distinguishes "sent" (server render OK + helper POST OK) from "failed" (either side errored).
 - **Cache invalidation:** after the loop completes, invalidate `['lots-infinite']` once (not per-lot — avoids 30 refetches in series).
-- Uses the existing `useSystemSettings()` to read `labelPrinterHelperUrl`. If the helper URL is missing, abort the loop immediately with a "Printer not configured" toast (same wording as `useLabelPrint`).
+- Uses the existing `useSystemSettings()` to read `labelPrinterHelperUrl`. If the helper URL is missing, abort immediately with a "Printer not configured" toast (same wording as `useLabelPrint`); the static "Sending…" toast is not fired in this case.
 
 **D.2 — Wire the checkbox.** [`src/routes/Inventory.tsx:330-349`](../../../src/routes/Inventory.tsx#L330-L349) — `BulkMoveDialog`'s `onConfirm` currently destructures only `destinationJobId`. Updated to:
 
