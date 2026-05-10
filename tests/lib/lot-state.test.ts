@@ -37,24 +37,26 @@ describe('validateTransition', () => {
 });
 
 describe('stateTransitionFields', () => {
-  it('clears jobId + lotNumber when transitioning to unassigned', () => {
+  it('clears jobId + lotNumber + labelReprintNeeded when transitioning to unassigned', () => {
     expect(stateTransitionFields('unassigned')).toEqual({
       state: 'unassigned',
       jobId: null,
       lotNumber: null,
+      labelReprintNeeded: false,
     });
   });
-  it('clears jobId + lotNumber when transitioning to not-sellable', () => {
+  it('clears jobId + lotNumber + labelReprintNeeded when transitioning to not-sellable', () => {
     expect(stateTransitionFields('not-sellable')).toEqual({
       state: 'not-sellable',
       jobId: null,
       lotNumber: null,
+      labelReprintNeeded: false,
     });
   });
-  it('preserves jobId + lotNumber for assigned (no clear keys)', () => {
+  it('preserves jobId + lotNumber + labelReprintNeeded for assigned (no clear keys)', () => {
     expect(stateTransitionFields('assigned')).toEqual({ state: 'assigned' });
   });
-  it('preserves jobId + lotNumber for sold and picked-up', () => {
+  it('preserves jobId + lotNumber + labelReprintNeeded for sold and picked-up', () => {
     expect(stateTransitionFields('sold')).toEqual({ state: 'sold' });
     expect(stateTransitionFields('picked-up')).toEqual({ state: 'picked-up' });
   });
