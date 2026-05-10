@@ -1,7 +1,7 @@
 // src/hooks/useBulkLabelPrint.ts
 //
 // Phase 7. Serial bulk-label-print orchestration. Mirrors useLabelPrint's
-// render-then-POST-to-Browser-Print pattern but consolidates feedback
+// render-then-send-to-Browser-Print pattern but consolidates feedback
 // into:
 //   1. A single static "Sending N labels to the printer" toast held for
 //      the duration of the loop. Wording is intentionally "Sending," not
@@ -17,22 +17,18 @@
 // Per-lot failures (Browser Print unreachable, render endpoint 5xx) are
 // tallied; the loop continues. Cache invalidation fires once on settle
 // (not per-lot) to avoid 30 sequential refetches.
+//
+// Device discovery (/available) runs once before the loop, then each
+// per-lot send reuses the same device — avoids hitting /available 30
+// times for a 30-lot batch.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useSystemSettings } from './useSystemSettings';
+import { discoverPrinter, sendZpl, NO_PRINTER } from '@/lib/browser-print';
 
 export type BulkPrintResult = { sentCount: number; failedCount: number };
-
-async function postZpl(helperUrl: string, zpl: string): Promise<void> {
-  const r = await fetch(`${helperUrl.replace(/\/$/, '')}/write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: zpl,
-  });
-  if (!r.ok) throw new Error(`Browser Print returned ${r.status}`);
-}
 
 export function useBulkLabelPrint() {
   const { toast, dismiss } = useToast();
@@ -44,6 +40,10 @@ export function useBulkLabelPrint() {
       const helperUrl = settings?.labelPrinterHelperUrl;
       if (!helperUrl) throw new Error('NO_HELPER_URL');
       if (lotIds.length === 0) return { sentCount: 0, failedCount: 0 };
+
+      // Discover the printer once before the loop. If discovery fails,
+      // the loop can't usefully proceed — surface the error via onError.
+      const device = await discoverPrinter(helperUrl);
 
       const toastId = toast({
         title: `Sending ${lotIds.length} labels to the printer`,
@@ -59,7 +59,7 @@ export function useBulkLabelPrint() {
               method: 'POST',
               body: JSON.stringify({ lotId }),
             });
-            await postZpl(helperUrl, zpl);
+            await sendZpl(helperUrl, device, zpl);
             sentCount += 1;
           } catch {
             // Per-lot failure — render 5xx, helper unreachable, etc.
@@ -84,7 +84,23 @@ export function useBulkLabelPrint() {
           description: 'Set the helper URL in Settings → Label printer.',
           variant: 'warning',
         });
+        return;
       }
+      if (err.message === NO_PRINTER) {
+        toast({
+          title: 'No printer detected',
+          description: 'Browser Print is reachable but no printer is connected.',
+          variant: 'warning',
+        });
+        return;
+      }
+      // Other discovery failures (HTTP error from /available) — surface
+      // the message so the operator can diagnose.
+      toast({
+        title: 'Bulk print failed',
+        description: err.message,
+        variant: 'warning',
+      });
     },
   });
 }

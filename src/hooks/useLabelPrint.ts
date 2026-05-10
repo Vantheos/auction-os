@@ -3,15 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useSystemSettings } from './useSystemSettings';
-
-async function postZpl(helperUrl: string, zpl: string): Promise<void> {
-  const r = await fetch(`${helperUrl.replace(/\/$/, '')}/write`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: zpl,
-  });
-  if (!r.ok) throw new Error(`Browser Print returned ${r.status}`);
-}
+import { discoverPrinter, sendZpl, NO_PRINTER } from '@/lib/browser-print';
 
 export function useLabelPrint() {
   const { toast } = useToast();
@@ -26,7 +18,8 @@ export function useLabelPrint() {
         method: 'POST',
         body: JSON.stringify({ lotId }),
       });
-      await postZpl(helperUrl, zpl);
+      const device = await discoverPrinter(helperUrl);
+      await sendZpl(helperUrl, device, zpl);
     },
     // Invalidate on settle (success OR error). The server clears the
     // lot's label_reprint_needed flag the moment /api/labels/render
@@ -45,6 +38,14 @@ export function useLabelPrint() {
         toast({
           title: 'Printer not configured',
           description: 'Set the helper URL in Settings → Label printer.',
+          variant: 'warning',
+        });
+        return;
+      }
+      if (err.message === NO_PRINTER) {
+        toast({
+          title: 'No printer detected',
+          description: 'Browser Print is reachable but no printer is connected.',
           variant: 'warning',
         });
         return;
