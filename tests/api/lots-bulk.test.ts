@@ -115,6 +115,9 @@ describe('POST /api/lots/bulk — move', () => {
     expect(a.jobId).toBe(j2.id);
     expect(b.jobId).toBe(j2.id);
     expect([a.lotNumber, b.lotNumber].sort()).toEqual([10, 11]);  // baseline 10, then 11
+    // Phase 7: every successfully-moved lot gets flagged for reprint
+    expect(a.labelReprintNeeded).toBe(true);
+    expect(b.labelReprintNeeded).toBe(true);
   });
 
   it('per-lot ILLEGAL_MOVE for sold lots in mixed batch (only assigned can move)', async () => {
@@ -127,6 +130,9 @@ describe('POST /api/lots/bulk — move', () => {
     expect(ok).toHaveLength(2);                  // first 2 are assigned
     expect(fail).toHaveLength(1);                // third is sold
     expect(fail[0].error.code).toBe('ILLEGAL_MOVE');
+    // Phase 7: failed lot's flag is unchanged (savepoint rolled back)
+    const [soldLot] = await testDb.select().from(lot).where(eq(lot.id, lotIds[2]));
+    expect(soldLot.labelReprintNeeded).toBe(false);
   });
 
   it('per-lot INVALID_DESTINATION when destination job does not exist', async () => {

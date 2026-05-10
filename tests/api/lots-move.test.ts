@@ -45,6 +45,18 @@ describe('POST /api/lots/[id]/move', () => {
     expect(res.status).toBe(200);
     expect(res.body.jobId).toBe(dstJobId);
     expect(res.body.lotNumber).toBe(10);  // first lot in destination, baseline 10
+    // Phase 7: any move flags the lot for reprint (lot_number changed)
+    const [moved] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(moved.labelReprintNeeded).toBe(true);
+  });
+
+  it('move sets labelReprintNeeded=true idempotently even when already true', async () => {
+    const { lotId, dstJobId } = await seed();
+    await testDb.update(lot).set({ labelReprintNeeded: true }).where(eq(lot.id, lotId));
+    const res = await call(lotId, { destinationJobId: dstJobId }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const [moved] = await testDb.select().from(lot).where(eq(lot.id, lotId));
+    expect(moved.labelReprintNeeded).toBe(true);
   });
 
   it('office can move', async () => {

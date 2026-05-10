@@ -74,6 +74,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         const [updated] = await tx.update(lot).set({
           jobId: parsed.data.destinationJobId,
           lotNumber: nextLotNumber,
+          // Phase 7: any move changes lot_number (destination has its own
+          // sequence) and may change the customer name on the label, so the
+          // printed label is stale. Pill clears when /api/labels/render fires.
+          labelReprintNeeded: true,
           ...(wasUnassigned ? { state: 'assigned' as const } : {}),
           updatedAt: new Date(),
         }).where(eq(lot.id, id)).returning();

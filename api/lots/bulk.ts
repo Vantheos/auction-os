@@ -156,6 +156,8 @@ async function applyMove(tx: Transaction, lotIds: string[], destinationJobId: st
         await sub.update(lot).set({
           jobId: destinationJobId,
           lotNumber: nextLotNumber,
+          // Phase 7: see api/lots/[id]/move.ts for rationale.
+          labelReprintNeeded: true,
           ...(wasUnassigned ? { state: 'assigned' as const } : {}),
           updatedAt: new Date(),
         }).where(eq(lot.id, id));
