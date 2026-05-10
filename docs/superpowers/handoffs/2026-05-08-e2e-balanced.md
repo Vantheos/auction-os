@@ -70,7 +70,7 @@ Default role for Sections A, B, and M is **Admin** unless stated otherwise.
 
 ### A.4 Photo management
 - [x] In the lot detail of a non-frozen lot, click a thumbnail. PhotoManager full-screen overlay appears, focused on that photo.
-- [x] Reorder via drag (desktop). Save. Reopen — order persists.
+- [-] Reorder via drag (desktop). Save. Reopen — order persists.
 - [x] Delete a photo. Confirm. Photo gone from grid.
 - [x] If you delete the last photo of a lot, server returns an error (lot must have ≥1 photo); UI shows the error toast.
 - [x] Close the PhotoManager. The parent lot detail dialog is still open and intact.
