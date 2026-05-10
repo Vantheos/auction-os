@@ -1,7 +1,7 @@
 // api/customers/[id].ts
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AuthError, requireAuth } from '../_lib/auth.js';
 import { readJson, EmptyBodyError } from '../_lib/body.js';
 import { asActor, getDb } from '../_lib/db.js';
@@ -56,11 +56,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (disabled === true) updateValues.disabledAt = new Date();
       else if (disabled === false) updateValues.disabledAt = null;
       const row = await asActor(userId, async (tx) => {
+        // Phase 7: fetch the existing row inside the same tx so we can
+        // detect a label-affecting `name` change before applying the update.
+        const [before] = await tx.select().from(customer).where(eq(customer.id, id));
+        if (!before) return null;
+
         const [r] = await tx
           .update(customer)
           .set(updateValues)
           .where(eq(customer.id, id))
           .returning();
+
+        // Phase 7: if customer.name actually changed, every lot in every job
+        // belonging to this customer now has a stale printed-label customer
+        // line. Cascade-flag in the same transaction so the operator sees
+        // the Reprint pill on those rows. Other field changes (sellerCode,
+        // disabledAt) don't affect the label and don't fire the cascade.
+        if (parsed.data.name !== undefined && parsed.data.name !== before.name) {
+          await tx.execute(sql`
+            UPDATE lot SET label_reprint_needed = true, updated_at = NOW()
+            WHERE job_id IN (SELECT id FROM job WHERE customer_id = ${id})
+          `);
+        }
+
         return r;
       });
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'Customer not found');

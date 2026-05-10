@@ -96,7 +96,24 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (parsed.data.shippable !== undefined) update.shippable = parsed.data.shippable;
 
       const row = await asActor(userId, async (tx) => {
+        // Phase 7: fetch existing row inside the same tx to detect
+        // label-affecting jobNumber change before applying the update.
+        const [before] = await tx.select().from(job).where(eq(job.id, id));
+        if (!before) return null;
+
         const [r] = await tx.update(job).set(update).where(eq(job.id, id)).returning();
+
+        // Phase 7: if jobNumber actually changed, every lot in this job has
+        // a stale printed-label job-tail line. Cascade-flag in the same tx.
+        // Other field changes (startBid, shippable, closedAt) don't affect
+        // the label.
+        if (parsed.data.jobNumber !== undefined && parsed.data.jobNumber !== before.jobNumber) {
+          await tx.execute(sql`
+            UPDATE lot SET label_reprint_needed = true, updated_at = NOW()
+            WHERE job_id = ${id}
+          `);
+        }
+
         return r;
       });
       if (!row) return jsonError(res, 404, 'NOT_FOUND', 'Job not found');

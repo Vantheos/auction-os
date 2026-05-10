@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { callHandler, type CallResult } from '../helpers/call-handler';
-import { appUser, customer as customerTable, lot } from '../../db/schema';
+import { appUser, customer as customerTable, job, lot } from '../../db/schema';
 import indexHandler from '../../api/jobs/index';
 import idHandler from '../../api/jobs/[id]';
 
@@ -223,5 +224,64 @@ describe('PATCH /api/jobs/:id (close/reopen)', () => {
     const res = await callId(created.id, 'PATCH', { closed: false }, 'admin', ADMIN);
     expect(res.status).toBe(200);
     expect(res.body.closedAt).toBeNull();
+  });
+});
+
+// Phase 7: cascade label_reprint_needed when job.jobNumber changes —
+// every lot in this job has a stale printed-label job-tail line.
+describe('PATCH /api/jobs/:id — label reprint cascade on jobNumber change', () => {
+  let customerId: string;
+  beforeEach(async () => { await truncateAll(); customerId = await seedUsersAndCustomer(); });
+
+  async function seedTwoJobsWithLots() {
+    const [j1] = await testDb.insert(job).values({ customerId, jobNumber: 'A' }).returning();
+    const [j2] = await testDb.insert(job).values({ customerId, jobNumber: 'B' }).returning();
+    const lots = await testDb.insert(lot).values([
+      { jobId: j1.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+      { jobId: j1.id, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+      { jobId: j2.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+    ]).returning();
+    return { j1: j1.id, j2: j2.id, lotIdsJ1: [lots[0].id, lots[1].id], lotIdsJ2: [lots[2].id] };
+  }
+
+  it('cascades flag to lots in the renamed job; sibling job lots untouched', async () => {
+    const { j1, lotIdsJ1, lotIdsJ2 } = await seedTwoJobsWithLots();
+    const res = await callId(j1, 'PATCH', { jobNumber: 'A-renamed' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const rows = await testDb.select().from(lot);
+    expect(rows.filter((l) => lotIdsJ1.includes(l.id)).every((l) => l.labelReprintNeeded === true)).toBe(true);
+    expect(rows.filter((l) => lotIdsJ2.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
+  });
+
+  it('does NOT cascade when only startBid changes', async () => {
+    const { j1, lotIdsJ1 } = await seedTwoJobsWithLots();
+    const res = await callId(j1, 'PATCH', { startBid: '7.50' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const rows = await testDb.select().from(lot);
+    expect(rows.filter((l) => lotIdsJ1.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
+  });
+
+  it('does NOT cascade when only shippable changes', async () => {
+    const { j1, lotIdsJ1 } = await seedTwoJobsWithLots();
+    const res = await callId(j1, 'PATCH', { shippable: true }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const rows = await testDb.select().from(lot);
+    expect(rows.filter((l) => lotIdsJ1.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
+  });
+
+  it('does NOT cascade on closed toggle', async () => {
+    const { j1, lotIdsJ1 } = await seedTwoJobsWithLots();
+    const res = await callId(j1, 'PATCH', { closed: true }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const rows = await testDb.select().from(lot).where(eq(lot.id, lotIdsJ1[0]));
+    expect(rows[0].labelReprintNeeded).toBe(false);
+  });
+
+  it('does NOT cascade when jobNumber PATCH provides the same value', async () => {
+    const { j1, lotIdsJ1 } = await seedTwoJobsWithLots();
+    const res = await callId(j1, 'PATCH', { jobNumber: 'A' }, 'admin', ADMIN);
+    expect(res.status).toBe(200);
+    const rows = await testDb.select().from(lot);
+    expect(rows.filter((l) => lotIdsJ1.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
   });
 });

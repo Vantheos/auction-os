@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { mintTestJwt } from '../helpers/test-jwt';
 import { callHandler, type CallResult } from '../helpers/call-handler';
-import { appUser } from '../../db/schema';
+import { appUser, customer, job, lot } from '../../db/schema';
 import indexHandler from '../../api/customers/index';
 import idHandler from '../../api/customers/[id]';
 
@@ -107,6 +108,66 @@ describe('PATCH /api/customers/:id', () => {
     const created = (await call('POST', { name: 'X', sellerCode: 'X1' }, 'admin', ADMIN)).body;
     const res = await callId(created.id, 'PATCH', { name: 'Y' }, 'warehouse', WAREHOUSE);
     expect(res.status).toBe(403);
+  });
+
+  // Phase 7: cascade label_reprint_needed when customer.name changes —
+  // every lot in every job belonging to this customer has a stale label.
+  describe('label reprint cascade on name change', () => {
+    async function seedCustomerWithLots(name: string) {
+      const [c] = await testDb.insert(customer).values({ name, sellerCode: 'SC' }).returning();
+      const [j1] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J1' }).returning();
+      const [j2] = await testDb.insert(job).values({ customerId: c.id, jobNumber: 'J2' }).returning();
+      const lots = await testDb.insert(lot).values([
+        { jobId: j1.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+        { jobId: j1.id, lotNumber: 11, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+        { jobId: j2.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN },
+      ]).returning();
+      return { customerId: c.id, lotIds: lots.map((l) => l.id) };
+    }
+
+    it('cascades flag to every lot in every job when name changes', async () => {
+      const { customerId, lotIds } = await seedCustomerWithLots('OldName');
+      // A sibling customer with its own lot — must remain unflagged.
+      const [sibling] = await testDb.insert(customer).values({ name: 'Sibling' }).returning();
+      const [sj] = await testDb.insert(job).values({ customerId: sibling.id, jobNumber: 'SJ' }).returning();
+      const [siblingLot] = await testDb.insert(lot).values({
+        jobId: sj.id, lotNumber: 10, state: 'assigned', source: 'imported', intakeOperatorId: ADMIN,
+      }).returning();
+
+      const res = await callId(customerId, 'PATCH', { name: 'NewName' }, 'admin', ADMIN);
+      expect(res.status).toBe(200);
+
+      const flagged = await testDb.select().from(lot);
+      const target = flagged.filter((l) => lotIds.includes(l.id));
+      expect(target).toHaveLength(3);
+      expect(target.every((l) => l.labelReprintNeeded === true)).toBe(true);
+      const sib = flagged.find((l) => l.id === siblingLot.id)!;
+      expect(sib.labelReprintNeeded).toBe(false);
+    });
+
+    it('does NOT cascade when only sellerCode changes', async () => {
+      const { customerId, lotIds } = await seedCustomerWithLots('Same');
+      const res = await callId(customerId, 'PATCH', { sellerCode: 'NEW1' }, 'admin', ADMIN);
+      expect(res.status).toBe(200);
+      const rows = await testDb.select().from(lot);
+      expect(rows.filter((l) => lotIds.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
+    });
+
+    it('does NOT cascade when name PATCH provides the same value', async () => {
+      const { customerId, lotIds } = await seedCustomerWithLots('Identical');
+      const res = await callId(customerId, 'PATCH', { name: 'Identical' }, 'admin', ADMIN);
+      expect(res.status).toBe(200);
+      const rows = await testDb.select().from(lot);
+      expect(rows.filter((l) => lotIds.includes(l.id)).every((l) => l.labelReprintNeeded === false)).toBe(true);
+    });
+
+    it('does NOT cascade on disabled toggle alone', async () => {
+      const { customerId, lotIds } = await seedCustomerWithLots('DisableMe');
+      const res = await callId(customerId, 'PATCH', { disabled: true }, 'admin', ADMIN);
+      expect(res.status).toBe(200);
+      const rows = await testDb.select().from(lot).where(eq(lot.id, lotIds[0]));
+      expect(rows[0].labelReprintNeeded).toBe(false);
+    });
   });
 });
 
