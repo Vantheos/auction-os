@@ -26,10 +26,21 @@ describe('renderZpl', () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
     expect(zpl).toContain('https://example.com/lot/11111111-1111-1111-1111-111111111111');
   });
-  it('uses last segment of job number when full triple is too long', async () => {
+  it('contains the full job number (wrapped, not tail-truncated) up to 30 chars', async () => {
+    // Phase 7: removed the jobTail() truncation. Full job number is
+    // printed and wrapped via ^FB across up to 3 lines.
     const zpl = await renderZpl({ ...SAMPLE, jobNumber: '2026-04-VeryLongCustomerName-007' }, 'https://example.com');
-    // last segment after final '-' should be present; full string need not be
-    expect(zpl).toContain('007');
+    expect(zpl).toContain('2026-04-VeryLongCustomerName-0');  // first 30 chars of the 32-char input
+  });
+  it('truncates job numbers longer than 30 characters', async () => {
+    const long = 'A'.repeat(35);
+    const zpl = await renderZpl({ ...SAMPLE, jobNumber: long }, 'https://example.com');
+    expect(zpl).toContain('A'.repeat(30));
+    expect(zpl).not.toContain('A'.repeat(31));
+  });
+  it('uses ^FB with 3-line max on the job line so freeform names can wrap', async () => {
+    const zpl = await renderZpl(SAMPLE, 'https://example.com');
+    expect(zpl).toContain('^FB220,3,0,L,0');
   });
   it('print width 406 and label length 203 for 2x1 inch at 203 dpi', async () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
