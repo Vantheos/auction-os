@@ -18,6 +18,9 @@ import { BulkChangeStateDialog } from '@/components/bulk/BulkChangeStateDialog';
 import { BulkMoveDialog } from '@/components/bulk/BulkMoveDialog';
 import { BulkDeleteDialog } from '@/components/bulk/BulkDeleteDialog';
 import { BulkResetAiDialog } from '@/components/bulk/BulkResetAiDialog';
+import { BulkReprintDialog } from '@/components/bulk/BulkReprintDialog';
+import { BulkPrintVerifyDialog } from '@/components/labels/BulkPrintVerifyDialog';
+import { useBulkLabelPrint } from '@/hooks/useBulkLabelPrint';
 import { JobExportButton } from '@/components/jobs/JobExportButton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -100,7 +103,14 @@ export function Inventory() {
     : null;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'reset-ai' | null>(null);
+  const [bulkDialog, setBulkDialog] = useState<'change-state' | 'move' | 'delete' | 'reset-ai' | 'reprint' | null>(null);
+  // Phase 7: bulk-label-print orchestration. The hook owns the static
+  // "Sending N labels…" toast; on resolve we open the verify dialog with
+  // the {sent, failed} counts so the operator knows to inspect the stack.
+  const bulkPrint = useBulkLabelPrint();
+  const [verifyDialog, setVerifyDialog] = useState<{ open: boolean; sent: number; failed: number }>({
+    open: false, sent: 0, failed: 0,
+  });
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [lotEditDirty, setLotEditDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -254,6 +264,7 @@ export function Inventory() {
             onMove={() => setBulkDialog('move')}
             onChangeState={() => setBulkDialog('change-state')}
             onResetAi={() => setBulkDialog('reset-ai')}
+            onReprint={() => setBulkDialog('reprint')}
             onDelete={() => setBulkDialog('delete')}
           />
         </div>
@@ -331,13 +342,28 @@ export function Inventory() {
         open={bulkDialog === 'move'}
         onClose={() => setBulkDialog(null)}
         count={selected.size}
-        busy={bulk.isPending}
-        onConfirm={async (destinationJobId) => {
+        busy={bulk.isPending || bulkPrint.isPending}
+        onConfirm={async (destinationJobId, reprint) => {
           try {
             const r = await bulk.mutateAsync({ action: 'move', lotIds: [...selected], params: { destinationJobId } });
             summarizeBulk(r.results);
             setSelected(new Set(r.results.filter((x) => !x.ok).map((x) => x.id)));
             setBulkDialog(null);
+            // Phase 7: convenience accelerator — server already flagged
+            // every successfully-moved lot for reprint. If the operator left
+            // the checkbox checked, fan out the actual print jobs serially
+            // so they don't have to chase the Reprint pending filter.
+            if (reprint) {
+              const successfulIds = r.results.filter((x) => x.ok).map((x) => x.id);
+              if (successfulIds.length > 0) {
+                try {
+                  const result = await bulkPrint.mutateAsync(successfulIds);
+                  setVerifyDialog({ open: true, sent: result.sentCount, failed: result.failedCount });
+                } catch {
+                  // NO_HELPER_URL — bulkPrint hook already toasted; skip verify
+                }
+              }
+            }
           } catch (err) {
             toast({
               title: 'Bulk assign failed',
@@ -386,6 +412,31 @@ export function Inventory() {
             });
           }
         }}
+      />
+      {/* Phase 7: bulk reprint affordance. Confirmation dialog opens the
+          serial useBulkLabelPrint loop, then the verify popup. */}
+      <BulkReprintDialog
+        open={bulkDialog === 'reprint'}
+        onClose={() => setBulkDialog(null)}
+        count={selected.size}
+        busy={bulkPrint.isPending}
+        onConfirm={async () => {
+          try {
+            const ids = [...selected];
+            const result = await bulkPrint.mutateAsync(ids);
+            setVerifyDialog({ open: true, sent: result.sentCount, failed: result.failedCount });
+            setBulkDialog(null);
+          } catch {
+            // NO_HELPER_URL — hook toasted; just close.
+            setBulkDialog(null);
+          }
+        }}
+      />
+      <BulkPrintVerifyDialog
+        open={verifyDialog.open}
+        onClose={() => setVerifyDialog((v) => ({ ...v, open: false }))}
+        sentCount={verifyDialog.sent}
+        failedCount={verifyDialog.failed}
       />
     </div>
   );

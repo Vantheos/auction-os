@@ -15,7 +15,10 @@ export type ToastInput = {
 type ToastEntry = ToastInput & { id: number };
 
 type Ctx = {
-  toast: (t: ToastInput) => void;
+  // Returns the toast's id so callers can dismiss it specifically (used by
+  // long-running operations like bulk-label print that show a "Sending N
+  // labels…" toast for the duration of an async loop).
+  toast: (t: ToastInput) => number;
   dismiss: (id: number) => void;
   // Clear ALL active toasts. Called on sign-out so user-creation password
   // toasts (and any other persistent ones) don't survive into the next
@@ -42,6 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     if (ms > 0) {
       setTimeout(() => dismiss(id), ms);
     }
+    return id;
   }, [dismiss]);
   return <ToastCtx.Provider value={{ toast, dismiss, clearAll, toasts }}>{children}</ToastCtx.Provider>;
 }
