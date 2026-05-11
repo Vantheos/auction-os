@@ -30,13 +30,17 @@ async function call(body: unknown): Promise<CallResult<any>> {
 describe('POST /api/labels/render', () => {
   beforeEach(async () => { await truncateAll(); });
 
-  it('returns ZPL for a known lot', async () => {
+  it('returns ZPL for a known lot — "Lot" word + lot number on separate lines, no customer/job text', async () => {
     const lotId = await seed();
     const res = await call({ lotId });
     expect(res.status).toBe(200);
     expect(res.body.zpl).toContain('^XA');
-    expect(res.body.zpl).toContain('Lot 13');
-    expect(res.body.zpl).toContain('Smith Estate');
+    // Phase 7 final round: "Lot" and the number are separate fields.
+    expect(res.body.zpl).toContain('^FDLot^FS');
+    expect(res.body.zpl).toContain('^FD13^FS');
+    // Customer + job text no longer printed.
+    expect(res.body.zpl).not.toContain('Smith Estate');
+    expect(res.body.zpl).not.toContain('2026-04-Smith-001');
   });
 
   it('clears label_reprint_needed when set on the rendered lot', async () => {

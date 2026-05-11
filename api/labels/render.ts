@@ -43,11 +43,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return jsonError(res, 422, 'NOT_LABELLABLE', 'Lot has no auction assignment to label');
     }
 
+    // Phase 7 final round: customer name + job number are no longer printed
+    // on the label, but we still gate label rendering on their presence
+    // (above) — a lot without a proper customer/job assignment isn't ready
+    // to print regardless of what the label visually contains.
     const zpl = await renderZpl({
       id: row.lot.id,
       lotNumber: row.lot.lotNumber,
-      customerName: row.customerName,
-      jobNumber: row.jobNumber,
     }, deployHost());
 
     // Operator initiated a label render — assume they intend to print.

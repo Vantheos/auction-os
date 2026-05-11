@@ -4,8 +4,6 @@ import { renderZpl, type LabelLot } from '../../api/_lib/label-render';
 const SAMPLE: LabelLot = {
   id: '11111111-1111-1111-1111-111111111111',
   lotNumber: 13,
-  customerName: 'Smith Estate',
-  jobNumber: '2026-04-Smith-001',
 };
 
 describe('renderZpl', () => {
@@ -14,39 +12,44 @@ describe('renderZpl', () => {
     expect(zpl.startsWith('^XA')).toBe(true);
     expect(zpl.trimEnd().endsWith('^XZ')).toBe(true);
   });
-  it('contains the lot number', async () => {
+
+  // Phase 7 final round: label is now QR + "Lot" word + lot number only.
+  // Customer name + job number lines were dropped at the customer's request.
+  it('renders the "Lot" word on its own line', async () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
-    expect(zpl).toContain('Lot 13');
+    expect(zpl).toContain('^FDLot^FS');
   });
-  it('contains the customer name', async () => {
+
+  it('renders the lot number on its own line, not embedded with "Lot"', async () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
-    expect(zpl).toContain('Smith Estate');
+    expect(zpl).toContain('^FD13^FS');
+    expect(zpl).not.toContain('Lot 13');
   });
+
+  it('uses the 55x55 character cell on both rows so 4-digit lot numbers fit (4 × 55 = 220 ≤ 221 dot text width)', async () => {
+    const zpl = await renderZpl(SAMPLE, 'https://example.com');
+    // Both lines should use ^A0N,55,55 — assert the substring appears at least twice
+    const matches = zpl.match(/\^A0N,55,55/g);
+    expect(matches?.length).toBe(2);
+  });
+
+  it('does not include any customer or job text on the label', async () => {
+    const zpl = await renderZpl(SAMPLE, 'https://example.com');
+    // No ^FB field-block directives any more (no wrapped lines).
+    expect(zpl).not.toContain('^FB');
+  });
+
   it('contains a QR field encoding the deploy host + lot id', async () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
     expect(zpl).toContain('https://example.com/lot/11111111-1111-1111-1111-111111111111');
   });
-  it('contains the full job number (wrapped, not tail-truncated) up to 30 chars', async () => {
-    // Phase 7: removed the jobTail() truncation. Full job number is
-    // printed and wrapped via ^FB across up to 3 lines.
-    const zpl = await renderZpl({ ...SAMPLE, jobNumber: '2026-04-VeryLongCustomerName-007' }, 'https://example.com');
-    expect(zpl).toContain('2026-04-VeryLongCustomerName-0');  // first 30 chars of the 32-char input
-  });
-  it('truncates job numbers longer than 30 characters', async () => {
-    const long = 'A'.repeat(35);
-    const zpl = await renderZpl({ ...SAMPLE, jobNumber: long }, 'https://example.com');
-    expect(zpl).toContain('A'.repeat(30));
-    expect(zpl).not.toContain('A'.repeat(31));
-  });
-  it('uses ^FB with 3-line max on the job line so freeform names can wrap', async () => {
-    const zpl = await renderZpl(SAMPLE, 'https://example.com');
-    expect(zpl).toContain('^FB220,3,0,L,0');
-  });
+
   it('print width 406 and label length 203 for 2x1 inch at 203 dpi', async () => {
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
     expect(zpl).toContain('^PW406');
     expect(zpl).toContain('^LL203');
   });
+
   // Pin the QR magnification choice. Phase 7 bench testing surfaced that
   // magnification 5 (the Phase 2 default) overflowed the 1" label height
   // when encoding the long Vercel preview URL. Magnification 3 keeps the
