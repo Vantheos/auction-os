@@ -26,9 +26,11 @@ describe('renderZpl', () => {
     expect(zpl).not.toContain('Lot 13');
   });
 
-  it('uses the 55x55 character cell on both rows so 4-digit lot numbers fit (4 × 55 = 220 ≤ 221 dot text width)', async () => {
+  it('uses the 55x55 character cell on both rows', async () => {
+    // Cell width sets spacing but A0N glyphs render proportionally inside,
+    // so 4-digit numbers fit comfortably despite 4 × 55 = 220 dots looking
+    // tight against the 221-dot label-edge math.
     const zpl = await renderZpl(SAMPLE, 'https://example.com');
-    // Both lines should use ^A0N,55,55 — assert the substring appears at least twice
     const matches = zpl.match(/\^A0N,55,55/g);
     expect(matches?.length).toBe(2);
   });
